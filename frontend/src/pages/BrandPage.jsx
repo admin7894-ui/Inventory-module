@@ -8,7 +8,7 @@ import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, Con
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
   inventoryOrgApi, subinventoryApi, locatorApi, itemMasterApi, uomApi, uomTypeApi,
-  itemCategoryApi, itemSubCategoryApi, itemTypeApi, zoneApi,
+  itemCategoryApi, itemSubCategoryApi, brandApi, itemTypeApi, zoneApi,
   lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
   categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,

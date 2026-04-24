@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, useLocation, useLocation } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
@@ -27,11 +27,18 @@ const COLUMNS = [
 
 export default function StockAdjustmentPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const table = useTableData(stockAdjustmentApi, 'stock_adjustment')
   const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+
+  useEffect(() => {
+    if (location.pathname === '/stock-adjustment/new') {
+      setView('create')
+    }
+  }, [location.pathname])
 
   // Load all needed dropdowns
   const companies = []
@@ -90,17 +97,20 @@ export default function StockAdjustmentPage() {
   const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
 
+  const adjustmentValue = Number(formData.adjustment_qty || 0) * Number(formData.unit_cost || 0)
+
   const handleSubmit = async (e) => {
     if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
       return toast.error('Please select Company, Business Group and Business Type')
     }
 
     e.preventDefault()
+    const payload = { ...formData, adjustment_value: adjustmentValue }
     try {
       if (view === 'edit') {
-        await table.update(selected['adjustment_id'], formData)
+        await table.update(selected['adjustment_id'], payload)
       } else {
-        await table.create(formData)
+        await table.create(payload)
       }
       handleBack()
     } catch {}
@@ -131,7 +141,7 @@ export default function StockAdjustmentPage() {
       <Field label="Physical Qty"><Input type="number" step="any"  value={formData.physical_qty} onChange={e => setField('physical_qty',e.target.value)} /></Field>
       <Field label="Adjustment Qty"><Input type="number" step="any"  value={formData.adjustment_qty} onChange={e => setField('adjustment_qty',e.target.value)} /></Field>
       <Field label="Unit Cost"><Input type="number" step="any"  value={formData.unit_cost} onChange={e => setField('unit_cost',e.target.value)} /></Field>
-      <Field label="Adjustment Value = Adjustment Qty × Unit Cost"><Input value={formData.adjustment_value = adjustment_qty * unit_cost} onChange={e => setField('adjustment_value = adjustment_qty × unit_cost',e.target.value)} /></Field>
+      <Field label="Adjustment Value = Adjustment Qty × Unit Cost"><Input value={adjustmentValue} readOnly /></Field>
       <Field label="Transaction Reason"><Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id',v)} options={dropdowns.transactionReason?.map(r=>{return{value:r.txn_reason_id,label:r.txn_reason||r.txn_reason_id}})} /></Field>
       <Field label="Adjustment Date"><DateInput value={formData.adjustment_date} onChange={v => setField('adjustment_date',v)} /></Field>
       <Field label="Approved By"><Input value={formData.approved_by} onChange={e => setField('approved_by',e.target.value)} /></Field>

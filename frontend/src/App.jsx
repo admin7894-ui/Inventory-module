@@ -131,9 +131,15 @@ function AppRoutes() {
       <Route path="/item-stock"              element={<ProtectedRoute><ItemStockPage /></ProtectedRoute>} />
       <Route path="/stock-ledger"            element={<ProtectedRoute><StockLedgerPage /></ProtectedRoute>} />
       <Route path="/stock-adjustment"        element={<ProtectedRoute><StockAdjustmentPage /></ProtectedRoute>} />
+      <Route path="/stock-adjustment/new"    element={<ProtectedRoute><StockAdjustmentPage /></ProtectedRoute>} />
       <Route path="/batch-serial-tracking"   element={<ProtectedRoute><BatchSerialTrackingPage /></ProtectedRoute>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={
+        <div className="text-center py-24 text-gray-600 dark:text-gray-300">
+          <h1 className="text-2xl font-semibold">Page Not Found</h1>
+          <p className="mt-2">The page you are looking for does not exist.</p>
+        </div>
+      } />
     </Routes>
   )
 }
