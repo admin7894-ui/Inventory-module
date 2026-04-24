@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
+import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 import { intercompanyApi } from '../services/api'
 import {
@@ -32,9 +34,9 @@ export default function IntercompanyPage() {
   const [formData, setFormData] = useState({})
 
   // Load all needed dropdowns
-  const { options: companies }        = useDropdownData(companyApi, 'company_dd')
-  const { options: businessGroups }   = useDropdownData(businessGroupApi, 'bg_dd')
-  const { options: businessTypes }    = useDropdownData(businessTypeApi, 'bt_dd')
+  const companies = []
+  const businessGroups = []
+  const businessTypes = []
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -89,6 +91,10 @@ export default function IntercompanyPage() {
   const handleBack = () => { setView('list'); setSelected(null) }
 
   const handleSubmit = async (e) => {
+    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
+      return toast.error('Please select Company, Business Group and Business Type')
+    }
+
     e.preventDefault()
     try {
       if (view === 'edit') {
@@ -112,7 +118,7 @@ export default function IntercompanyPage() {
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <Field label="Interco Id (Auto-gen)"><Input value={formData.interco_id} readOnly /></Field>
-      <Field label="Company"><Select value={formData.COMPANY_id} onChange={v => setField('COMPANY_id',v)} options={dropdowns.company?.map(r=>{return{value:r.company_id,label:r.company_name||r.company_id}})} /></Field>
+      <CompanyGroup formData={formData} setField={setField} />
       <Field label="Ship Ou Id"><Select value={formData.ship_ou_id} onChange={v => setField('ship_ou_id',v)} options={dropdowns.operatingUnit?.map(r=>{return{value:r.op_id,label:r.ou_name||r.op_id}})} /></Field>
       <Field label="Sell Ou Id"><Select value={formData.sell_ou_id} onChange={v => setField('sell_ou_id',v)} options={dropdowns.operatingUnit?.map(r=>{return{value:r.op_id,label:r.ou_name||r.op_id}})} /></Field>
       <Field label="Relation Type"><Select value={formData.relation_type} onChange={v => setField('relation_type',v)} options={["Internal","External"]} /></Field>

@@ -200,6 +200,7 @@ const db = {
   business_type: [
   {
     "business_type_id": "BT01",
+    "COMPANY_id": "C01",
     "name": "Retail",
     "departments_id": "D03",
     "roles_id": "R04",
@@ -212,6 +213,7 @@ const db = {
   },
   {
     "business_type_id": "BT02",
+    "COMPANY_id": "C02",
     "name": "Warehouse Ops",
     "departments_id": "D02",
     "roles_id": "R03",
@@ -224,6 +226,7 @@ const db = {
   },
   {
     "business_type_id": "BT03",
+    "COMPANY_id": "C03",
     "name": "Finance",
     "departments_id": "D01",
     "roles_id": "R02",

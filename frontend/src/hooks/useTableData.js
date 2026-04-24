@@ -60,10 +60,10 @@ export function useTableData(api, queryKey) {
 }
 
 // For dropdown data
-export function useDropdownData(api, queryKey, enabled = true) {
+export function useDropdownData(api, queryKey, filters = {}, enabled = true) {
   const { data, isLoading } = useQuery({
-    queryKey: [queryKey, 'all'],
-    queryFn: () => api.getAll({ limit: 1000, active_flag: 'Y' }),
+    queryKey: [queryKey, 'all', filters],
+    queryFn: () => api.getAll({ limit: 1000, active_flag: 'Y', ...filters }),
     enabled,
     staleTime: 60000,
   })
