@@ -19,7 +19,7 @@ exports.getById = (req, res) => {
 
 function autoCreateTransaction(adj, user) {
   const txnCtrl = require('./inventoryTransaction');
-  const isTransfer = adj.transfer_flag === 'Y' || adj.transfer_flag === true || adj.txn_type_id === 'TT03'; // Assuming TT03 is TRANSFER
+  const isTransfer = adj.txn_action === 'TRANSFER' || adj.transfer_flag === 'Y' || adj.txn_type_id === 'TT03';
 
   if (isTransfer) {
     // 1. OUT Transaction (Source)
@@ -108,7 +108,7 @@ exports.create = (req, res) => {
     const body = { ...req.body };
     if (!body.adjustment_id) body.adjustment_id = generateId('stock_adjustment');
     
-    const isTransfer = body.transfer_flag === 'Y' || body.transfer_flag === true || body.txn_type_id === 'TT03';
+    const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
     
     if (isTransfer) {
       // Validation: Ship Network must exist
@@ -122,6 +122,23 @@ exports.create = (req, res) => {
 
       if (!body.to_inv_org_id || !body.to_subinventory_id) {
         return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
+      }
+
+      if (body.inv_org_id === body.to_inv_org_id) {
+        return res.status(400).json({ success: false, message: 'Source and Destination Organizations must be different for transfers' });
+      }
+
+      // Check availability in source
+      const stock = (db.item_stock || []).find(s => 
+        s.item_id === body.item_id && 
+        s.inv_org_id === body.inv_org_id && 
+        s.subinventory_id === body.subinventory_id &&
+        (s.locator_id || '') === (body.locator_id || '') &&
+        (s.lot_id || '') === (body.lot_id || '') &&
+        (s.serial_id || '') === (body.serial_id || '')
+      );
+      if (!stock || parseFloat(stock.on_hand_qty) < Math.abs(parseFloat(body.adjustment_qty))) {
+        return res.status(400).json({ success: false, message: 'Insufficient stock in source location' });
       }
 
       body.adjustment_qty = Math.abs(parseFloat(body.adjustment_qty || 0));
@@ -154,7 +171,7 @@ exports.update = (req, res) => {
     const prev = db.stock_adjustment[idx];
     const updated = { ...prev, ...req.body, adjustment_id: req.params.id, updated_by: req.user?.username || MOCK_USER, updated_at: new Date().toISOString() };
     
-    const isTransfer = updated.transfer_flag === 'Y' || updated.transfer_flag === true || updated.txn_type_id === 'TT03';
+    const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y' || updated.txn_type_id === 'TT03';
     
     if (isTransfer) {
       // Validation: Ship Network must exist
@@ -168,6 +185,23 @@ exports.update = (req, res) => {
 
       if (!updated.to_inv_org_id || !updated.to_subinventory_id) {
         return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
+      }
+
+      if (updated.inv_org_id === updated.to_inv_org_id) {
+        return res.status(400).json({ success: false, message: 'Source and Destination Organizations must be different for transfers' });
+      }
+
+      // Check availability in source
+      const stock = (db.item_stock || []).find(s => 
+        s.item_id === updated.item_id && 
+        s.inv_org_id === updated.inv_org_id && 
+        s.subinventory_id === updated.subinventory_id &&
+        (s.locator_id || '') === (updated.locator_id || '') &&
+        (s.lot_id || '') === (updated.lot_id || '') &&
+        (s.serial_id || '') === (updated.serial_id || '')
+      );
+      if (!stock || parseFloat(stock.on_hand_qty) < Math.abs(parseFloat(updated.adjustment_qty))) {
+        return res.status(400).json({ success: false, message: 'Insufficient stock in source location' });
       }
 
       updated.adjustment_qty = Math.abs(parseFloat(updated.adjustment_qty || 0));
