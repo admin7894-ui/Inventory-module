@@ -123,8 +123,14 @@ export default function SerialMasterPage() {
       <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
       <Field label="Serial Number"><Input value={formData.serial_number} onChange={e => setField('serial_number',e.target.value)} /></Field>
       <Field label="Status"><Input value={formData.status} onChange={e => setField('status',e.target.value)} /></Field>
-      <Field label="Current Subinventory Id"><Input value={formData.current_subinventory_id} onChange={e => setField('current_subinventory_id',e.target.value)} /></Field>
-      <Field label="Current Locator Id"><Input value={formData.current_locator_id} onChange={e => setField('current_locator_id',e.target.value)} /></Field>
+      <Field label="Current Subinventory Id"><Select value={formData.current_subinventory_id} onChange={v => setField('current_subinventory_id',v)} options={dropdowns.subinventory?.map(r => ({
+      value: r.subinventory_id,
+      label: r.subinventory_name || r.subinventory_id
+    }))} /></Field>
+      <Field label="Current Locator Id"><Select value={formData.current_locator_id} onChange={v => setField('current_locator_id',v)} options={dropdowns.locator?.map(r => ({
+      value: r.locator_id,
+      label: r.locator_name || r.locator_id
+    }))}/></Field>
       <Field label="Lot"><Select value={formData.lot_id} onChange={v => setField('lot_id',v)} options={dropdowns.lotMaster?.map(r=>{return{value:r.lot_id,label:r.lot_number||r.lot_id}})} /></Field>
       <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>

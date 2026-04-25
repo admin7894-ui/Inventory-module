@@ -36,53 +36,53 @@ export default function ZonePage() {
   const companies = []
   const businessGroups = []
   const businessTypes = []
-  const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
-  const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
-  const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
-  const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
-  const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
-  const { options: uoms }             = useDropdownData(uomApi, 'uom_dd')
-  const { options: uomTypes }         = useDropdownData(uomTypeApi, 'uomt_dd')
-  const { options: itemCategories }   = useDropdownData(itemCategoryApi, 'cat_dd')
-  const { options: itemSubCategories }= useDropdownData(itemSubCategoryApi, 'scat_dd')
-  const { options: brands }           = useDropdownData(brandApi, 'brand_dd')
-  const { options: itemTypes }        = useDropdownData(itemTypeApi, 'itype_dd')
-  const { options: zones }            = useDropdownData(zoneApi, 'zone_dd')
-  const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
-  const { options: serials }          = useDropdownData(serialMasterApi, 'serial_dd')
-  const { options: txnTypes }         = useDropdownData(transactionTypeApi, 'txntype_dd')
-  const { options: txnReasons }       = useDropdownData(transactionReasonApi, 'txnrsn_dd')
-  const { options: categorySets }     = useDropdownData(categorySetApi, 'catset_dd')
-  const { options: costMethods }      = useDropdownData(costMethodApi, 'cm_dd')
-  const { options: costTypes }        = useDropdownData(costTypeApi, 'ct_dd')
-  const { options: shipMethods }      = useDropdownData(shipMethodApi, 'sm_dd')
-  const { options: legalEntities }    = useDropdownData(legalEntityApi, 'le_dd')
-  const { options: operatingUnits }   = useDropdownData(operatingUnitApi, 'ou_dd')
+  const { options: locations } = useDropdownData(locationApi, 'loc_dd')
+  const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
+  const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
+  const { options: subinventories } = useDropdownData(subinventoryApi, 'sub_dd')
+  const { options: locators } = useDropdownData(locatorApi, 'loc2_dd')
+  const { options: items } = useDropdownData(itemMasterApi, 'item_dd')
+  const { options: uoms } = useDropdownData(uomApi, 'uom_dd')
+  const { options: uomTypes } = useDropdownData(uomTypeApi, 'uomt_dd')
+  const { options: itemCategories } = useDropdownData(itemCategoryApi, 'cat_dd')
+  const { options: itemSubCategories } = useDropdownData(itemSubCategoryApi, 'scat_dd')
+  const { options: brands } = useDropdownData(brandApi, 'brand_dd')
+  const { options: itemTypes } = useDropdownData(itemTypeApi, 'itype_dd')
+  const { options: zones } = useDropdownData(zoneApi, 'zone_dd')
+  const { options: lots } = useDropdownData(lotMasterApi, 'lot_dd')
+  const { options: serials } = useDropdownData(serialMasterApi, 'serial_dd')
+  const { options: txnTypes } = useDropdownData(transactionTypeApi, 'txntype_dd')
+  const { options: txnReasons } = useDropdownData(transactionReasonApi, 'txnrsn_dd')
+  const { options: categorySets } = useDropdownData(categorySetApi, 'catset_dd')
+  const { options: costMethods } = useDropdownData(costMethodApi, 'cm_dd')
+  const { options: costTypes } = useDropdownData(costTypeApi, 'ct_dd')
+  const { options: shipMethods } = useDropdownData(shipMethodApi, 'sm_dd')
+  const { options: legalEntities } = useDropdownData(legalEntityApi, 'le_dd')
+  const { options: operatingUnits } = useDropdownData(operatingUnitApi, 'ou_dd')
   const { options: securityProfiles } = useDropdownData(securityProfileApi, 'sp_dd')
-  const { options: profileAccesses }  = useDropdownData(profileAccessApi, 'pa_dd')
-  const { options: securityRolesList }= useDropdownData(securityRolesApi, 'sr_dd')
-  const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
-  const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
-  const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
+  const { options: profileAccesses } = useDropdownData(profileAccessApi, 'pa_dd')
+  const { options: securityRolesList } = useDropdownData(securityRolesApi, 'sr_dd')
+  const { options: depts } = useDropdownData(departmentsApi, 'dept_dd')
+  const { options: rolesList } = useDropdownData(rolesApi, 'roles_dd')
+  const { options: designations } = useDropdownData(designationApi, 'desig_dd')
 
   const dropdowns = {
-    company:companies, businessGroup:businessGroups, businessType:businessTypes,
-    location:locations, module:modules, inventoryOrg:inventoryOrgs,
-    subinventory:subinventories, locator:locators, itemMaster:items,
-    uom:uoms, uomType:uomTypes, itemCategory:itemCategories, itemSubCategory:itemSubCategories,
-    brand:brands, itemType:itemTypes, zone:zones, lotMaster:lots, serialMaster:serials,
-    transactionType:txnTypes, transactionReason:txnReasons, categorySet:categorySets,
-    costMethod:costMethods, costType:costTypes, shipMethod:shipMethods,
-    legalEntity:legalEntities, operatingUnit:operatingUnits,
-    securityProfile:securityProfiles, profileAccess:profileAccesses,
-    securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
+    company: companies, businessGroup: businessGroups, businessType: businessTypes,
+    location: locations, module: modules, inventoryOrg: inventoryOrgs,
+    subinventory: subinventories, locator: locators, itemMaster: items,
+    uom: uoms, uomType: uomTypes, itemCategory: itemCategories, itemSubCategory: itemSubCategories,
+    brand: brands, itemType: itemTypes, zone: zones, lotMaster: lots, serialMaster: serials,
+    transactionType: txnTypes, transactionReason: txnReasons, categorySet: categorySets,
+    costMethod: costMethods, costType: costTypes, shipMethod: shipMethods,
+    legalEntity: legalEntities, operatingUnit: operatingUnits,
+    securityProfile: securityProfiles, profileAccess: profileAccesses,
+    securityRoles: securityRolesList, departments: depts, roles: rolesList, designation: designations,
   }
 
   const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setFormData({ active_flag: 'Y', effective_from: new Date().toISOString().split('T')[0] })
     setView('create')
   }
   const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
@@ -102,7 +102,7 @@ export default function ZonePage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch { }
   }
 
   const handleDelete = async () => {
@@ -112,22 +112,22 @@ export default function ZonePage() {
 
   if (view !== 'list') {
     return (
-      <FormPage title={view==='view'?`View Zone`:view==='edit'?`Edit Zone`:`New Zone`}
-        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+      <FormPage title={view === 'view' ? `View Zone` : view === 'edit' ? `Edit Zone` : `New Zone`}
+        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}>
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Zone Id (Auto-gen)"><Input value={formData.zone_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Zone Id (Auto-gen)"><Input value={formData.zone_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} />
 
-      <Field label="Zone Code"><Input value={formData.zone_code} onChange={e => setField('zone_code',e.target.value)} /></Field>
-      <Field label="Zone Name"><Input value={formData.zone_name} onChange={e => setField('zone_name',e.target.value)} /></Field>
-      <Field label="Zone Type"><Input value={formData.zone_type} onChange={e => setField('zone_type',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Zone Code"><Input value={formData.zone_code} onChange={e => setField('zone_code', e.target.value)} /></Field>
+            <Field label="Zone Name"><Input value={formData.zone_name} onChange={e => setField('zone_name', e.target.value)} /></Field>
+            <Field label="Zone Type"><Select value={formData.zone_type} onChange={v => setField('zone_type', v)} options={["STORAGE", "COLD", "GENERAL"]} /></Field>
+            <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id', v)} options={dropdowns.module?.map(r => { return { value: r.module_id, label: r.module_name || r.module_id } })} /></Field>
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
+            <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from', v)} /></Field>
+            <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to', v)} /></Field>
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )
@@ -150,7 +150,7 @@ export default function ZonePage() {
         sortBy={table.sortBy}
         sortOrder={table.sortOrder}
         onCreate={handleCreate}
-        actions={{ onView:handleView, onEdit:handleEdit, onDelete:setConfirmDelete }}
+        actions={{ onView: handleView, onEdit: handleEdit, onDelete: setConfirmDelete }}
       />
       <ConfirmDialog
         open={!!confirmDelete}
