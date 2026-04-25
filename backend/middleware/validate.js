@@ -4,6 +4,7 @@ const PATTERNS = {
   // IDs
   bg_id: /^BG\d{2,5}$/,
   company_id: /^C\d{2,5}$/,
+  business_type_id: /^BT\d{2,5}$/,
   item_id: /^ITEM-\d{3,6}$/,
   txn_id: /^TXN\d{2,5}$/,
   stock_id: /^STK-\d{3,6}$/,
@@ -19,13 +20,13 @@ const PATTERNS = {
   // Fields
   PAN: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
   GST: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-  item_code: /^[A-Z0-9-]{3,30}$/,
-  calendar_code: /^[A-Z0-9]{3,10}$/,
+  item_code: /^[a-zA-Z0-9-]{3,30}$/,
+  calendar_code: /^[a-zA-Z0-9]{3,10}$/,
   active_flag: /^(Y|N)$/,
-  effective_from: /^\d{4}-\d{2}-\d{2}$/,
-  effective_to: /^(\d{4}-\d{2}-\d{2})?$/,
+  effective_from: /^\d{2,4}[-/]\d{1,2}[-/]\d{2,4}(\s.*)?$/,
+  effective_to: /^(\d{2,4}[-/]\d{1,2}[-/]\d{2,4}(\s.*)?)?$/,
   hsn_code: /^[0-9]{6,8}$/,
-  reference_no: /^[A-Z0-9-]{3,30}$/,
+  reference_no: /^[a-zA-Z0-9-]{3,30}$/,
   fiscal_year: /^FY\d{4}$/,
   period_name: /^[A-Z]{3}-\d{4}$/,
 };

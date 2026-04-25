@@ -41,18 +41,49 @@ export default function TransactionTypePage() {
   const [isUsed, setIsUsed] = useState(false)
 
   // Load all needed dropdowns
-  const companies = []
-  const businessGroups = []
-  const businessTypes = []
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  // ... other dropdowns ...
+  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
+  const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
+  const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
+  const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
+  const { options: uoms }             = useDropdownData(uomApi, 'uom_dd')
+  const { options: uomTypes }         = useDropdownData(uomTypeApi, 'uomt_dd')
+  const { options: itemCategories }   = useDropdownData(itemCategoryApi, 'cat_dd')
+  const { options: itemSubCategories }= useDropdownData(itemSubCategoryApi, 'scat_dd')
+  const { options: brands }           = useDropdownData(brandApi, 'brand_dd')
+  const { options: itemTypes }        = useDropdownData(itemTypeApi, 'itype_dd')
+  const { options: zones }            = useDropdownData(zoneApi, 'zone_dd')
+  const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
+  const { options: serials }          = useDropdownData(serialMasterApi, 'serial_dd')
+  const { options: txnTypes }         = useDropdownData(transactionTypeApi, 'txntype_dd')
+  const { options: txnReasons }       = useDropdownData(transactionReasonApi, 'txnrsn_dd')
+  const { options: categorySets }     = useDropdownData(categorySetApi, 'catset_dd')
+  const { options: costMethods }      = useDropdownData(costMethodApi, 'cm_dd')
+  const { options: costTypes }        = useDropdownData(costTypeApi, 'ct_dd')
+  const { options: shipMethods }      = useDropdownData(shipMethodApi, 'sm_dd')
+  const { options: legalEntities }    = useDropdownData(legalEntityApi, 'le_dd')
+  const { options: operatingUnits }   = useDropdownData(operatingUnitApi, 'ou_dd')
+  const { options: securityProfiles } = useDropdownData(securityProfileApi, 'sp_dd')
+  const { options: profileAccesses }  = useDropdownData(profileAccessApi, 'pa_dd')
+  const { options: securityRolesList }= useDropdownData(securityRolesApi, 'sr_dd')
+  const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
+  const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
+  const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
+
   const { rows: allTransactions } = useTableData(inventoryTransactionApi, 'inventory_transaction')
   const { rows: allLedgers } = useTableData(stockLedgerApi, 'stock_ledger')
 
   const dropdowns = {
-    // ...
-    transactionType: [], // populate if needed
+    location:locations, module:modules, inventoryOrg:inventoryOrgs,
+    subinventory:subinventories, locator:locators, itemMaster:items,
+    uom:uoms, uomType:uomTypes, itemCategory:itemCategories, itemSubCategory:itemSubCategories,
+    brand:brands, itemType:itemTypes, zone:zones, lotMaster:lots, serialMaster:serials,
+    transactionType:txnTypes, transactionReason:txnReasons, categorySet:categorySets,
+    costMethod:costMethods, costType:costTypes, shipMethod:shipMethods,
+    legalEntity:legalEntities, operatingUnit:operatingUnits,
+    securityProfile:securityProfiles, profileAccess:profileAccesses,
+    securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
   useEffect(() => {
@@ -89,6 +120,9 @@ export default function TransactionTypePage() {
       txn_action: [validators.required],
       txn_category: [validators.required],
       COMPANY_id: [validators.required],
+      bg_id: [validators.required],
+      business_type_id: [validators.required],
+      module_id: [validators.required],
       effective_from: [validators.required]
     };
 
@@ -134,7 +168,13 @@ export default function TransactionTypePage() {
         />
         {isUsed && view === 'edit' && <p className="text-xs text-amber-600 mt-1">Cannot change category: record is used in transactions</p>}
       </Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
+      <Field label="Module" error={errors.module_id}>
+        <Select 
+          value={formData.module_id} 
+          onChange={v => setField('module_id',v)} 
+          options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} 
+        />
+      </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From" error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
       <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>

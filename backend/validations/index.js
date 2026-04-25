@@ -20,15 +20,21 @@ const schemas = {
     txn_action: { required: true, lov: LOV.txn_action },
     txn_category: { required: true, lov: LOV.txn_category },
     COMPANY_id: { required: true, pattern: PATTERNS.company_id },
+    bg_id: { required: true, pattern: PATTERNS.bg_id },
+    business_type_id: { required: true, pattern: PATTERNS.business_type_id },
+    module_id: { required: true },
     active_flag: { required: true, lov: LOV.active_flag }
   },
   stock_adjustment: {
     item_id: { required: true, pattern: PATTERNS.item_id },
     inv_org_id: { required: true },
+    subinventory_id: { required: true },
     adjustment_qty: { required: true, numeric: true },
     unit_cost: { required: true, numeric: true, positive: true },
     adjustment_date: { required: true },
-    COMPANY_id: { required: true, pattern: PATTERNS.company_id }
+    COMPANY_id: { required: true, pattern: PATTERNS.company_id },
+    bg_id: { required: true, pattern: PATTERNS.bg_id },
+    business_type_id: { required: true, pattern: PATTERNS.business_type_id }
   },
   // Default schema for any table to ensure common fields
   default: {
