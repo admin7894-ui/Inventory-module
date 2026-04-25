@@ -22,7 +22,7 @@ const COLUMNS = [
   { key: 'bg_id', label: 'Bg Id' },
   { key: 'txn_action', label: 'Txn Action' },
   { key: 'item_id', label: 'Item Id' },
-  { key: 'Dropdown from_inv_org_id', label: 'Dropdown From Inv Org Id' }
+  { key: 'from_inv_org_id', label: 'From Inv Org Id' }
 ]
 
 export default function InventoryTransactionPage() {
@@ -122,7 +122,7 @@ export default function InventoryTransactionPage() {
 
       <Field label="Transaction Action"><Select value={formData.txn_action} onChange={v => setField('txn_action',v)} options={["IN","OUT","TRANSFER","ADJUSTMENT"]} /></Field>
       <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
-      <Field label="Dropdown From Inv Org Id"><Input value={formData.Dropdown.from_inv_org_id} onChange={e => setField('Dropdown from_inv_org_id',e.target.value)} /></Field>
+      <Field label="From Inv Org Id"><Select value={formData.from_inv_org_id} onChange={v => setField('from_inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
       <Field label="From Subinventory Id"><Select value={formData.from_subinventory_id} onChange={v => setField('from_subinventory_id',v)} options={dropdowns.subinventory?.map(r=>{return{value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}})} /></Field>
       <Field label="From Locator Id"><Select value={formData.from_locator_id} onChange={v => setField('from_locator_id',v)} options={dropdowns.locator?.map(r=>{return{value:r.locator_id,label:r.locator_name||r.locator_id}})} /></Field>
       <Field label="To Inv Org Id"><Select value={formData.to_inv_org_id} onChange={v => setField('to_inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
@@ -135,7 +135,7 @@ export default function InventoryTransactionPage() {
       <Field label="Uom Id"><Select value={formData.uom_id} onChange={v => setField('uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}})} /></Field>
       <Field label="Txn Qty"><Input type="number" step="any"  value={formData.txn_qty} onChange={e => setField('txn_qty',e.target.value)} /></Field>
       <Field label="Unit Cost"><Input type="number" step="any"  value={formData.unit_cost} onChange={e => setField('unit_cost',e.target.value)} /></Field>
-      <Field label="Txn Value = Txn Qty × Unit Cost"><Input value={formData.txn_value = txn_qty * unit_cost} onChange={e => setField('txn_value = txn_qty × unit_cost',e.target.value)} /></Field>
+      <Field label="Txn Value"><Input type="number" step="any" value={formData.txn_value} onChange={e => setField('txn_value',e.target.value)} /></Field>
       <Field label="Status"><Select value={formData.txn_status} onChange={v => setField('txn_status',v)} options={["PENDING","COMPLETED","CANCELLED","ON_HOLD"]} /></Field>
       <Field label="Txn Date"><DateInput value={formData.txn_date} onChange={v => setField('txn_date',v)} /></Field>
       <Field label="Reference No"><Input value={formData.reference_no} onChange={e => setField('reference_no',e.target.value)} /></Field>

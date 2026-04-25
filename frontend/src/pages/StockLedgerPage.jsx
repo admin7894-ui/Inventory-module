@@ -128,9 +128,9 @@ export default function StockLedgerPage() {
       <Field label="Transaction Type"><Select value={formData.txn_type_id} onChange={v => setField('txn_type_id',v)} options={dropdowns.transactionType?.map(r=>{return{value:r.txn_type_id,label:r.txn_type_name||r.txn_type_id}})} /></Field>
       <Field label="Dr Qty"><Input type="number" step="any"  value={formData.dr_qty} onChange={e => setField('dr_qty',e.target.value)} /></Field>
       <Field label="Cr Qty"><Input type="number" step="any"  value={formData.cr_qty} onChange={e => setField('cr_qty',e.target.value)} /></Field>
-      <Field label="Balance Qtysystem-Calculated Only"><Input value={formData.balance_qtysystem-calculated_only} onChange={e => setField('balance_qtysystem-calculated only',e.target.value)} /></Field>
+      <Field label="Balance Qty"><Input type="number" step="any" value={formData.balance_qty} onChange={e => setField('balance_qty',e.target.value)} /></Field>
       <Field label="Unit Cost"><Input type="number" step="any"  value={formData.unit_cost} onChange={e => setField('unit_cost',e.target.value)} /></Field>
-      <Field label="Transaction Value ="><Input value={formData.transaction_value } onChange={e => setField('transaction_value =',e.target.value)} /></Field>
+      <Field label="Transaction Value"><Input type="number" step="any" value={formData.transaction_value} onChange={e => setField('transaction_value',e.target.value)} /></Field>
       <Field label="Uom Id"><Select value={formData.uom_id} onChange={v => setField('uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}})} /></Field>
       <Field label="Lot"><Select value={formData.lot_id} onChange={v => setField('lot_id',v)} options={dropdowns.lotMaster?.map(r=>{return{value:r.lot_id,label:r.lot_number||r.lot_id}})} /></Field>
       <Field label="Serial"><Select value={formData.serial_id} onChange={v => setField('serial_id',v)} options={dropdowns.serialMaster?.map(r=>{return{value:r.serial_id,label:r.serial_number||r.serial_id}})} /></Field>
