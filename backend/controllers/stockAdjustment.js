@@ -17,93 +17,18 @@ exports.getById = (req, res) => {
   res.json({ success:true, data:item });
 };
 
-function autoCreateTransaction(adj, user) {
-  const txnCtrl = require('./inventoryTransaction');
-  const isTransfer = adj.txn_action === 'TRANSFER' || adj.transfer_flag === 'Y' || adj.txn_type_id === 'TT03';
+const inventoryEngine = require('../services/inventoryEngine');
 
-  if (isTransfer) {
-    // 1. OUT Transaction (Source)
-    const outTxnBody = {
-      txn_id: generateId('inventory_transaction'),
-      COMPANY_id: adj.COMPANY_id,
-      business_type_id: adj.business_type_id,
-      bg_id: adj.bg_id,
-      item_id: adj.item_id,
-      txn_type_id: adj.txn_type_id,
-      txn_action: 'OUT',
-      from_inv_org_id: adj.inv_org_id,
-      from_subinventory_id: adj.subinventory_id,
-      from_locator_id: adj.locator_id || '',
-      to_inv_org_id: adj.to_inv_org_id,
-      to_subinventory_id: adj.to_subinventory_id,
-      to_locator_id: adj.to_locator_id || '',
-      lot_id: adj.lot_id || '',
-      serial_id: adj.serial_id || '',
-      uom_id: adj.uom_id,
-      txn_qty: Math.abs(parseFloat(adj.adjustment_qty || 0)),
-      unit_cost: adj.unit_cost,
-      txn_value: Math.abs(parseFloat(adj.adjustment_value || 0)),
-      txn_reason_id: adj.txn_reason_id || '',
-      txn_date: adj.adjustment_date,
-      reference_type: 'TRANSFER',
-      reference_id: adj.adjustment_id,
-      reference_no: adj.adjustment_id,
-      txn_status: 'COMPLETED',
-      active_flag: 'Y',
-      created_by: user?.username || 'system',
-      updated_by: user?.username || 'system'
-    };
-    txnCtrl.create({ body: outTxnBody, user: user || { username: 'system' } }, { status: () => ({ json: () => { } }), json: () => { } });
-
-    // 2. IN Transaction (Destination)
-    const inTxnBody = {
-      ...outTxnBody,
-      txn_id: generateId('inventory_transaction'),
-      txn_action: 'IN',
-      // For the IN record, the "current" location is the destination
-      from_inv_org_id: adj.inv_org_id,
-      from_subinventory_id: adj.subinventory_id,
-      from_locator_id: adj.locator_id || '',
-      inv_org_id: adj.to_inv_org_id,
-      subinventory_id: adj.to_subinventory_id,
-      locator_id: adj.to_locator_id || ''
-    };
-    txnCtrl.create({ body: inTxnBody, user: user || { username: 'system' } }, { status: () => ({ json: () => { } }), json: () => { } });
-
-  } else {
-    // Normal Adjustment
-    const txnBody = {
-      txn_id: generateId('inventory_transaction'),
-      COMPANY_id: adj.COMPANY_id,
-      business_type_id: adj.business_type_id,
-      bg_id: adj.bg_id,
-      item_id: adj.item_id,
-      txn_type_id: adj.txn_type_id || 'TT05',
-      txn_action: parseFloat(adj.adjustment_qty || 0) >= 0 ? 'IN' : 'OUT',
-      from_inv_org_id: adj.inv_org_id,
-      from_subinventory_id: adj.subinventory_id,
-      from_locator_id: adj.locator_id || '',
-      lot_id: adj.lot_id || '',
-      serial_id: adj.serial_id || '',
-      uom_id: adj.uom_id,
-      txn_qty: Math.abs(parseFloat(adj.adjustment_qty || 0)),
-      unit_cost: adj.unit_cost,
-      txn_value: Math.abs(parseFloat(adj.adjustment_value || 0)),
-      txn_reason_id: adj.txn_reason_id || '',
-      txn_date: adj.adjustment_date,
-      reference_type: 'ADJUSTMENT',
-      reference_id: adj.adjustment_id,
-      reference_no: adj.adjustment_id,
-      txn_status: 'COMPLETED',
-      active_flag: 'Y',
-      created_by: user?.username || 'system',
-      updated_by: user?.username || 'system'
-    };
-    txnCtrl.create({ body: txnBody, user: user || { username: 'system' } }, { status: () => ({ json: () => { } }), json: () => { } });
+async function autoCreateTransaction(adj, user) {
+  try {
+    await inventoryEngine.processStockAdjustment(adj, user);
+  } catch (e) {
+    console.error('Inventory Engine Error:', e);
+    // In a real DB we would rollback here.
   }
 }
 
-exports.create = (req, res) => {
+exports.create = async (req, res) => {
   try {
     const body = { ...req.body };
     if (!body.adjustment_id) body.adjustment_id = generateId('stock_adjustment');
@@ -112,14 +37,6 @@ exports.create = (req, res) => {
     
     if (isTransfer) {
       // Validation: Ship Network must exist
-      const network = (db.ship_network || []).find(n => 
-        (n['Dropdown from_inv_org_id'] === body.inv_org_id || n['from_inv_org_id'] === body.inv_org_id) && 
-        n.to_inv_org_id === body.to_inv_org_id
-      );
-      if (!network) {
-        return res.status(400).json({ success: false, message: 'Ship Network does not exist for this transfer route' });
-      }
-
       if (!body.to_inv_org_id || !body.to_subinventory_id) {
         return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
       }
@@ -128,8 +45,18 @@ exports.create = (req, res) => {
         return res.status(400).json({ success: false, message: 'Source and Destination Organizations must be different for transfers' });
       }
 
+      // Check Ship Network
+      const network = (db.ship_network || []).find(n => 
+        (n['Dropdown from_inv_org_id'] === body.inv_org_id || n['from_inv_org_id'] === body.inv_org_id) && 
+        n.to_inv_org_id === body.to_inv_org_id &&
+        (n.active_flag === 'Y' || n.active_flag === 'True')
+      );
+      if (!network) {
+        return res.status(400).json({ success: false, message: `Ship Network does not exist between ${body.inv_org_id} and ${body.to_inv_org_id}` });
+      }
+
       // Check availability in source
-      const stock = (db.item_stock || []).find(s => 
+      const stock = (db.item_stock_onhand || []).find(s => 
         s.item_id === body.item_id && 
         s.inv_org_id === body.inv_org_id && 
         s.subinventory_id === body.subinventory_id &&
@@ -137,11 +64,18 @@ exports.create = (req, res) => {
         (s.lot_id || '') === (body.lot_id || '') &&
         (s.serial_id || '') === (body.serial_id || '')
       );
-      if (!stock || parseFloat(stock.on_hand_qty) < Math.abs(parseFloat(body.adjustment_qty))) {
-        return res.status(400).json({ success: false, message: 'Insufficient stock in source location' });
+      
+      const requestedQty = Math.abs(parseFloat(body.adjustment_qty || body.physical_qty || 0));
+      const availableQty = stock ? parseFloat(stock.available_qty || 0) : 0;
+      
+      if (!stock || availableQty < requestedQty) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Insufficient stock. Requested: ${requestedQty}, Available: ${availableQty} at ${body.inv_org_id}/${body.subinventory_id}/${body.locator_id || 'No Locator'}` 
+        });
       }
 
-      body.adjustment_qty = Math.abs(parseFloat(body.adjustment_qty || 0));
+      body.adjustment_qty = requestedQty;
       body.transfer_flag = 'Y';
     } else {
       const adjQty = parseFloat(body.physical_qty || 0) - parseFloat(body.system_qty || 0);
@@ -159,12 +93,12 @@ exports.create = (req, res) => {
     if (!db.stock_adjustment) db.stock_adjustment = [];
     db.stock_adjustment.push(body);
     
-    if (body.approval_status === 'APPROVED') autoCreateTransaction(body, req.user);
+    if (body.approval_status === 'APPROVED') await autoCreateTransaction(body, req.user);
     res.status(201).json({ success: true, data: body, message: 'Stock adjustment saved' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
-exports.update = (req, res) => {
+exports.update = async (req, res) => {
   try {
     const idx = (db.stock_adjustment || []).findIndex(r => r.adjustment_id === req.params.id);
     if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
@@ -174,47 +108,30 @@ exports.update = (req, res) => {
     const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y' || updated.txn_type_id === 'TT03';
     
     if (isTransfer) {
-      // Validation: Ship Network must exist
       const network = (db.ship_network || []).find(n => 
         (n['Dropdown from_inv_org_id'] === updated.inv_org_id || n['from_inv_org_id'] === updated.inv_org_id) && 
-        n.to_inv_org_id === updated.to_inv_org_id
+        n.to_inv_org_id === updated.to_inv_org_id &&
+        (n.active_flag === 'Y' || n.active_flag === 'True')
       );
-      if (!network) {
-        return res.status(400).json({ success: false, message: 'Ship Network does not exist for this transfer route' });
-      }
-
-      if (!updated.to_inv_org_id || !updated.to_subinventory_id) {
-        return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
-      }
-
-      if (updated.inv_org_id === updated.to_inv_org_id) {
-        return res.status(400).json({ success: false, message: 'Source and Destination Organizations must be different for transfers' });
-      }
-
-      // Check availability in source
-      const stock = (db.item_stock || []).find(s => 
-        s.item_id === updated.item_id && 
-        s.inv_org_id === updated.inv_org_id && 
-        s.subinventory_id === updated.subinventory_id &&
-        (s.locator_id || '') === (updated.locator_id || '') &&
-        (s.lot_id || '') === (updated.lot_id || '') &&
-        (s.serial_id || '') === (updated.serial_id || '')
+      if (!network) return res.status(400).json({ success: false, message: 'Ship Network does not exist' });
+      
+      const stock = (db.item_stock_onhand || []).find(s => 
+        s.item_id === updated.item_id && s.inv_org_id === updated.inv_org_id && 
+        s.subinventory_id === updated.subinventory_id && (s.locator_id || '') === (updated.locator_id || '')
       );
-      if (!stock || parseFloat(stock.on_hand_qty) < Math.abs(parseFloat(updated.adjustment_qty))) {
-        return res.status(400).json({ success: false, message: 'Insufficient stock in source location' });
+      const requestedQty = Math.abs(parseFloat(updated.adjustment_qty || updated.physical_qty || 0));
+      if (!stock || parseFloat(stock.available_qty || 0) < requestedQty) {
+        return res.status(400).json({ success: false, message: 'Insufficient stock' });
       }
-
-      updated.adjustment_qty = Math.abs(parseFloat(updated.adjustment_qty || 0));
-      updated.transfer_flag = 'Y';
+      updated.adjustment_qty = requestedQty;
     } else {
-      const adjQty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
-      updated.adjustment_qty = adjQty;
+      updated.adjustment_qty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
     }
 
     updated.adjustment_value = (updated.adjustment_qty * parseFloat(updated.unit_cost || 0)).toFixed(4);
     db.stock_adjustment[idx] = updated;
     
-    if (prev.approval_status !== 'APPROVED' && updated.approval_status === 'APPROVED') autoCreateTransaction(updated, req.user);
+    if (prev.approval_status !== 'APPROVED' && updated.approval_status === 'APPROVED') await autoCreateTransaction(updated, req.user);
     res.json({ success: true, data: updated });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };

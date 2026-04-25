@@ -160,6 +160,9 @@ export default function StockAdjustmentPage() {
       effective_from: [validators.required]
     };
 
+    const requestedQty = Math.abs(parseFloat(formData.physical_qty || 0));
+    let finalAdjustmentQty = 0;
+
     if (isTransfer) {
       schema.to_inv_org_id = [validators.required];
       schema.to_subinventory_id = [validators.required];
@@ -167,8 +170,9 @@ export default function StockAdjustmentPage() {
       if (formData.inv_org_id && formData.to_inv_org_id && formData.inv_org_id === formData.to_inv_org_id) {
          return toast.error('Source and Destination organizations cannot be the same');
       }
+      finalAdjustmentQty = requestedQty;
     } else {
-      schema.adjustment_qty = [validators.required, validators.isNumber];
+      finalAdjustmentQty = Number(formData.physical_qty || 0) - Number(formData.system_qty || 0);
     }
 
     if (formData.is_lot_controlled) schema.lot_id = [validators.required];
@@ -180,18 +184,11 @@ export default function StockAdjustmentPage() {
       return toast.error('Please fix validation errors');
     }
 
-    let finalAdjustmentQty = formData.adjustment_qty;
-    if (isTransfer) {
-      finalAdjustmentQty = formData.physical_qty;
-    } else {
-      finalAdjustmentQty = Number(formData.physical_qty || 0) - Number(formData.system_qty || 0);
-    }
-
     const payload = { 
       ...formData, 
       adjustment_qty: finalAdjustmentQty,
-      adjustment_value: Number(finalAdjustmentQty) * Number(formData.unit_cost || 0),
-      approval_status: isTransfer ? 'APPROVED' : (formData.approval_status || 'PENDING') // Auto-approve transfers for demo if requested
+      adjustment_value: Number(Math.abs(finalAdjustmentQty)) * Number(formData.unit_cost || 0),
+      approval_status: formData.approval_status || 'PENDING'
     }
     
     try {

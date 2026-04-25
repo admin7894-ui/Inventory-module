@@ -43,20 +43,41 @@ exports.getById = (req, res) => {
   res.json({ success:true, data:item });
 };
 
-exports.create = (req, res) => {
+const inventoryEngine = require('../services/inventoryEngine');
+
+exports.create = async (req, res) => {
   try {
     const body = { ...req.body };
     if (!body[PK]) body[PK] = generateId(TABLE);
+    
+    // Check if opening stock already exists for this item/location/company
+    const existing = (db[TABLE]||[]).find(r => 
+      r.COMPANY_id === body.COMPANY_id &&
+      r.item_id === body.item_id &&
+      r.inv_org_id === body.inv_org_id &&
+      (r.subinventory_id || '') === (body.subinventory_id || '') &&
+      (r.locator_id || '') === (body.locator_id || '')
+    );
+    if (existing) {
+      return res.status(400).json({ success:false, message:'Opening stock already exists for this item and location' });
+    }
+
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
+    
     body.created_by = body.created_by || req.user?.username || MOCK_USER;
     body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
     body.updated_at = new Date().toISOString();
     body.txn_type_id = body.txn_type_id || 'TT06';
+    
     if (!db[TABLE]) db[TABLE] = [];
     db[TABLE].push(body);
-    res.status(201).json({ success:true, data:body, message:'Created' });
+
+    // Process via Inventory Engine
+    await inventoryEngine.processOpeningStock(body, req.user);
+
+    res.status(201).json({ success:true, data:body, message:'Opening stock processed' });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
 
