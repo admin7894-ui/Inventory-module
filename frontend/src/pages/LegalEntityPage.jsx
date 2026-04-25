@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
+import { validateLegalEntity } from '../validations/legalEntityValidation'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 
@@ -32,6 +33,8 @@ export default function LegalEntityPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const [errors, setErrors] = useState({})
+  const [touched, setTouched] = useState({})
 
   // Load all needed dropdowns
   const companies = []
@@ -80,22 +83,56 @@ export default function LegalEntityPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, v) => {
+    setFormData(p => ({ ...p, [k]: v }))
+    if (errors[k]) {
+      setErrors(p => {
+        const newErrors = { ...p }
+        delete newErrors[k]
+        return newErrors
+      })
+    }
+  }
+
+  const handleBlur = (k) => {
+    setTouched(p => ({ ...p, [k]: true }))
+    const { errors: valErrors } = validateLegalEntity(formData)
+    setErrors(valErrors)
+  }
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setErrors({})
+    setTouched({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
+  const handleEdit = (row) => { 
+    setSelected(row); 
+    setFormData({ ...row }); 
+    setErrors({});
+    setTouched({});
+    setView('edit') 
+  }
+  const handleView = (row) => { 
+    setSelected(row); 
+    setFormData({ ...row }); 
+    setErrors({});
+    setTouched({});
+    setView('view') 
+  }
   const handleBack = () => { setView('list'); setSelected(null) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
+    e.preventDefault()
+    
+    const { errors: valErrors, isValid } = validateLegalEntity(formData)
+    setErrors(valErrors)
+    setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}))
+
+    if (!isValid) {
+      return toast.error('Please fix the highlighted errors')
     }
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['le_id'], formData)
@@ -118,16 +155,69 @@ export default function LegalEntityPage() {
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <Field label="Le Id (Auto-gen)"><Input value={formData.le_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+      <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={handleBlur} />
 
-      <Field label="Le Name"><Input value={formData.le_name} onChange={e => setField('le_name',e.target.value)} /></Field>
-      <Field label="Tax Registration No"><Input value={formData.tax_registration_no} onChange={e => setField('tax_registration_no',e.target.value)} /></Field>
-      <Field label="Location"><Select value={formData.location_id} onChange={v => setField('location_id',v)} options={dropdowns.location?.map(r=>{return{value:r.location_id,label:r.location_name||r.location_id}})} /></Field>
-      <Field label="Currency Code"><Input value={formData.currency_code} onChange={e => setField('currency_code',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
+      <Field label="Le Name" required error={touched.le_name && errors.le_name}>
+        <Input 
+          value={formData.le_name} 
+          onChange={e => setField('le_name',e.target.value)} 
+          onBlur={() => handleBlur('le_name')}
+          error={touched.le_name && errors.le_name}
+        />
+      </Field>
+      <Field label="Tax Registration No" required error={touched.tax_registration_no && errors.tax_registration_no}>
+        <Input 
+          value={formData.tax_registration_no} 
+          onChange={e => setField('tax_registration_no',e.target.value)} 
+          onBlur={() => handleBlur('tax_registration_no')}
+          error={touched.tax_registration_no && errors.tax_registration_no}
+        />
+      </Field>
+      <Field label="Location" required error={touched.location_id && errors.location_id}>
+        <Select 
+          value={formData.location_id} 
+          onChange={v => setField('location_id',v)} 
+          onBlur={() => handleBlur('location_id')}
+          error={touched.location_id && errors.location_id}
+          options={dropdowns.location?.map(r=>{return{value:r.location_id,label:r.location_name||r.location_id}})} 
+        />
+      </Field>
+      <Field label="Currency Code" required error={touched.currency_code && errors.currency_code}>
+        <Input 
+          value={formData.currency_code} 
+          onChange={e => setField('currency_code',e.target.value)} 
+          onBlur={() => handleBlur('currency_code')}
+          error={touched.currency_code && errors.currency_code}
+        />
+      </Field>
+      <Field label="Module" required error={touched.module_id && errors.module_id}>
+        <Select 
+          value={formData.module_id} 
+          onChange={v => setField('module_id',v)} 
+          onBlur={() => handleBlur('module_id')}
+          error={touched.module_id && errors.module_id}
+          options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} 
+        />
+      </Field>
+      <Field label="Active" required error={touched.active_flag && errors.active_flag}>
+        <Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} />
+      </Field>
+      <Field label="Effective From" required error={touched.effective_from && errors.effective_from}>
+        <DateInput 
+          value={formData.effective_from} 
+          onChange={v => setField('effective_from',v)} 
+          onBlur={() => handleBlur('effective_from')}
+          error={touched.effective_from && errors.effective_from}
+        />
+      </Field>
+      <Field label="Effective To" error={touched.effective_to && errors.effective_to}>
+        <DateInput 
+          value={formData.effective_to} 
+          onChange={v => setField('effective_to',v)} 
+          onBlur={() => handleBlur('effective_to')}
+          error={touched.effective_to && errors.effective_to}
+        />
+      </Field>
       <AuditFields formData={formData} setField={setField} />
       </div>
         </div>
