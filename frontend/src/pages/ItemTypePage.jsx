@@ -121,8 +121,8 @@ export default function ItemTypePage() {
       <CompanyGroup formData={formData} setField={setField} />
 
       <Field label="Item Type Name"><Input value={formData.item_type_name} onChange={e => setField('item_type_name',e.target.value)} /></Field>
-      <Field label="Is Physical"><Input value={formData.is_physical} onChange={e => setField('is_physical',e.target.value)} /></Field>
-      <Field label="Requires Inventory"><Input value={formData.requires_inventory} onChange={e => setField('requires_inventory',e.target.value)} /></Field>
+      <Field label="Is Physical"><Toggle value={formData.is_physical} onChange={v => setField('is_physical',v)} /></Field>
+      <Field label="Requires Inventory"><Toggle value={formData.requires_inventory} onChange={v => setField('requires_inventory',v)} /></Field>
       <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>

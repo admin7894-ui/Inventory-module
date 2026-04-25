@@ -121,8 +121,8 @@ export default function UomConvPage() {
       <CompanyGroup formData={formData} setField={setField} />
 
       <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
-      <Field label="From Uom Id"><Input value={formData.from_uom_id} onChange={e => setField('from_uom_id',e.target.value)} /></Field>
-      <Field label="To Uom Id"><Input value={formData.to_uom_id} onChange={e => setField('to_uom_id',e.target.value)} /></Field>
+      <Field label="From Uom Id"><Select value={formData.from_uom_id} onChange={v => setField('from_uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:r.uom_name||r.uom_id}})} /></Field>
+      <Field label="To Uom Id"><Select value={formData.to_uom_id} onChange={v => setField('to_uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:r.uom_name||r.uom_id}})} /></Field>
       <Field label="Conversion Rate"><Input type="number" step="any"  value={formData.conversion_rate} onChange={e => setField('conversion_rate',e.target.value)} /></Field>
       <Field label="Conversion Type"><Select value={formData.conversion_type} onChange={v => setField('conversion_type',v)} options={["Item","Standard"]} /></Field>
       <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
