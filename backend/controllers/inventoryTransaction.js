@@ -4,6 +4,7 @@ const MOCK_USER = 'admin';
 
 function applyRLS(data, user) {
   if (!user?.company_id) return data;
+  if (user.username === 'software_user' || user.username === 'admin') return data;
   return data.filter(r => !r.COMPANY_id || r.COMPANY_id === user.company_id);
 }
 

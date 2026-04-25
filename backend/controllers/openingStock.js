@@ -8,6 +8,7 @@ const PK    = 'opening_stock_id';
 // RLS filter — filter by company_id if user has company context
 function applyRLS(data, user) {
   if (!user || !user.company_id) return data;
+  if (user.username === 'software_user' || user.username === 'admin') return data;
   return data.filter(r => !r.COMPANY_id || r.COMPANY_id === user.company_id || !r.company_id || r.company_id === user.company_id);
 }
 
