@@ -2474,6 +2474,38 @@ const db = {
     "effective_to": "",
     "created_by": "admin",
     "updated_by": "finance_mgr"
+  },
+  {
+    "txn_type_id": "TT05",
+    "COMPANY_id": "C02",
+    "business_type_id": "BT02",
+    "bg_id": "BG02",
+    "txn_type_code": "ADJUSTMENT",
+    "txn_type_name": "Stock Adjustment",
+    "txn_action": "IN",
+    "txn_category": "ADJUSTMENT",
+    "module_id": "MOD01",
+    "active_flag": "True",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "updated_by": "manager1"
+  },
+  {
+    "txn_type_id": "TT06",
+    "COMPANY_id": "C02",
+    "business_type_id": "BT02",
+    "bg_id": "BG02",
+    "txn_type_code": "OPENING",
+    "txn_type_name": "Opening Stock",
+    "txn_action": "IN",
+    "txn_category": "OPENING",
+    "module_id": "MOD01",
+    "active_flag": "True",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "updated_by": "manager1"
   }
 ],
 

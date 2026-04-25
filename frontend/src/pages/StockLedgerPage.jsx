@@ -17,12 +17,12 @@ import {
 
 const COLUMNS = [
   { key: 'ledger_id', label: 'Ledger Id' },
-  { key: 'COMPANY_id', label: 'Company Id' },
-  { key: 'business_type_id', label: 'Business Type Id' },
-  { key: 'bg_id', label: 'Bg Id' },
-  { key: 'item_id', label: 'Item Id' },
-  { key: 'inv_org_id', label: 'Inv Org Id' },
-  { key: 'subinventory_id', label: 'Subinventory Id' }
+  { key: 'transaction_date', label: 'Date' },
+  { key: 'item_id', label: 'Item' },
+  { key: 'dr_qty', label: 'DR' },
+  { key: 'cr_qty', label: 'CR' },
+  { key: 'balance_qty', label: 'Balance' },
+  { key: 'reference_no', label: 'Ref No' }
 ]
 
 export default function StockLedgerPage() {

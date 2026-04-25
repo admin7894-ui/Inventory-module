@@ -3,7 +3,7 @@ import { Field, Select } from './ui/index'
 import { Loader2 } from 'lucide-react'
 import { useCompanyLogic } from '../hooks/useCompanyLogic'
 
-export function CompanyGroup({ formData, setField }) {
+export function CompanyGroup({ formData, setField, errors = {} }) {
   const { 
     companies, 
     businessGroups, 
@@ -15,7 +15,7 @@ export function CompanyGroup({ formData, setField }) {
 
   return (
     <>
-      <Field label="Company" required>
+      <Field label="Company" required error={errors.COMPANY_id}>
         <Select 
           value={formData.COMPANY_id} 
           onChange={handleCompanyChange} 
@@ -46,7 +46,7 @@ export function CompanyGroup({ formData, setField }) {
         </div>
       </Field>
 
-      <Field label="Business Type" required>
+      <Field label="Business Type" required error={errors.business_type_id}>
         <div className="relative">
           <Select 
             value={formData.business_type_id} 

@@ -53,6 +53,7 @@ exports.create = (req, res) => {
     body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
     body.updated_at = new Date().toISOString();
+    body.txn_type_id = body.txn_type_id || 'TT06';
     if (!db[TABLE]) db[TABLE] = [];
     db[TABLE].push(body);
     res.status(201).json({ success:true, data:body, message:'Created' });

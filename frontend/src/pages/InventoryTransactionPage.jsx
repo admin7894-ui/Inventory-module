@@ -17,12 +17,12 @@ import {
 
 const COLUMNS = [
   { key: 'txn_id', label: 'Txn Id' },
-  { key: 'COMPANY_id', label: 'Company Id' },
-  { key: 'business_type_id', label: 'Business Type Id' },
-  { key: 'bg_id', label: 'Bg Id' },
-  { key: 'txn_action', label: 'Txn Action' },
-  { key: 'item_id', label: 'Item Id' },
-  { key: 'from_inv_org_id', label: 'From Inv Org Id' }
+  { key: 'txn_date', label: 'Date' },
+  { key: 'txn_action', label: 'Action' },
+  { key: 'item_id', label: 'Item' },
+  { key: 'txn_qty', label: 'Qty' },
+  { key: 'txn_status', label: 'Status' },
+  { key: 'reference_no', label: 'Ref No' }
 ]
 
 export default function InventoryTransactionPage() {

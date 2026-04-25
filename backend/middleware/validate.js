@@ -46,6 +46,7 @@ const LOV = {
   license_type: ['DRUG_LICENSE', 'SUBSCRIPTION', 'IMPORT', 'NONE'],
   source_document_type: ['PURCHASE_ORDER', 'SALES_ORDER', 'MOVE_ORDER', 'MANUAL', 'ADJUSTMENT'],
   transaction_type_code: ['PURCHASE_RECEIPT', 'SALES_ISSUE', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT', 'OPENING'],
+  txn_category: ['OPENING', 'ADJUSTMENT', 'TRANSFER', 'PURCHASE', 'SALES', 'SYSTEM'],
 };
 
 function validate(data, rules) {

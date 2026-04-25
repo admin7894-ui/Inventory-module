@@ -25,6 +25,8 @@ const COLUMNS = [
   { key: 'subinventory_id', label: 'Subinventory Id' }
 ]
 
+import { validators, validateForm } from '../validations/index'
+
 export default function StockAdjustmentPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -33,6 +35,7 @@ export default function StockAdjustmentPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (location.pathname === '/stock-adjustment/new') {
@@ -87,24 +90,48 @@ export default function StockAdjustmentPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, v) => {
+    setFormData(p => ({ ...p, [k]: v }));
+    if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
+  }
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setErrors({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
 
   const adjustmentValue = Number(formData.adjustment_qty || 0) * Number(formData.unit_cost || 0)
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
+    e.preventDefault();
+
+    const schema = {
+      COMPANY_id: [validators.required],
+      business_type_id: [validators.required],
+      item_id: [validators.required],
+      txn_type_id: [validators.required],
+      inv_org_id: [validators.required],
+      adjustment_qty: [validators.required, validators.isNumber, validators.isPositive],
+      unit_cost: [validators.required, validators.isNumber, validators.isPositive],
+      adjustment_date: [validators.required],
+      effective_from: [validators.required]
+    };
+
+    if (formData.txn_type_id === 'TT03' || formData.transfer_flag === 'Y') {
+      schema.to_inv_org_id = [validators.required];
+      schema.to_subinventory_id = [validators.required];
     }
 
-    e.preventDefault()
+    const formErrors = validateForm(formData, schema);
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      return toast.error('Please fix validation errors');
+    }
+
     const payload = { ...formData, adjustment_value: adjustmentValue }
     try {
       if (view === 'edit') {
@@ -130,27 +157,52 @@ export default function StockAdjustmentPage() {
       <Field label="Adjustment Id (Auto-gen)"><Input value={formData.adjustment_id} readOnly /></Field>
       <CompanyGroup formData={formData} setField={setField} />
 
-      <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
-      <Field label="Inv Org Id"><Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
-      <Field label="Subinventory Id"><Select value={formData.subinventory_id} onChange={v => setField('subinventory_id',v)} options={dropdowns.subinventory?.map(r=>{return{value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}})} /></Field>
-      <Field label="Locator Id"><Select value={formData.locator_id} onChange={v => setField('locator_id',v)} options={dropdowns.locator?.map(r=>{return{value:r.locator_id,label:r.locator_name||r.locator_id}})} /></Field>
+      <Field label="Item" error={errors.item_id}><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
+      <Field label="Transaction Type" error={errors.txn_type_id}><Select value={formData.txn_type_id} onChange={v => setField('txn_type_id',v)} options={dropdowns.transactionType?.map(r=>{return{value:r.txn_type_id,label:r.txn_type_name||r.txn_type_id}})} /></Field>
+      
+      <div className="col-span-full border-t pt-4 mt-2">
+        <h3 className="text-lg font-semibold mb-2">Source Location</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Field label="Inv Org" error={errors.inv_org_id}><Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
+          <Field label="Subinventory"><Select value={formData.subinventory_id} onChange={v => setField('subinventory_id',v)} options={dropdowns.subinventory?.map(r=>{return{value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}})} /></Field>
+          <Field label="Locator"><Select value={formData.locator_id} onChange={v => setField('locator_id',v)} options={dropdowns.locator?.map(r=>{return{value:r.locator_id,label:r.locator_name||r.locator_id}})} /></Field>
+        </div>
+      </div>
+
+      {(formData.txn_type_id === 'TT03' || formData.transfer_flag === 'Y') && (
+        <div className="col-span-full border-t pt-4 mt-2 bg-blue-50/50 p-4 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2 text-blue-800">Destination Location (Transfer)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Field label="To Inv Org" error={errors.to_inv_org_id}><Select value={formData.to_inv_org_id} onChange={v => setField('to_inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
+            <Field label="To Subinventory" error={errors.to_subinventory_id}><Select value={formData.to_subinventory_id} onChange={v => setField('to_subinventory_id',v)} options={dropdowns.subinventory?.map(r=>{return{value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}})} /></Field>
+            <Field label="To Locator"><Select value={formData.to_locator_id} onChange={v => setField('to_locator_id',v)} options={dropdowns.locator?.map(r=>{return{value:r.locator_id,label:r.locator_name||r.locator_id}})} /></Field>
+          </div>
+        </div>
+      )}
+
       <Field label="Lot"><Select value={formData.lot_id} onChange={v => setField('lot_id',v)} options={dropdowns.lotMaster?.map(r=>{return{value:r.lot_id,label:r.lot_number||r.lot_id}})} /></Field>
       <Field label="Serial"><Select value={formData.serial_id} onChange={v => setField('serial_id',v)} options={dropdowns.serialMaster?.map(r=>{return{value:r.serial_id,label:r.serial_number||r.serial_id}})} /></Field>
       <Field label="Uom Id"><Select value={formData.uom_id} onChange={v => setField('uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}})} /></Field>
-      <Field label="System Qty"><Input type="number" step="any"  value={formData.system_qty} onChange={e => setField('system_qty',e.target.value)} /></Field>
-      <Field label="Physical Qty"><Input type="number" step="any"  value={formData.physical_qty} onChange={e => setField('physical_qty',e.target.value)} /></Field>
-      <Field label="Adjustment Qty"><Input type="number" step="any"  value={formData.adjustment_qty} onChange={e => setField('adjustment_qty',e.target.value)} /></Field>
-      <Field label="Unit Cost"><Input type="number" step="any"  value={formData.unit_cost} onChange={e => setField('unit_cost',e.target.value)} /></Field>
-      <Field label="Adjustment Value = Adjustment Qty × Unit Cost"><Input value={adjustmentValue} readOnly /></Field>
+      
+      {!((formData.txn_type_id === 'TT03' || formData.transfer_flag === 'Y')) && (
+        <>
+          <Field label="System Qty"><Input type="number" step="any"  value={formData.system_qty} onChange={e => setField('system_qty',e.target.value)} /></Field>
+          <Field label="Physical Qty"><Input type="number" step="any"  value={formData.physical_qty} onChange={e => setField('physical_qty',e.target.value)} /></Field>
+        </>
+      )}
+      
+      <Field label={formData.txn_type_id === 'TT03' ? "Transfer Qty" : "Adjustment Qty"} error={errors.adjustment_qty}><Input type="number" step="any"  value={formData.adjustment_qty} onChange={e => setField('adjustment_qty',e.target.value)} /></Field>
+      <Field label="Unit Cost" error={errors.unit_cost}><Input type="number" step="any"  value={formData.unit_cost} onChange={e => setField('unit_cost',e.target.value)} /></Field>
+      <Field label="Total Value"><Input value={adjustmentValue} readOnly /></Field>
       <Field label="Transaction Reason"><Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id',v)} options={dropdowns.transactionReason?.map(r=>{return{value:r.txn_reason_id,label:r.txn_reason||r.txn_reason_id}})} /></Field>
-      <Field label="Adjustment Date"><DateInput value={formData.adjustment_date} onChange={v => setField('adjustment_date',v)} /></Field>
+      <Field label="Date" error={errors.adjustment_date}><DateInput value={formData.adjustment_date} onChange={v => setField('adjustment_date',v)} /></Field>
       <Field label="Approved By"><Input value={formData.approved_by} onChange={e => setField('approved_by',e.target.value)} /></Field>
       <Field label="Approval Date"><DateInput value={formData.approval_date} onChange={v => setField('approval_date',v)} /></Field>
       <Field label="Approval Status"><Select value={formData.approval_status} onChange={v => setField('approval_status',v)} options={["PENDING","APPROVED","REJECTED"]} /></Field>
       <Field label="Remarks"><textarea className="input" disabled={view==='view'} rows={3} value={formData.remarks||''} onChange={e => setField('remarks',e.target.value)} /></Field>
       <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
+      <Field label="Effective From" error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
       <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
       <AuditFields formData={formData} setField={setField} />
       </div>
