@@ -75,8 +75,8 @@ export default function StockLedgerPage() {
             <SectionHeader icon={MapPin} title="Location" color="amber" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Organization"><Input value={selected.inv_org_name} readOnly /></Field>
-              <Field label="Subinventory"><Input value={selected.subinventory_id} readOnly /></Field>
-              <Field label="Locator"><Input value={selected.locator_id} readOnly /></Field>
+              <Field label="Subinventory"><Input value={selected.subinventory_name} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_name} readOnly /></Field>
             </div>
           </div>
 

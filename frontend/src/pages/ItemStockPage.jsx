@@ -65,8 +65,8 @@ export default function ItemStockPage() {
             <SectionHeader icon={MapPin} title="Location" color="purple" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Organization"><Input value={selected.inv_org_name} readOnly /></Field>
-              <Field label="Subinventory"><Input value={selected.subinventory_id} readOnly /></Field>
-              <Field label="Locator"><Input value={selected.locator_id || '--'} readOnly /></Field>
+              <Field label="Subinventory"><Input value={selected.subinventory_name} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_name || '--'} readOnly /></Field>
             </div>
           </div>
 
@@ -74,8 +74,8 @@ export default function ItemStockPage() {
             <SectionHeader icon={Building} title="Organization" color="amber" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Company"><Input value={selected.company_name} readOnly /></Field>
-              <Field label="Business Group"><Input value={selected.bg_id} readOnly /></Field>
-              <Field label="Business Type"><Input value={selected.business_type_id} readOnly /></Field>
+              <Field label="Business Group"><Input value={selected.business_group_name} readOnly /></Field>
+              <Field label="Business Type"><Input value={selected.business_type_name} readOnly /></Field>
             </div>
           </div>
 

@@ -7,13 +7,14 @@ import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, I
 import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck } from 'lucide-react'
 import {
   stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi, 
-  itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi
+  itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
+  lotMasterApi, serialMasterApi
 } from '../services/api'
 
 const COLUMNS = [
   { key: 'adjustment_id', label: 'ID' },
-  { key: 'item_id', label: 'Item' },
-  { key: 'inv_org_id', label: 'Org' },
+  { key: 'item_name', label: 'Item' },
+  { key: 'inv_org_name', label: 'Org' },
   { key: 'txn_action', label: 'Action' },
   { key: 'adjustment_qty', label: 'Adj Qty' },
   { key: 'adjustment_value', label: 'Value' },
@@ -61,6 +62,8 @@ export default function StockAdjustmentPage() {
   const { options: txnTypes }         = useDropdownData(transactionTypeApi, 'txntype_dd')
   const { options: txnReasons }       = useDropdownData(transactionReasonApi, 'txnrsn_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
+  const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
+  const { options: serials }          = useDropdownData(serialMasterApi, 'ser_dd')
 
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }));
@@ -122,6 +125,12 @@ export default function StockAdjustmentPage() {
   const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
   const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    await table.remove(confirmDelete['adjustment_id'])
+    setConfirmDelete(null)
+  }
 
   const validate = () => {
     const e = {}
@@ -239,13 +248,13 @@ export default function StockAdjustmentPage() {
             {isLotControlled && (
               <Field label="Lot" required error={errors.lot_id}>
                 <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
-                  options={dropdowns.lotMaster?.map(r => ({ value: r.lot_id, label: r.lot_number }))} />
+                  options={lots?.map(r => ({ value: r.lot_id, label: r.lot_number }))} />
               </Field>
             )}
             {isSerialControlled && (
               <Field label="Serial" required error={errors.serial_id}>
                 <Select value={formData.serial_id} onChange={v => setField('serial_id', v)} disabled={view === 'view'}
-                  options={dropdowns.serialMaster?.map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+                  options={serials?.map(r => ({ value: r.serial_id, label: r.serial_number }))} />
               </Field>
             )}
             <Field label="UOM">

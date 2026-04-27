@@ -11,9 +11,9 @@ import {
 
 const COLUMNS = [
   { key: 'opening_stock_id', label: 'ID' },
-  { key: 'item_id', label: 'Item' },
-  { key: 'inv_org_id', label: 'Inv Org' },
-  { key: 'subinventory_id', label: 'Subinventory' },
+  { key: 'item_name', label: 'Item' },
+  { key: 'inv_org_name', label: 'Inv Org' },
+  { key: 'subinventory_name', label: 'Subinventory' },
   { key: 'opening_qty', label: 'Qty' },
   { key: 'unit_cost', label: 'Unit Cost' },
   { key: 'total_value', label: 'Total Value' },
@@ -248,16 +248,16 @@ export default function OpeningStockPage() {
             <SectionHeader icon={MapPin} title="Location & Quantity" subtitle="Where and how much" color="emerald" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Inventory Organization" required error={errors.inv_org_id}>
-                <Select value={formData.inv_org_id} onChange={v => setField('inv_org_id', v)} error={errors.inv_org_id} disabled={view === 'view'}
+                <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} error={errors.inv_org_id} disabled={view === 'view'}
                   options={inventoryOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
               </Field>
               <Field label="Subinventory" required error={errors.subinventory_id}>
-                <Select value={formData.subinventory_id} onChange={v => setField('subinventory_id', v)} error={errors.subinventory_id} disabled={view === 'view'}
-                  options={subinventories?.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
+                <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} error={errors.subinventory_id} disabled={view === 'view'}
+                  options={subinventories?.filter(s => s.inv_org_id === formData.inv_org_id).map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
               </Field>
               <Field label="Locator / Bin">
                 <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view'}
-                  options={locators?.map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))} />
+                  options={locators?.filter(l => l.subinventory_id === formData.subinventory_id).map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))} />
               </Field>
               <Field label="UOM">
                 <Select value={formData.uom_id} onChange={v => setField('uom_id', v)} disabled={view === 'view'}

@@ -16,7 +16,12 @@ exports.getAll = (req, res) => {
     // Perform JOINs for view screen
     const data = rawData.map(txn => {
       const item = (db.item_master || []).find(i => i.item_id === txn.item_id);
+      const company = (db.company || []).find(c => c.company_id === txn.COMPANY_id || c.company_id === txn.company_id);
+      const bg = (db.business_group || []).find(b => b.bg_id === txn.bg_id);
+      const bt = (db.business_type || []).find(b => b.business_type_id === txn.business_type_id);
       const org = (db.inventory_org || []).find(o => o.inv_org_id === txn.inv_org_id);
+      const subinv = (db.subinventory || []).find(s => s.subinventory_id === txn.subinventory_id);
+      const locator = (db.locator___bin || []).find(l => l.locator_id === txn.locator_id);
       const reason = (db.transaction_reason || []).find(r => r.txn_reason_id === txn.txn_reason_id);
       const uom = (db.uom_unit_of_measure || []).find(u => u.uom_id === txn.uom_id);
       
@@ -24,7 +29,13 @@ exports.getAll = (req, res) => {
         ...txn,
         item_name: item ? item.item_name : (txn.item_id || ''),
         item_code: item ? item.item_code : '',
+        company_name: company ? company.company_name : '',
+        bg_name: bg ? bg['Business Group Name'] : '',
+        business_group_name: bg ? bg['Business Group Name'] : '',
+        business_type_name: bt ? bt.name : '',
         inv_org_name: org ? org.inv_org_name : (txn.inv_org_id || ''),
+        subinventory_name: subinv ? subinv.subinventory_name : '',
+        locator_name: locator ? locator.locator_name : '',
         txn_reason_name: reason ? reason.txn_reason : '',
         uom_name: uom ? uom.uom_name : '',
         // Ensure lot/serial are displayed from whatever field they are in
@@ -54,9 +65,36 @@ exports.getAll = (req, res) => {
 };
 
 exports.getById = (req, res) => {
-  const item = (db.inventory_transaction||[]).find(r => r.txn_id === req.params.id);
-  if (!item) return res.status(404).json({ success:false, message:'Not found' });
-  res.json({ success:true, data:item });
+  const txn = (db.inventory_transaction||[]).find(r => r.txn_id === req.params.id);
+  if (!txn) return res.status(404).json({ success:false, message:'Not found' });
+  
+  const item = (db.item_master || []).find(i => i.item_id === txn.item_id);
+  const company = (db.company || []).find(c => c.company_id === txn.COMPANY_id || c.company_id === txn.company_id);
+  const bg = (db.business_group || []).find(b => b.bg_id === txn.bg_id);
+  const bt = (db.business_type || []).find(b => b.business_type_id === txn.business_type_id);
+  const org = (db.inventory_org || []).find(o => o.inv_org_id === txn.inv_org_id);
+  const subinv = (db.subinventory || []).find(s => s.subinventory_id === txn.subinventory_id);
+  const locator = (db.locator___bin || []).find(l => l.locator_id === txn.locator_id);
+  const reason = (db.transaction_reason || []).find(r => r.txn_reason_id === txn.txn_reason_id);
+  const uom = (db.uom_unit_of_measure || []).find(u => u.uom_id === txn.uom_id);
+
+  const data = {
+    ...txn,
+    item_name: item ? item.item_name : (txn.item_id || ''),
+    item_code: item ? item.item_code : '',
+    company_name: company ? company.company_name : '',
+    bg_name: bg ? bg['Business Group Name'] : '',
+    business_group_name: bg ? bg['Business Group Name'] : '',
+    business_type_name: bt ? bt.name : '',
+    inv_org_name: org ? org.inv_org_name : (txn.inv_org_id || ''),
+    subinventory_name: subinv ? subinv.subinventory_name : '',
+    locator_name: locator ? locator.locator_name : '',
+    txn_reason_name: reason ? reason.txn_reason : '',
+    uom_name: uom ? uom.uom_name : '',
+    display_lot: txn.lot_number || txn.lot_id || '',
+    display_serial: txn.serial_number || txn.serial_id || ''
+  };
+  res.json({ success:true, data });
 };
 
 exports.create = async (req, res) => {

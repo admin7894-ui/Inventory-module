@@ -6,9 +6,9 @@ import { Receipt, MapPin, Package, Hash, UserCheck, Calendar } from 'lucide-reac
 
 const COLUMNS = [
   { key: 'txn_id', label: 'ID' },
-  { key: 'item_code', label: 'Item Code' },
   { key: 'item_name', label: 'Item Name' },
   { key: 'inv_org_name', label: 'Organization' },
+  { key: 'subinventory_name', label: 'Subinventory' },
   { key: 'txn_action', label: 'Action', render: (v) => (
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
       v === 'IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
@@ -19,8 +19,7 @@ const COLUMNS = [
   { key: 'txn_qty', label: 'Qty' },
   { key: 'uom_name', label: 'UOM' },
   { key: 'txn_reason_name', label: 'Reason' },
-  { key: 'txn_date', label: 'Date' },
-  { key: 'approved_by', label: 'Approved By' }
+  { key: 'txn_date', label: 'Date' }
 ]
 
 function SectionHeader({ icon: Icon, title, color = 'brand' }) {
@@ -74,8 +73,8 @@ export default function InventoryTransactionPage() {
             <SectionHeader icon={MapPin} title="Location" color="purple" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Organization"><Input value={selected.inv_org_name} readOnly /></Field>
-              <Field label="Subinventory"><Input value={selected.subinventory_id} readOnly /></Field>
-              <Field label="Locator"><Input value={selected.locator_id} readOnly /></Field>
+              <Field label="Subinventory"><Input value={selected.subinventory_name} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_name} readOnly /></Field>
             </div>
           </div>
 

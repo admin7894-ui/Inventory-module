@@ -55,132 +55,114 @@ class InventoryEngine {
    * Processes Opening Stock with auto lot/serial creation.
    * Steps: Validate → Lot → Serial → Transaction → On-Hand
    */
-  async processOpeningStock(data, user) {
-    const item = this.getItem(data.item_id);
-    if (!item) throw new Error(`Item ${data.item_id} not found`);
+  /**
+   * Helper to ensure lot/serial records exist.
+   * Reuses existing if found, or creates new ones.
+   */
+  async ensureLotAndSerial(item, data, qty, user) {
+    let lot_id = data.lot_id || '';
+    let serial_ids = data.serial_ids || [];
+    const openingDate = data.opening_date || data.adjustment_date || new Date().toISOString().split('T')[0];
 
-    // STEP 0: Validate item is physical + stock item
-    if (!this.isPhysicalItem(item)) {
-      throw new Error('Opening stock is only allowed for physical items');
-    }
-    if (!this.isStockItem(item)) {
-      throw new Error('Opening stock is only allowed for stock items (is_stock_item = Y)');
-    }
-
-    // Cannot have both serial and lot
-    if (this.isYes(item.is_serial_controlled) && this.isYes(item.is_lot_controlled)) {
-      throw new Error('Item has both serial and lot control enabled — this is an invalid configuration');
-    }
-
-    const qty = parseFloat(data.opening_qty || 0);
-    if (qty <= 0) throw new Error('Opening quantity must be greater than 0');
-    if (!data.inv_org_id) throw new Error('Inventory Organization is required');
-    if (!data.subinventory_id) throw new Error('Subinventory is required');
-
-    const openingDate = data.opening_date || new Date().toISOString().split('T')[0];
-    let lot_id = '';
-    let serial_ids = [];
-
-    // STEP 1: AUTO-CREATE LOT (if lot controlled)
-    if (this.isYes(item.is_lot_controlled)) {
-      if (!data.lot_number) throw new Error('Lot number is required for lot-controlled items');
-
-      let expiry_date = '';
-      if (this.isYes(item.is_expirable)) {
-        if (data.expiry_date) {
-          expiry_date = data.expiry_date;
-        } else if (item.shelf_life_days && parseInt(item.shelf_life_days) > 0) {
+    // LOT CONTROL
+    if (this.isYes(item.is_lot_controlled) && (data.lot_number || data.lot_id)) {
+      let existingLot = data.lot_id 
+        ? db.lot_master.find(l => l.lot_id === data.lot_id)
+        : db.lot_master.find(l => l.item_id === data.item_id && l.lot_number === data.lot_number);
+      
+      if (existingLot) {
+        lot_id = existingLot.lot_id;
+      } else if (data.lot_number) {
+        let expiry_date = data.expiry_date || '';
+        if (this.isYes(item.is_expirable) && !expiry_date) {
           const d = new Date(openingDate);
-          d.setDate(d.getDate() + parseInt(item.shelf_life_days));
-          expiry_date = d.toISOString().split('T')[0];
-        } else {
-          // Default expiry if expirable but no shelf life
-          const d = new Date(openingDate);
-          d.setFullYear(d.getFullYear() + 1);
+          const days = parseInt(item.shelf_life_days || 365);
+          d.setDate(d.getDate() + days);
           expiry_date = d.toISOString().split('T')[0];
         }
-      }
 
-      const lotRecord = {
-        lot_id: generateId('lot_master'),
-        COMPANY_id: data.COMPANY_id,
-        business_type_id: data.business_type_id,
-        bg_id: data.bg_id,
-        item_id: data.item_id,
-        lot_number: data.lot_number,
-        inv_org_id: data.inv_org_id,
-        subinventory_id: data.subinventory_id,
-        uom_id: data.uom_id || item.primary_uom_id,
-        lot_qty: qty,
-        manufacture_date: openingDate,
-        expiry_date: expiry_date,
-        status: 'ACTIVE',
-        module_id: data.module_id || 'MOD01',
-        active_flag: 'Y',
-        effective_from: openingDate,
-        effective_to: '',
-        created_by: user?.username || 'system',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      db.lot_master.push(lotRecord);
-      lot_id = lotRecord.lot_id;
-    }
-
-    // STEP 2: AUTO-CREATE SERIALS (if serial controlled)
-    if (this.isYes(item.is_serial_controlled)) {
-      const serialNumbers = data.serial_numbers || [];
-      if (serialNumbers.length > 0 && serialNumbers.length !== qty) {
-        throw new Error(`Serial count (${serialNumbers.length}) must match quantity (${qty})`);
-      }
-
-      for (let i = 0; i < qty; i++) {
-        const serial_number = serialNumbers[i] || this.generateSerialNumber(data.item_id, i + 1);
-        const serialRecord = {
-          serial_id: generateId('serial_master'),
+        const lotRecord = {
+          lot_id: generateId('lot_master'),
           COMPANY_id: data.COMPANY_id,
           business_type_id: data.business_type_id,
           bg_id: data.bg_id,
           item_id: data.item_id,
-          serial_number: serial_number,
-          inv_org_id: data.inv_org_id,
-          subinventory_id: data.subinventory_id,
-          uom_id: data.uom_id || item.primary_uom_id,
-          locator_id: data.locator_id || '',
-          current_subinventory_id: data.subinventory_id,
-          current_locator_id: data.locator_id || '',
-          status: 'AVAILABLE',
-          receipt_date: openingDate,
+          lot_number: data.lot_number,
+          manufacture_date: openingDate,
+          expiry_date: expiry_date,
+          status: 'ACTIVE',
           module_id: data.module_id || 'MOD01',
           active_flag: 'Y',
-          effective_from: openingDate,
-          effective_to: '',
           created_by: user?.username || 'system',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          created_at: new Date().toISOString()
         };
-        db.serial_master.push(serialRecord);
-        serial_ids.push(serialRecord.serial_id);
+        db.lot_master.push(lotRecord);
+        lot_id = lotRecord.lot_id;
       }
     }
 
-    // STEP 3: CREATE INVENTORY TRANSACTION
-    // For serial-controlled items, create one txn per serial; otherwise one txn for the whole qty
+    // SERIAL CONTROL
+    if (this.isYes(item.is_serial_controlled)) {
+      const serialNumbers = data.serial_numbers || [];
+      // If no serials provided and it's an IN txn, we might need to auto-gen
+      const effectiveSerials = serialNumbers.length > 0 ? serialNumbers : (qty > 0 ? Array.from({length:qty}, (_,i) => this.generateSerialNumber(data.item_id, i+1)) : []);
+
+      for (const sn of effectiveSerials) {
+        let existingSerial = db.serial_master.find(s => s.item_id === data.item_id && s.serial_number === sn);
+        if (existingSerial) {
+          serial_ids.push(existingSerial.serial_id);
+        } else {
+          const serialRecord = {
+            serial_id: generateId('serial_master'),
+            COMPANY_id: data.COMPANY_id,
+            business_type_id: data.business_type_id,
+            bg_id: data.bg_id,
+            item_id: data.item_id,
+            serial_number: sn,
+            current_subinventory_id: data.subinventory_id,
+            current_locator_id: data.locator_id || '',
+            status: 'AVAILABLE',
+            receipt_date: openingDate,
+            module_id: data.module_id || 'MOD01',
+            active_flag: 'Y',
+            created_by: user?.username || 'system',
+            created_at: new Date().toISOString()
+          };
+          db.serial_master.push(serialRecord);
+          serial_ids.push(serialRecord.serial_id);
+        }
+      }
+    }
+
+    return { lot_id, serial_ids };
+  }
+
+  async processOpeningStock(data, user) {
+    const item = this.getItem(data.item_id);
+    if (!item) throw new Error(`Item ${data.item_id} not found`);
+
+    if (!this.isPhysicalItem(item)) throw new Error('Opening stock is only allowed for physical items');
+    if (!this.isStockItem(item)) throw new Error('Opening stock is only allowed for stock items');
+
+    const qty = parseFloat(data.opening_qty || 0);
+    if (qty <= 0) throw new Error('Opening quantity must be greater than 0');
+
+    // Ensure Lot/Serial
+    const { lot_id, serial_ids } = await this.ensureLotAndSerial(item, data, qty, user);
+
+    // Create Transactions
     if (this.isYes(item.is_serial_controlled) && serial_ids.length > 0) {
       const results = [];
       for (const sid of serial_ids) {
         const txn = await this.processTransaction({
           ...data,
-          uom_id: data.uom_id || item.primary_uom_id,
           txn_action: 'IN',
           txn_qty: 1,
-          lot_id: lot_id,
+          lot_id,
           serial_id: sid,
           reference_type: 'OPENING_STOCK',
           reference_id: data.opening_stock_id,
-          reference_no: data.reference_no || data.opening_stock_id,
-          txn_type_id: data.txn_type_id || 'TT06',
-          approved_by: user?.username || 'system'
+          reference_no: data.reference_no || data.opening_stock_id
         }, user);
         results.push(txn);
       }
@@ -188,15 +170,12 @@ class InventoryEngine {
     } else {
       const txn = await this.processTransaction({
         ...data,
-        uom_id: data.uom_id || item.primary_uom_id,
         txn_action: 'IN',
         txn_qty: qty,
-        lot_id: lot_id,
+        lot_id,
         reference_type: 'OPENING_STOCK',
         reference_id: data.opening_stock_id,
-        reference_no: data.reference_no || data.opening_stock_id,
-        txn_type_id: data.txn_type_id || 'TT06',
-        approved_by: user?.username || 'system'
+        reference_no: data.reference_no || data.opening_stock_id
       }, user);
       return { transactions: [txn], lot_id, serial_ids };
     }
@@ -525,17 +504,39 @@ class InventoryEngine {
       return { outTxn, inTxn };
     } else {
       // Normal Adjustment
-      const qty = parseFloat(adj.adjustment_qty);
+    const qty = parseFloat(adj.adjustment_qty);
+    const action = qty >= 0 ? 'IN' : 'OUT';
+
+    // Ensure Lot/Serial for adjustments too
+    const { lot_id, serial_ids } = await this.ensureLotAndSerial(item, adj, Math.abs(qty), user);
+
+    if (this.isYes(item.is_serial_controlled) && serial_ids.length > 0) {
+      const results = [];
+      for (const sid of serial_ids) {
+        const txn = await this.processTransaction({
+          ...adj,
+          txn_action: action,
+          txn_qty: 1,
+          lot_id,
+          serial_id: sid,
+          reference_type: 'ADJUSTMENT',
+          reference_id: adj.adjustment_id,
+          reference_no: adj.adjustment_id
+        }, user);
+        results.push(txn);
+      }
+      return { transactions: results };
+    } else {
       return this.processTransaction({
         ...adj,
-        uom_id: adj.uom_id || item?.primary_uom_id,
-        txn_action: qty >= 0 ? 'IN' : 'OUT',
+        txn_action: action,
         txn_qty: Math.abs(qty),
+        lot_id,
         reference_type: 'ADJUSTMENT',
         reference_id: adj.adjustment_id,
-        reference_no: adj.adjustment_id,
-        approved_by: adj.approved_by || user?.username || 'system'
+        reference_no: adj.adjustment_id
       }, user);
+    }
     }
   }
 }

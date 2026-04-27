@@ -24,11 +24,11 @@ exports.getAll = (req, res) => {
 
       return {
         ...track,
-        item_name: item ? item.item_name : '',
-        item_code: item ? item.item_code : '',
-        company_name: company ? company.company_name : '',
-        bg_name: bg ? bg.bg_name : '',
-        uom_name: uom ? uom.uom_name : ''
+        item_name: item ? item.item_name : (track.item_name || ''),
+        item_code: item ? item.item_code : (track.item_code || ''),
+        company_name: company ? company.company_name : (track.company_name || ''),
+        bg_name: bg ? bg['Business Group Name'] : (track.bg_name || ''),
+        uom_name: uom ? uom.uom_name : (track.uom_name || '')
       };
     });
 
@@ -59,9 +59,23 @@ exports.getAll = (req, res) => {
 };
 
 exports.getById = (req, res) => {
-  const item = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
-  if (!item) return res.status(404).json({ success:false, message:'Not found' });
-  res.json({ success:true, data:item });
+  const track = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
+  if (!track) return res.status(404).json({ success:false, message:'Not found' });
+  
+  const item = (db.item_master || []).find(i => i.item_id === track.item_id);
+  const company = (db.company || []).find(c => c.company_id === track.COMPANY_id || c.company_id === track.company_id);
+  const bg = (db.business_group || []).find(b => b.bg_id === track.bg_id);
+  const uom = (db.uom_unit_of_measure || []).find(u => u.uom_id === track.uom_id);
+
+  const data = {
+    ...track,
+    item_name: item ? item.item_name : (track.item_name || ''),
+    item_code: item ? item.item_code : (track.item_code || ''),
+    company_name: company ? company.company_name : (track.company_name || ''),
+    bg_name: bg ? bg['Business Group Name'] : (track.bg_name || ''),
+    uom_name: uom ? uom.uom_name : (track.uom_name || '')
+  };
+  res.json({ success:true, data });
 };
 
 exports.create = (req, res) => {

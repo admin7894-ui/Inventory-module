@@ -13,66 +13,78 @@ function applyRLS(data, user) {
 
 exports.getAll = (req, res) => {
   try {
-    let data = [...(db[TABLE] || [])];
-    data = applyRLS(data, req.user);
+    let rawData = [...(db[TABLE] || [])];
+    rawData = applyRLS(rawData, req.user);
+
+    // Perform JOINs
+    const data = rawData.map(row => {
+      const item = (db.item_master || []).find(i => i.item_id === row.item_id);
+      const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
+      const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
+      const bt = (db.business_type || []).find(b => b.business_type_id === row.business_type_id);
+      
+      return {
+        ...row,
+        item_name: item ? item.item_name : (row.item_name || ''),
+        item_code: item ? item.item_code : (row.item_code || ''),
+        company_name: company ? company.company_name : (row.company_name || ''),
+        bg_name: bg ? bg['Business Group Name'] : (row.bg_name || ''),
+        business_group_name: bg ? bg['Business Group Name'] : (row.business_group_name || ''),
+        business_type_name: bt ? bt.name : (row.business_type_name || '')
+      };
+    });
 
     // Search
     const { search, page = 1, limit = 50, sortBy, sortOrder = 'asc', ...filters } = req.query;
+    let filteredData = data;
     if (search) {
       const q = search.toLowerCase();
-      data = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q)));
+      filteredData = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q)));
     }
     // Column filters
     Object.entries(filters).forEach(([k,v]) => {
-      if (v && !['page','limit'].includes(k)) data = data.filter(r => String(r[k]||'').toLowerCase().includes(String(v).toLowerCase()));
+      if (v && !['page','limit'].includes(k)) filteredData = filteredData.filter(r => String(r[k]||'').toLowerCase().includes(String(v).toLowerCase()));
     });
     // Sort
-    if (sortBy) data.sort((a,b) => {
+    if (sortBy) filteredData.sort((a,b) => {
       const av = String(a[sortBy]||''), bv = String(b[sortBy]||'');
       return sortOrder==='desc' ? bv.localeCompare(av) : av.localeCompare(bv);
     });
-    const total = data.length;
+    const total = filteredData.length;
     const p = parseInt(page), l = parseInt(limit);
-    res.json({ success:true, data:data.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
+    res.json({ success:true, data:filteredData.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
 
 exports.getById = (req, res) => {
-  const item = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
-  if (!item) return res.status(404).json({ success:false, message:'Not found' });
-  res.json({ success:true, data:item });
+  const row = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
+  if (!row) return res.status(404).json({ success:false, message:'Not found' });
+  
+  const item = (db.item_master || []).find(i => i.item_id === row.item_id);
+  const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
+  const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
+  const bt = (db.business_type || []).find(b => b.business_type_id === row.business_type_id);
+
+  const data = {
+    ...row,
+    item_name: item ? item.item_name : (row.item_name || ''),
+    item_code: item ? item.item_code : (row.item_code || ''),
+    company_name: company ? company.company_name : (row.company_name || ''),
+    bg_name: bg ? bg['Business Group Name'] : (row.bg_name || ''),
+    business_group_name: bg ? bg['Business Group Name'] : (row.business_group_name || ''),
+    business_type_name: bt ? bt.name : (row.business_type_name || '')
+  };
+  res.json({ success:true, data });
 };
 
 exports.create = (req, res) => {
-  try {
-    const body = { ...req.body };
-    if (!body[PK]) body[PK] = generateId(TABLE);
-    if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
-      return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
-    body.created_by = body.created_by || req.user?.username || MOCK_USER;
-    body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
-    body.created_at = new Date().toISOString();
-    body.updated_at = new Date().toISOString();
-    if (!db[TABLE]) db[TABLE] = [];
-    db[TABLE].push(body);
-    res.status(201).json({ success:true, data:body, message:'Created' });
-  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+  res.status(403).json({ success:false, message:'Direct creation of Serial Master records is disabled. Use Opening Stock or Stock Adjustment.' });
 };
 
 exports.update = (req, res) => {
-  try {
-    const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
-    if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
-    db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
-    res.json({ success:true, data:db[TABLE][idx], message:'Updated' });
-  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+  res.status(403).json({ success:false, message:'Direct modification of Serial Master records is disabled.' });
 };
 
 exports.remove = (req, res) => {
-  try {
-    const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
-    if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
-    const [del] = db[TABLE].splice(idx,1);
-    res.json({ success:true, data:del, message:'Deleted' });
-  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+  res.status(403).json({ success:false, message:'Deletion of Serial Master records is disabled.' });
 };

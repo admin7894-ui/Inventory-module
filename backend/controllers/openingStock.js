@@ -14,14 +14,38 @@ function applyRLS(data, user) {
 
 exports.getAll = (req, res) => {
   try {
-    let data = (db[TABLE] || []).map(r => ({
+    let rawData = (db[TABLE] || []).map(r => ({
       ...r,
       COMPANY_id: r.COMPANY_id || r.company_id || '',
       bg_id: r.bg_id || '',
       business_type_id: r.business_type_id || ''
     }));
     
-    data = applyRLS(data, req.user);
+    rawData = applyRLS(rawData, req.user);
+
+    // Perform JOINs
+    const data = rawData.map(row => {
+      const item = (db.item_master || []).find(i => i.item_id === row.item_id);
+      const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
+      const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
+      const bt = (db.business_type || []).find(b => b.business_type_id === row.business_type_id);
+      const org = (db.inventory_org || []).find(o => o.inv_org_id === row.inv_org_id);
+      const subinv = (db.subinventory || []).find(s => s.subinventory_id === row.subinventory_id);
+      const locator = (db.locator___bin || []).find(l => l.locator_id === row.locator_id);
+      
+      return {
+        ...row,
+        item_name: item ? item.item_name : '',
+        item_code: item ? item.item_code : '',
+        company_name: company ? company.company_name : '',
+        bg_name: bg ? bg['Business Group Name'] : '',
+        business_group_name: bg ? bg['Business Group Name'] : '',
+        business_type_name: bt ? bt.name : '',
+        inv_org_name: org ? org.inv_org_name : '',
+        subinventory_name: subinv ? subinv.subinventory_name : '',
+        locator_name: locator ? locator.locator_name : ''
+      };
+    });
 
     // Search
     const { search, page = 1, limit = 50, sortBy, sortOrder = 'asc', ...filters } = req.query;
@@ -45,14 +69,31 @@ exports.getAll = (req, res) => {
 };
 
 exports.getById = (req, res) => {
-  const item = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
-  if (!item) return res.status(404).json({ success:false, message:'Not found' });
-  // Normalize for frontend
-  const normalized = {
-    ...item,
-    COMPANY_id: item.COMPANY_id || item.company_id || '',
+  const row = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
+  if (!row) return res.status(404).json({ success:false, message:'Not found' });
+  
+  const item = (db.item_master || []).find(i => i.item_id === row.item_id);
+  const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
+  const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
+  const bt = (db.business_type || []).find(b => b.business_type_id === row.business_type_id);
+  const org = (db.inventory_org || []).find(o => o.inv_org_id === row.inv_org_id);
+  const subinv = (db.subinventory || []).find(s => s.subinventory_id === row.subinventory_id);
+  const locator = (db.locator___bin || []).find(l => l.locator_id === row.locator_id);
+
+  const data = {
+    ...row,
+    COMPANY_id: row.COMPANY_id || row.company_id || '',
+    item_name: item ? item.item_name : '',
+    item_code: item ? item.item_code : '',
+    company_name: company ? company.company_name : '',
+    bg_name: bg ? bg['Business Group Name'] : '',
+    business_group_name: bg ? bg['Business Group Name'] : '',
+    business_type_name: bt ? bt.name : '',
+    inv_org_name: org ? org.inv_org_name : '',
+    subinventory_name: subinv ? subinv.subinventory_name : '',
+    locator_name: locator ? locator.locator_name : ''
   };
-  res.json({ success:true, data:normalized });
+  res.json({ success:true, data });
 };
 
 exports.create = async (req, res) => {
