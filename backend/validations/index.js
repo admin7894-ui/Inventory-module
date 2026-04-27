@@ -25,6 +25,15 @@ const schemas = {
     module_id: { required: true },
     active_flag: { required: true, lov: LOV.active_flag }
   },
+  workday_calendar: {
+    calendar_name: { required: true },
+    year: { required: true, numeric: true, pattern: /^\d{4}$/ },
+    weekly_off_days: { required: true },
+    COMPANY_id: { required: true, pattern: PATTERNS.company_id },
+    bg_id: { required: true, pattern: PATTERNS.bg_id },
+    business_type_id: { required: true, pattern: PATTERNS.business_type_id },
+    active_flag: { required: true, lov: LOV.active_flag }
+  },
   stock_adjustment: {
     item_id: { required: true, pattern: PATTERNS.item_id },
     inv_org_id: { required: true },

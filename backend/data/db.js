@@ -3538,6 +3538,34 @@ const db = {
   }
 ],
 
+  // ── workday_calendar (pk: calendar_id) ──
+  workday_calendar: [
+    {
+      "calendar_id": "CAL-1001",
+      "calendar_code": "IND_WORK_2026",
+      "calendar_name": "India Work Calendar",
+      "year": 2026,
+      "weekly_off_days": ["Sun", "Sat"],
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "active_flag": "Y",
+      "created_by": "admin",
+      "created_at": "2026-04-27T10:21:00Z"
+    }
+  ],
+
+  // ── workday_holidays (pk: holiday_id) ──
+  workday_holidays: [
+    {
+      "holiday_id": "HOL-1001",
+      "calendar_id": "CAL-1001",
+      "holiday_name": "Republic Day",
+      "holiday_date": "2026-01-26",
+      "description": "National Holiday"
+    }
+  ],
+
 };
+
 
 module.exports = db;

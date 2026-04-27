@@ -36,6 +36,7 @@
   .page-header { @apply flex items-center justify-between mb-6; }
   .page-title { @apply text-2xl font-bold text-gray-900 dark:text-white; }
   .page-subtitle { @apply text-sm text-gray-500 dark:text-gray-400 mt-0.5; }
+  .glass-effect { @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border border-white/20 dark:border-gray-700/30; }
 }
 
 ::-webkit-scrollbar { width:5px; height:5px; }

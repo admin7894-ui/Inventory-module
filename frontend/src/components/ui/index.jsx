@@ -174,6 +174,7 @@ export function DataTable({ title, subtitle, columns, data, total, page, pages, 
                     {columns.map(col => (
                       <td key={col.key} className="td">
                         {renderCell ? renderCell(col, row) : (
+                          col.render ? col.render(row[col.key], row) :
                           col.type === 'badge' ? <StatusBadge value={row[col.key]} /> :
                           col.type === 'toggle' ? <Toggle value={row[col.key]} disabled /> :
                           col.type === 'currency' ? <span className="font-medium text-emerald-700">₹{parseFloat(row[col.key]||0).toLocaleString()}</span> :
