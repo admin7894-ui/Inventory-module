@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { Package, Monitor, Box, Truck, BarChart3, DollarSign, Shield, FileText, AlertTriangle } from 'lucide-react'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -17,91 +18,187 @@ import {
 
 const COLUMNS = [
   { key: 'item_id', label: 'Item Id' },
-  { key: 'COMPANY_id', label: 'Company Id' },
-  { key: 'business_type_id', label: 'Business Type Id' },
-  { key: 'bg_id', label: 'Bg Id' },
   { key: 'item_code', label: 'Item Code' },
   { key: 'item_name', label: 'Item Name' },
-  { key: 'item_type_id', label: 'Item Type Id' }
+  { key: 'item_type_id', label: 'Item Type' },
+  { key: 'brand_id', label: 'Brand' },
+  { key: 'active_flag', label: 'Status', type: 'badge' }
 ]
+
+// Fields to reset when switching to non-physical
+const PHYSICAL_ONLY_FIELDS = [
+  'is_stock_item','is_serial_controlled','is_lot_controlled','is_expirable',
+  'shelf_life_days','weight_kg','volume_cbm','reorder_point','min_order_qty',
+  'max_order_qty','lead_time_days','hsn_code'
+]
+// Fields to reset when switching to physical
+const SOFTWARE_ONLY_FIELDS = ['is_license_required','license_type','max_users']
+
+// Section Header component
+function SectionHeader({ icon: Icon, title, subtitle, color = 'brand' }) {
+  const colors = {
+    brand: 'from-blue-600 to-indigo-600 text-white',
+    emerald: 'from-emerald-600 to-teal-600 text-white',
+    amber: 'from-amber-500 to-orange-500 text-white',
+    purple: 'from-purple-600 to-violet-600 text-white',
+    rose: 'from-rose-500 to-pink-500 text-white',
+    sky: 'from-sky-500 to-cyan-500 text-white',
+  }
+  return (
+    <div className={`flex items-center gap-3 mb-4 px-4 py-2.5 rounded-lg bg-gradient-to-r ${colors[color]} shadow-sm`}>
+      {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+      <div>
+        <h3 className="text-sm font-semibold tracking-wide">{title}</h3>
+        {subtitle && <p className="text-xs opacity-80">{subtitle}</p>}
+      </div>
+    </div>
+  )
+}
+
+// Validation warning badge
+function ValidationWarning({ message }) {
+  if (!message) return null
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 mt-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+      <span className="text-xs text-amber-700 dark:text-amber-400">{message}</span>
+    </div>
+  )
+}
 
 export default function ItemMasterPage() {
   const navigate = useNavigate()
   const table = useTableData(itemMasterApi, 'item_master')
-  const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
+  const [view, setView] = useState('list')
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const [errors, setErrors] = useState({})
 
-  // Load all needed dropdowns
-  const companies = []
-  const businessGroups = []
-  const businessTypes = []
-  const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
+  // Load dropdowns
+  const companies = [], businessGroups = [], businessTypes = []
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
-  const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
-  const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
-  const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
   const { options: uoms }             = useDropdownData(uomApi, 'uom_dd')
-  const { options: uomTypes }         = useDropdownData(uomTypeApi, 'uomt_dd')
   const { options: itemCategories }   = useDropdownData(itemCategoryApi, 'cat_dd')
   const { options: itemSubCategories }= useDropdownData(itemSubCategoryApi, 'scat_dd')
   const { options: brands }           = useDropdownData(brandApi, 'brand_dd')
   const { options: itemTypes }        = useDropdownData(itemTypeApi, 'itype_dd')
-  const { options: zones }            = useDropdownData(zoneApi, 'zone_dd')
-  const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
-  const { options: serials }          = useDropdownData(serialMasterApi, 'serial_dd')
-  const { options: txnTypes }         = useDropdownData(transactionTypeApi, 'txntype_dd')
-  const { options: txnReasons }       = useDropdownData(transactionReasonApi, 'txnrsn_dd')
-  const { options: categorySets }     = useDropdownData(categorySetApi, 'catset_dd')
-  const { options: costMethods }      = useDropdownData(costMethodApi, 'cm_dd')
-  const { options: costTypes }        = useDropdownData(costTypeApi, 'ct_dd')
-  const { options: shipMethods }      = useDropdownData(shipMethodApi, 'sm_dd')
-  const { options: legalEntities }    = useDropdownData(legalEntityApi, 'le_dd')
-  const { options: operatingUnits }   = useDropdownData(operatingUnitApi, 'ou_dd')
-  const { options: securityProfiles } = useDropdownData(securityProfileApi, 'sp_dd')
-  const { options: profileAccesses }  = useDropdownData(profileAccessApi, 'pa_dd')
-  const { options: securityRolesList }= useDropdownData(securityRolesApi, 'sr_dd')
-  const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
-  const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
-  const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
 
   const dropdowns = {
     company:companies, businessGroup:businessGroups, businessType:businessTypes,
-    location:locations, module:modules, inventoryOrg:inventoryOrgs,
-    subinventory:subinventories, locator:locators, itemMaster:items,
-    uom:uoms, uomType:uomTypes, itemCategory:itemCategories, itemSubCategory:itemSubCategories,
-    brand:brands, itemType:itemTypes, zone:zones, lotMaster:lots, serialMaster:serials,
-    transactionType:txnTypes, transactionReason:txnReasons, categorySet:categorySets,
-    costMethod:costMethods, costType:costTypes, shipMethod:shipMethods,
-    legalEntity:legalEntities, operatingUnit:operatingUnits,
-    securityProfile:securityProfiles, profileAccess:profileAccesses,
-    securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
+    module:modules, uom:uoms, itemCategory:itemCategories,
+    itemSubCategory:itemSubCategories, brand:brands, itemType:itemTypes,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  // Derive item type flags from the selected item type
+  const selectedItemType = useMemo(() => {
+    if (!formData.item_type_id || !dropdowns.itemType?.length) return null
+    return dropdowns.itemType.find(t => String(t.item_type_id) === String(formData.item_type_id))
+  }, [formData.item_type_id, dropdowns.itemType])
+
+  const isPhysical = selectedItemType ? (selectedItemType.is_physical === 'Y' || selectedItemType.is_physical === true) : null
+  const hasTypeSelected = selectedItemType !== null
+
+  const setField = useCallback((k, v) => {
+    setFormData(p => ({ ...p, [k]: v }))
+    setErrors(p => { const n = { ...p }; delete n[k]; return n })
+  }, [])
+
+  // Handle Item Type change — reset irrelevant fields
+  const handleItemTypeChange = useCallback((typeId) => {
+    const type = dropdowns.itemType?.find(t => String(t.item_type_id) === String(typeId))
+    const phys = type ? (type.is_physical === 'Y' || type.is_physical === true) : null
+
+    setFormData(prev => {
+      const next = { ...prev, item_type_id: typeId }
+      if (phys === true) {
+        // Physical: reset software fields
+        SOFTWARE_ONLY_FIELDS.forEach(f => { next[f] = '' })
+        next.is_license_required = 'N'
+      } else if (phys === false) {
+        // Non-physical: reset & force-set physical fields
+        PHYSICAL_ONLY_FIELDS.forEach(f => { next[f] = '' })
+        next.is_stock_item = 'N'
+        next.is_serial_controlled = 'N'
+        next.is_lot_controlled = 'N'
+        next.is_expirable = 'N'
+        next.shelf_life_days = ''
+        next.weight_kg = ''
+        next.volume_cbm = ''
+      }
+      return next
+    })
+    setErrors({})
+  }, [dropdowns.itemType])
+
+  // Serial / Lot mutual exclusivity
+  const handleSerialChange = useCallback((v) => {
+    setFormData(p => {
+      const next = { ...p, is_serial_controlled: v }
+      if (v === 'Y') next.is_lot_controlled = 'N'
+      return next
+    })
+  }, [])
+
+  const handleLotChange = useCallback((v) => {
+    setFormData(p => {
+      const next = { ...p, is_lot_controlled: v }
+      if (v === 'Y') next.is_serial_controlled = 'N'
+      return next
+    })
+  }, [])
+
+  // Expirable toggle
+  const handleExpirableChange = useCallback((v) => {
+    setFormData(p => {
+      const next = { ...p, is_expirable: v }
+      if (v === 'N') next.shelf_life_days = ''
+      return next
+    })
+  }, [])
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setErrors({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
 
-  const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
+  // Validation
+  const validate = () => {
+    const e = {}
+    if (!formData.COMPANY_id) e.COMPANY_id = 'Required'
+    if (!formData.business_type_id) e.business_type_id = 'Required'
+    if (!formData.bg_id) e.bg_id = 'Required'
+    if (!formData.item_name) e.item_name = 'Item name is required'
+    if (!formData.item_type_id) e.item_type_id = 'Item type is required'
+
+    if (isPhysical) {
+      if (!formData.primary_uom_id) e.primary_uom_id = 'Primary UOM is required for physical items'
+      if (formData.is_serial_controlled === 'Y' && formData.is_lot_controlled === 'Y')
+        e.is_lot_controlled = 'Cannot enable both Serial and Lot control'
+      if (formData.is_expirable === 'Y' && !formData.shelf_life_days)
+        e.shelf_life_days = 'Shelf life is required when item is expirable'
     }
 
-    e.preventDefault()
-    try {
-      if (view === 'edit') {
-        await table.update(selected['item_id'], formData)
-      } else {
-        await table.create(formData)
+    if (isPhysical === false) {
+      if (formData.is_license_required === 'Y') {
+        if (!formData.license_type) e.license_type = 'License type is required'
+        if (!formData.max_users) e.max_users = 'Max users is required'
       }
+    }
+    return e
+  }
+
+  const handleSubmit = async (ev) => {
+    ev.preventDefault()
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return toast.error('Please fix validation errors') }
+    try {
+      if (view === 'edit') await table.update(selected['item_id'], formData)
+      else await table.create(formData)
       handleBack()
     } catch {}
   }
@@ -111,53 +208,203 @@ export default function ItemMasterPage() {
     setConfirmDelete(null)
   }
 
+  // ─── FORM VIEW ──────────────────────────────────────────────
   if (view !== 'list') {
-    return (
-      <FormPage title={view==='view'?`View Item Master`:view==='edit'?`Edit Item Master`:`New Item Master`}
-        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
-        <div className="card p-6 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Item Id (Auto-gen)"><Input value={formData.item_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+    const isExp = formData.is_expirable === 'Y' || formData.is_expirable === true
+    const isLicReq = formData.is_license_required === 'Y' || formData.is_license_required === true
+    const readOnly = view === 'view'
 
-      <Field label="Item Code"><Input value={formData.item_code} onChange={e => setField('item_code',e.target.value)} /></Field>
-      <Field label="Item Name"><Input value={formData.item_name} onChange={e => setField('item_name',e.target.value)} /></Field>
-      <Field label="Item Type"><Select value={formData.item_type_id} onChange={v => setField('item_type_id',v)} options={dropdowns.itemType?.map(r=>{return{value:r.item_type_id,label:r.item_type_name||r.item_type_id}})} /></Field>
-      <Field label="Brand"><Select value={formData.brand_id} onChange={v => setField('brand_id',v)} options={dropdowns.brand?.map(r=>{return{value:r.brand_id,label:r.brand_name||r.brand_id}})} /></Field>
-      <Field label="Category"><Select value={formData.category_id} onChange={v => setField('category_id',v)} options={dropdowns.itemCategory?.map(r=>{return{value:r.category_id,label:r.category_name||r.category_id}})} /></Field>
-      <Field label="Sub Category"><Select value={formData.sub_category_id} onChange={v => setField('sub_category_id',v)} options={dropdowns.itemSubCategory?.map(r=>{return{value:r.sub_category_id,label:r.sub_category_name||r.sub_category_id}})} /></Field>
-      <Field label="Primary Uom Id"><Select value={formData.primary_uom_id} onChange={v => setField('primary_uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}})} /></Field>
-      <Field label="Secondary Uom Id"><Select value={formData.secondary_uom_id} onChange={v => setField('secondary_uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}})} /></Field>
-      <Field label="Is Stock Item"><Toggle value={formData.is_stock_item} onChange={v => setField('is_stock_item',v)} /></Field>
-      <Field label="Is Serial Controlled"><Toggle value={formData.is_serial_controlled} onChange={v => setField('is_serial_controlled',v)} /></Field>
-      <Field label="Is Lot Controlled"><Toggle value={formData.is_lot_controlled} onChange={v => setField('is_lot_controlled',v)} /></Field>
-      <Field label="Is Expirable"><Toggle value={formData.is_expirable} onChange={v => setField('is_expirable',v)} /></Field>
-      <Field label="Shelf Life Days"><Input type="number" step="any"  value={formData.shelf_life_days} onChange={e => setField('shelf_life_days',e.target.value)} /></Field>
-      <Field label="Lead Time Days"><Input type="number" step="any"  value={formData.lead_time_days} onChange={e => setField('lead_time_days',e.target.value)} /></Field>
-      <Field label="Reorder Point"><Input type="number" step="any"  value={formData.reorder_point} onChange={e => setField('reorder_point',e.target.value)} /></Field>
-      <Field label="Min Order Qty"><Input type="number" step="any"  value={formData.min_order_qty} onChange={e => setField('min_order_qty',e.target.value)} /></Field>
-      <Field label="Max Order Qty"><Input type="number" step="any"  value={formData.max_order_qty} onChange={e => setField('max_order_qty',e.target.value)} /></Field>
-      <Field label="Standard Cost"><Input type="number" step="any"  value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} /></Field>
-      <Field label="List Price"><Input type="number" step="any"  value={formData.list_price} onChange={e => setField('list_price',e.target.value)} /></Field>
-      <Field label="Tax Category"><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} /></Field>
-      <Field label="Hsn Code"><Input value={formData.hsn_code} onChange={e => setField('hsn_code',e.target.value)} /></Field>
-      <Field label="Weight Kg"><Input value={formData.weight_kg} onChange={e => setField('weight_kg',e.target.value)} /></Field>
-      <Field label="Volume Cbm"><Input value={formData.volume_cbm} onChange={e => setField('volume_cbm',e.target.value)} /></Field>
-      <Field label="Is License Required"><Toggle value={formData.is_license_required} onChange={v => setField('is_license_required',v)} /></Field>
-      <Field label="License Type"><Select value={formData.license_type} onChange={v => setField('license_type',v)} options={["DRUG_LICENSE","SUBSCRIPTION","IMPORT","NONE"]} /></Field>
-      <Field label="Max Users"><Input value={formData.max_users} onChange={e => setField('max_users',e.target.value)} /></Field>
-      <Field label="Description"><textarea className="input" disabled={view==='view'} rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+    return (
+      <FormPage
+        title={view==='view'?'View Item Master':view==='edit'?'Edit Item Master':'New Item Master'}
+        onBack={handleBack} onSubmit={handleSubmit}
+        loading={table.isCreating||table.isUpdating} mode={view}
+      >
+        {/* ── SECTION: Identity (Always Visible) ── */}
+        <div className="card p-6 mb-5">
+          <SectionHeader icon={FileText} title="Item Identity" subtitle="Basic item information" color="brand" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Item Id (Auto-gen)"><Input value={formData.item_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={errors} />
+            <Field label="Item Code"><Input value={formData.item_code} onChange={e => setField('item_code',e.target.value)} /></Field>
+            <Field label="Item Name" required error={errors.item_name}>
+              <Input value={formData.item_name} onChange={e => setField('item_name',e.target.value)} error={errors.item_name} />
+            </Field>
+            <Field label="Item Type" required error={errors.item_type_id}>
+              <Select value={formData.item_type_id} onChange={handleItemTypeChange}
+                error={errors.item_type_id}
+                options={dropdowns.itemType?.map(r=>({value:r.item_type_id,label:r.item_type_name||r.item_type_id}))} />
+              {hasTypeSelected && (
+                <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-medium ${isPhysical ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'}`}>
+                  {isPhysical ? <Package className="w-3 h-3" /> : <Monitor className="w-3 h-3" />}
+                  {isPhysical ? 'Physical Item' : 'Non-Physical (Software)'}
+                </span>
+              )}
+            </Field>
+            <Field label="Brand">
+              <Select value={formData.brand_id} onChange={v => setField('brand_id',v)}
+                options={dropdowns.brand?.map(r=>({value:r.brand_id,label:r.brand_name||r.brand_id}))} />
+            </Field>
+            <Field label="Category">
+              <Select value={formData.category_id} onChange={v => setField('category_id',v)}
+                options={dropdowns.itemCategory?.map(r=>({value:r.category_id,label:r.category_name||r.category_id}))} />
+            </Field>
+            <Field label="Sub Category">
+              <Select value={formData.sub_category_id} onChange={v => setField('sub_category_id',v)}
+                options={dropdowns.itemSubCategory?.map(r=>({value:r.sub_category_id,label:r.sub_category_name||r.sub_category_id}))} />
+            </Field>
+            <Field label="Description" >
+              <textarea className="input" disabled={readOnly} rows={2}
+                value={formData.description||''} onChange={e => setField('description',e.target.value)} />
+            </Field>
+          </div>
         </div>
+
+        {/* ── SECTION: Physical — Inventory & Tracking ── */}
+        {hasTypeSelected && isPhysical && (
+          <div className="card p-6 mb-5 animate-slide-in">
+            <SectionHeader icon={Box} title="Inventory & Tracking" subtitle="Stock control settings for physical items" color="emerald" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Is Stock Item"><Toggle value={formData.is_stock_item} onChange={v => setField('is_stock_item',v)} /></Field>
+              <Field label="Is Serial Controlled" error={errors.is_serial_controlled}>
+                <Toggle value={formData.is_serial_controlled} onChange={handleSerialChange} />
+                {formData.is_serial_controlled === 'Y' && (
+                  <span className="text-xs text-gray-500 mt-1 block">Lot control will be disabled</span>
+                )}
+              </Field>
+              <Field label="Is Lot Controlled" error={errors.is_lot_controlled}>
+                <Toggle value={formData.is_lot_controlled} onChange={handleLotChange} />
+                {errors.is_lot_controlled && <ValidationWarning message={errors.is_lot_controlled} />}
+                {formData.is_lot_controlled === 'Y' && (
+                  <span className="text-xs text-gray-500 mt-1 block">Serial control will be disabled</span>
+                )}
+              </Field>
+              <Field label="Is Expirable"><Toggle value={formData.is_expirable} onChange={handleExpirableChange} /></Field>
+              {isExp && (
+                <Field label="Shelf Life Days" required error={errors.shelf_life_days}>
+                  <Input type="number" value={formData.shelf_life_days} error={errors.shelf_life_days}
+                    onChange={e => setField('shelf_life_days',e.target.value)} placeholder="e.g. 365" />
+                </Field>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION: Physical — Storage & Logistics ── */}
+        {hasTypeSelected && isPhysical && (
+          <div className="card p-6 mb-5 animate-slide-in">
+            <SectionHeader icon={Truck} title="Storage & Logistics" subtitle="UOM, weight and volume details" color="sky" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Primary UOM" required error={errors.primary_uom_id}>
+                <Select value={formData.primary_uom_id} onChange={v => setField('primary_uom_id',v)}
+                  error={errors.primary_uom_id}
+                  options={dropdowns.uom?.map(r=>({value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}))} />
+              </Field>
+              <Field label="Secondary UOM">
+                <Select value={formData.secondary_uom_id} onChange={v => setField('secondary_uom_id',v)}
+                  options={dropdowns.uom?.map(r=>({value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}))} />
+              </Field>
+              <Field label="Weight (Kg)">
+                <Input type="number" step="any" value={formData.weight_kg} onChange={e => setField('weight_kg',e.target.value)} />
+              </Field>
+              <Field label="Volume (Cbm)">
+                <Input type="number" step="any" value={formData.volume_cbm} onChange={e => setField('volume_cbm',e.target.value)} />
+              </Field>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION: Physical — Stock Planning ── */}
+        {hasTypeSelected && isPhysical && (
+          <div className="card p-6 mb-5 animate-slide-in">
+            <SectionHeader icon={BarChart3} title="Stock Planning" subtitle="Reorder and lead time configuration" color="amber" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Lead Time Days"><Input type="number" value={formData.lead_time_days} onChange={e => setField('lead_time_days',e.target.value)} /></Field>
+              <Field label="Reorder Point"><Input type="number" value={formData.reorder_point} onChange={e => setField('reorder_point',e.target.value)} /></Field>
+              <Field label="Min Order Qty"><Input type="number" value={formData.min_order_qty} onChange={e => setField('min_order_qty',e.target.value)} /></Field>
+              <Field label="Max Order Qty"><Input type="number" value={formData.max_order_qty} onChange={e => setField('max_order_qty',e.target.value)} /></Field>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION: Physical — Costing ── */}
+        {hasTypeSelected && isPhysical && (
+          <div className="card p-6 mb-5 animate-slide-in">
+            <SectionHeader icon={DollarSign} title="Costing & Pricing" subtitle="Cost, price and tax configuration" color="rose" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Standard Cost"><Input type="number" step="any" value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} /></Field>
+              <Field label="List Price"><Input type="number" step="any" value={formData.list_price} onChange={e => setField('list_price',e.target.value)} /></Field>
+              <Field label="Tax Category"><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} /></Field>
+              <Field label="HSN Code"><Input value={formData.hsn_code} onChange={e => setField('hsn_code',e.target.value)} /></Field>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION: Software — License & Usage ── */}
+        {hasTypeSelected && !isPhysical && (
+          <div className="card p-6 mb-5 animate-slide-in">
+            <SectionHeader icon={Shield} title="License & Usage" subtitle="Software licensing configuration" color="purple" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="Is License Required"><Toggle value={formData.is_license_required} onChange={v => setField('is_license_required',v)} /></Field>
+              {isLicReq && (
+                <>
+                  <Field label="License Type" required error={errors.license_type}>
+                    <Select value={formData.license_type} onChange={v => setField('license_type',v)}
+                      error={errors.license_type}
+                      options={["SUBSCRIPTION","PERPETUAL","TRIAL","NONE"].map(o => ({ value: o, label: o }))} />
+                  </Field>
+                  <Field label="Max Users" required error={errors.max_users}>
+                    <Input type="number" value={formData.max_users} error={errors.max_users}
+                      onChange={e => setField('max_users',e.target.value)} placeholder="e.g. 100" />
+                  </Field>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION: Software — Pricing ── */}
+        {hasTypeSelected && !isPhysical && (
+          <div className="card p-6 mb-5 animate-slide-in">
+            <SectionHeader icon={DollarSign} title="Pricing" subtitle="Software pricing and tax" color="rose" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Field label="List Price"><Input type="number" step="any" value={formData.list_price} onChange={e => setField('list_price',e.target.value)} /></Field>
+              <Field label="Tax Category"><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} /></Field>
+              <Field label="Standard Cost">
+                <Input type="number" step="any" value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} placeholder="For internal tracking" />
+              </Field>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION: Common — Module & Status ── */}
+        <div className="card p-6 mb-5">
+          <SectionHeader icon={FileText} title="Status & Dates" subtitle="Module assignment and effectivity" color="brand" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Module">
+              <Select value={formData.module_id} onChange={v => setField('module_id',v)}
+                options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
+            </Field>
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
+            <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
+            <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
+            <AuditFields formData={formData} setField={setField} />
+          </div>
+        </div>
+
+        {/* Prompt to select Item Type if not yet selected */}
+        {!hasTypeSelected && view !== 'view' && (
+          <div className="card p-8 mb-5 text-center border-2 border-dashed border-gray-300 dark:border-gray-600">
+            <Package className="w-10 h-10 mx-auto text-gray-400 mb-3" />
+            <p className="text-gray-500 dark:text-gray-400 font-medium">Select an Item Type above to see additional fields</p>
+            <p className="text-xs text-gray-400 mt-1">Fields will appear based on whether the item is Physical or Software</p>
+          </div>
+        )}
       </FormPage>
     )
   }
 
+  // ─── LIST VIEW ──────────────────────────────────────────────
   return (
     <>
       <DataTable
@@ -180,7 +427,7 @@ export default function ItemMasterPage() {
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete Record"
-        message={`Delete "${confirmDelete?.['{pk_field}']}"? This cannot be undone.`}
+        message={`Delete "${confirmDelete?.item_id}"? This cannot be undone.`}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
         loading={table.isDeleting}
