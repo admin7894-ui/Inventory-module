@@ -11,7 +11,7 @@ import {
 } from '../services/api'
 
 const COLUMNS = [
-  { key: 'txn_id', label: 'Txn Id' },
+  { key: 'txn_id', label: 'Txn Id' }, 
   { key: 'txn_date', label: 'Date' },
   { key: 'txn_action', label: 'Action' },
   { key: 'item_id', label: 'Item' },
