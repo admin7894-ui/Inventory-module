@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, SectionHeader } from '../components/ui/index'
 import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X, Loader2, CheckCircle2 } from 'lucide-react'
 import {
   openingStockApi, moduleApi, inventoryOrgApi, subinventoryApi, locatorApi,
@@ -28,22 +28,7 @@ const COLUMNS = [
   )},
 ]
 
-function SectionHeader({ icon: Icon, title, subtitle, color = 'brand' }) {
-  const colors = {
-    brand: 'from-blue-600 to-indigo-600', emerald: 'from-emerald-600 to-teal-600',
-    amber: 'from-amber-500 to-orange-500', purple: 'from-purple-600 to-violet-600',
-    rose: 'from-rose-500 to-pink-500',
-  }
-  return (
-    <div className={`flex items-center gap-3 mb-4 px-4 py-2.5 rounded-lg bg-gradient-to-r ${colors[color]} text-white shadow-sm`}>
-      {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-      <div>
-        <h3 className="text-sm font-semibold tracking-wide">{title}</h3>
-        {subtitle && <p className="text-xs opacity-80">{subtitle}</p>}
-      </div>
-    </div>
-  )
-}
+
 
 export default function OpeningStockPage() {
   const table = useTableData(openingStockApi, 'opening_stock')

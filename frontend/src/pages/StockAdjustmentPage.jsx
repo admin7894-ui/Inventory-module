@@ -8,8 +8,9 @@ import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCi
 import {
   stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi, 
   itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
-  lotMasterApi, serialMasterApi
+  lotMasterApi, serialMasterApi, itemStockApi
 } from '../services/api'
+import { MultiSelect, SectionHeader } from '../components/ui/index'
 
 const COLUMNS = [
   { key: 'adjustment_id', label: 'ID' },
@@ -29,21 +30,7 @@ const COLUMNS = [
   )},
 ]
 
-function SectionHeader({ icon: Icon, title, subtitle, color = 'brand' }) {
-  const colors = {
-    brand: 'from-blue-600 to-indigo-600', emerald: 'from-emerald-600 to-teal-600',
-    amber: 'from-amber-500 to-orange-500', purple: 'from-purple-600 to-violet-600',
-  }
-  return (
-    <div className={`flex items-center gap-3 mb-4 px-4 py-2.5 rounded-lg bg-gradient-to-r ${colors[color]} text-white shadow-sm`}>
-      {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-      <div>
-        <h3 className="text-sm font-semibold tracking-wide">{title}</h3>
-        {subtitle && <p className="text-xs opacity-80">{subtitle}</p>}
-      </div>
-    </div>
-  )
-}
+
 
 export default function StockAdjustmentPage() {
   const table = useTableData(stockAdjustmentApi, 'stock_adjustment')
@@ -64,11 +51,7 @@ export default function StockAdjustmentPage() {
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
   const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
   const { options: serials }          = useDropdownData(serialMasterApi, 'ser_dd')
-
-  const setField = useCallback((k, v) => {
-    setFormData(p => ({ ...p, [k]: v }));
-    setErrors(p => { const n = { ...p }; delete n[k]; return n; });
-  }, [])
+  const { rows: allStock, isLoading: loadingStock, reload: reloadStock } = useTableData(itemStockApi, 'item_stock_onhand', { limit: 1000 })
 
   const selectedItem = useMemo(() => {
     return (items || []).find(i => i.item_id === formData.item_id);
@@ -77,6 +60,27 @@ export default function StockAdjustmentPage() {
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
   const isLotControlled = selectedItem && isYes(selectedItem.is_lot_controlled);
   const isSerialControlled = selectedItem && isYes(selectedItem.is_serial_controlled);
+
+  const setField = useCallback((k, v) => {
+    setFormData(p => ({ ...p, [k]: v }));
+    setErrors(p => { const n = { ...p }; delete n[k]; return n; });
+  }, [])
+
+  const itemStock = useMemo(() => {
+    if (!formData.item_id || !allStock) return []
+    return allStock.filter(s => s.item_id === formData.item_id)
+  }, [formData.item_id, allStock])
+
+  const currentStockInfo = useMemo(() => {
+    if (!formData.item_id || !formData.inv_org_id || !formData.subinventory_id) return null
+    return itemStock.find(s => 
+      s.inv_org_id === formData.inv_org_id && 
+      s.subinventory_id === formData.subinventory_id && 
+      (s.locator_id || '') === (formData.locator_id || '') &&
+      (isLotControlled ? s.lot_id === formData.lot_id : true) &&
+      (isSerialControlled ? (formData.serial_ids?.includes(s.serial_id) || s.serial_id === formData.serial_id) : true)
+    )
+  }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, formData.locator_id, formData.lot_id, formData.serial_id, formData.serial_ids, itemStock, isLotControlled, isSerialControlled])
 
   const handleTxnTypeChange = (tid) => {
     const type = (txnTypes || []).find(t => t.txn_type_id === tid);
@@ -141,7 +145,7 @@ export default function StockAdjustmentPage() {
     if (!formData.inv_org_id) e.inv_org_id = 'Required'
     if (isTransfer && !formData.to_inv_org_id) e.to_inv_org_id = 'Required'
     if (isLotControlled && !formData.lot_id) e.lot_id = 'Lot Required'
-    if (isSerialControlled && !formData.serial_id) e.serial_id = 'Serial Required'
+    if (isSerialControlled && (!formData.serial_ids || formData.serial_ids.length === 0)) e.serial_ids = 'Serial Required'
     return e
   }
 
@@ -206,7 +210,10 @@ export default function StockAdjustmentPage() {
                 </Field>
                 <Field label="Subinventory">
                   <Select value={formData.subinventory_id} onChange={v => setField('subinventory_id', v)} disabled={view === 'view'}
-                    options={subinventories?.filter(r => r.inv_org_id === formData.inv_org_id).map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
+                    options={subinventories?.filter(r => {
+                      if (!isTransfer) return r.inv_org_id === formData.inv_org_id
+                      return itemStock.some(s => s.inv_org_id === formData.inv_org_id && s.subinventory_id === r.subinventory_id && parseFloat(s.available_qty) > 0)
+                    }).map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                 </Field>
               </div>
             </div>
@@ -228,8 +235,24 @@ export default function StockAdjustmentPage() {
             )}
 
             <div className="p-4 rounded-lg bg-gray-50">
-              <h4 className="text-xs font-bold uppercase text-gray-500 mb-3">Quantities</h4>
+              <h4 className="text-xs font-bold uppercase text-gray-500 mb-3">Stock & Quantities</h4>
               <div className="space-y-3">
+                {currentStockInfo && (
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <div className="bg-white p-2 rounded border text-center">
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">On Hand</p>
+                      <p className="text-sm font-bold text-gray-700">{currentStockInfo.onhand_qty}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded border text-center">
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">Reserved</p>
+                      <p className="text-sm font-bold text-amber-600">{currentStockInfo.reserved_qty || 0}</p>
+                    </div>
+                    <div className="bg-white p-2 rounded border text-center">
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">Available</p>
+                      <p className="text-sm font-bold text-emerald-600">{currentStockInfo.available_qty}</p>
+                    </div>
+                  </div>
+                )}
                 {!isTransfer && (
                   <Field label="System Qty"><Input type="number" value={formData.system_qty} onChange={e => setField('system_qty', e.target.value)} disabled={view === 'view'} /></Field>
                 )}
@@ -248,13 +271,22 @@ export default function StockAdjustmentPage() {
             {isLotControlled && (
               <Field label="Lot" required error={errors.lot_id}>
                 <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
-                  options={lots?.map(r => ({ value: r.lot_id, label: r.lot_number }))} />
+                  options={lots?.filter(r => {
+                    if (!isTransfer) return true
+                    return itemStock.some(s => s.lot_id === r.lot_id && parseFloat(s.available_qty) > 0)
+                  }).map(r => ({ value: r.lot_id, label: r.lot_number }))} />
               </Field>
             )}
             {isSerialControlled && (
-              <Field label="Serial" required error={errors.serial_id}>
-                <Select value={formData.serial_id} onChange={v => setField('serial_id', v)} disabled={view === 'view'}
-                  options={serials?.map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+              <Field label="Serials" required error={errors.serial_ids}>
+                <MultiSelect value={formData.serial_ids} onChange={v => {
+                  setField('serial_ids', v);
+                  setField('physical_qty', v.length);
+                }} disabled={view === 'view'}
+                  options={serials?.filter(r => {
+                    if (!isTransfer) return true
+                    return itemStock.some(s => s.serial_id === r.serial_id && parseFloat(s.available_qty) > 0)
+                  }).map(r => ({ value: r.serial_id, label: r.serial_number }))} />
               </Field>
             )}
             <Field label="UOM">

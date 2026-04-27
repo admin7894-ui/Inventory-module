@@ -95,15 +95,14 @@ exports.create = async (req, res) => {
     body.COMPANY_id = body.COMPANY_id || body.company_id;
     
     const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
+    const item = (db.item_master || []).find(i => i.item_id === body.item_id);
+    const isSerialControlled = item && (item.is_serial_controlled === 'Y' || item.is_serial_controlled === true);
     
     if (isTransfer) {
       if (!body.to_inv_org_id || !body.to_subinventory_id) {
         return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
       }
-      if (body.inv_org_id === body.to_inv_org_id) {
-        return res.status(400).json({ success: false, message: 'Source and Destination Organizations must be different' });
-      }
-
+      
       // Check Ship Network
       const network = (db.ship_network || []).find(n => 
         (n.from_inv_org_id === body.inv_org_id || n['Dropdown from_inv_org_id'] === body.inv_org_id) && 
@@ -114,22 +113,38 @@ exports.create = async (req, res) => {
         return res.status(400).json({ success: false, message: `Ship Network does not exist between ${body.inv_org_id} and ${body.to_inv_org_id}` });
       }
 
-      const stock = (db.item_stock_onhand || []).find(s => 
-        s.item_id === body.item_id && s.inv_org_id === body.inv_org_id && 
-        s.subinventory_id === body.subinventory_id && (s.locator_id || '') === (body.locator_id || '') &&
-        (s.lot_id || '') === (body.lot_id || '') && (s.serial_id || '') === (body.serial_id || '')
+      // Stock Validation
+      const stocks = (db.item_stock_onhand || []).filter(s => 
+        s.item_id === body.item_id && 
+        s.inv_org_id === body.inv_org_id && 
+        s.subinventory_id === body.subinventory_id && 
+        (s.locator_id || '') === (body.locator_id || '')
       );
+
+      let availableQty = 0;
+      if (isSerialControlled) {
+        const selectedSerials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
+        body.serial_ids = selectedSerials;
+        body.adjustment_qty = selectedSerials.length;
+        
+        const validSerials = stocks.filter(s => selectedSerials.includes(s.serial_id) && parseFloat(s.available_qty) > 0);
+        if (validSerials.length !== selectedSerials.length) {
+          return res.status(400).json({ success: false, message: 'One or more selected serials are not available in this location' });
+        }
+        availableQty = validSerials.length;
+      } else {
+        const lotStock = stocks.find(s => (s.lot_id || '') === (body.lot_id || ''));
+        availableQty = lotStock ? parseFloat(lotStock.available_qty || 0) : 0;
+        body.adjustment_qty = Math.abs(parseFloat(body.adjustment_qty || body.physical_qty || 0));
+      }
       
-      const requestedQty = Math.abs(parseFloat(body.adjustment_qty || body.physical_qty || 0));
-      const availableQty = stock ? parseFloat(stock.available_qty || 0) : 0;
-      
-      if (!stock || availableQty < requestedQty) {
+      const requestedQty = body.adjustment_qty;
+      if (availableQty < requestedQty) {
         return res.status(400).json({ success: false, message: `Insufficient stock (Requested: ${requestedQty}, Available: ${availableQty})` });
       }
 
-      body.adjustment_qty = requestedQty;
       body.transfer_flag = 'Y';
-      body.approval_status = 'APPROVED'; // Transfers often auto-approve or are handled differently
+      body.approval_status = 'APPROVED';
       body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
     } else {
       const adjQty = parseFloat(body.physical_qty || 0) - parseFloat(body.system_qty || 0);

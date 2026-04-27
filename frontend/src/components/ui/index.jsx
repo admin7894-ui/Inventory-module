@@ -50,6 +50,92 @@ export function Select({ value, onChange, options = [], placeholder = '-- Select
   )
 }
 
+// ── Multi-Select Dropdown ─────────────────────────────────────
+export function MultiSelect({ value = [], onChange, options = [], placeholder = '-- Select Multiple --', disabled, error, className }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const container = useRef(null)
+  const { mode } = useFormMode()
+  const isView = mode === 'view'
+
+  useEffect(() => {
+    const handleDown = (e) => { if (container.current && !container.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleDown)
+    return () => document.removeEventListener('mousedown', handleDown)
+  }, [])
+
+  const selected = Array.isArray(value) ? value : []
+  const filtered = options.filter(o => {
+    const l = typeof o === 'object' ? o.label : o
+    return String(l).toLowerCase().includes(search.toLowerCase())
+  })
+
+  const toggle = (v) => {
+    if (isView || disabled) return
+    const next = selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]
+    onChange(next)
+  }
+
+  return (
+    <div className="relative" ref={container}>
+      <div onClick={() => !disabled && !isView && setOpen(!open)}
+        className={clsx(error ? 'input-error' : 'input', 'cursor-pointer flex items-center justify-between min-h-[38px]', (disabled || isView) && 'bg-gray-100 opacity-70')}>
+        <div className="flex flex-wrap gap-1">
+          {selected.length === 0 ? <span className="text-gray-400">{placeholder}</span> : (
+            selected.map(v => {
+              const opt = options.find(o => (typeof o === 'object' ? o.value : o) === v)
+              const label = opt ? (typeof opt === 'object' ? opt.label : opt) : v
+              return (
+                <span key={v} className="px-1.5 py-0.5 bg-brand-50 text-brand-700 text-[10px] font-bold rounded flex items-center gap-1 border border-brand-200">
+                  {label}
+                  {!isView && !disabled && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); toggle(v) }} className="hover:text-brand-900"><X className="w-2.5 h-2.5" /></button>
+                  )}
+                </span>
+              )
+            })
+          )}
+        </div>
+        <ChevronDown className={clsx('w-4 h-4 text-gray-400 transition-transform', open && 'rotate-180')} />
+      </div>
+
+      {open && !disabled && !isView && (
+        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl animate-slide-in overflow-hidden">
+          <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input autoFocus type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search..." className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border-none rounded focus:ring-1 focus:ring-brand-500" />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 && <p className="p-3 text-xs text-gray-400 text-center">No options found</p>}
+            {filtered.map(opt => {
+              const v = typeof opt === 'object' ? opt.value : opt
+              const l = typeof opt === 'object' ? opt.label : opt
+              const isSel = selected.includes(v)
+              return (
+                <div key={v} onClick={() => toggle(v)}
+                  className={clsx('px-3 py-2 text-xs flex items-center justify-between cursor-pointer transition-colors',
+                    isSel ? 'bg-brand-50 text-brand-700 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300')}>
+                  <span>{l}</span>
+                  {isSel && <div className="w-3 h-3 bg-brand-500 rounded-sm flex items-center justify-center text-white text-[10px]">✓</div>}
+                </div>
+              )
+            })}
+          </div>
+          {selected.length > 0 && (
+            <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 flex justify-between">
+              <button type="button" onClick={() => onChange([])} className="text-[10px] text-red-600 font-bold hover:underline">Clear All</button>
+              <button type="button" onClick={() => setOpen(false)} className="text-[10px] text-brand-600 font-bold hover:underline">Done</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Date Input ────────────────────────────────────────────────
 export function DateInput({ value, onChange, required, error, min, max, disabled }) {
   const { mode } = useFormMode()
@@ -293,5 +379,24 @@ export function AuditFields({ formData, setField }) {
         </>
       )}
     </>
+  )
+}
+export function SectionHeader({ icon: Icon, title, subtitle, color = 'brand' }) {
+  const colors = {
+    brand: 'from-blue-600 to-indigo-600',
+    emerald: 'from-emerald-600 to-teal-600',
+    amber: 'from-amber-500 to-orange-500',
+    purple: 'from-purple-600 to-violet-600',
+    rose: 'from-rose-500 to-pink-500',
+    gray: 'from-gray-600 to-slate-700'
+  }
+  return (
+    <div className={`flex items-center gap-3 mb-4 px-4 py-2.5 rounded-lg bg-gradient-to-r ${colors[color]} text-white shadow-sm`}>
+      {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold tracking-wide truncate">{title}</h3>
+        {subtitle && <p className="text-[10px] opacity-80 truncate">{subtitle}</p>}
+      </div>
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useTableData } from '../hooks/useTableData'
-import { DataTable, FormPage, Field, Input } from '../components/ui/index'
+import { DataTable, FormPage, Field, Input, SectionHeader } from '../components/ui/index'
 import { inventoryTransactionApi } from '../services/api'
 import { Receipt, MapPin, Package, Hash, UserCheck, Calendar } from 'lucide-react'
 
@@ -22,18 +22,7 @@ const COLUMNS = [
   { key: 'txn_date', label: 'Date' }
 ]
 
-function SectionHeader({ icon: Icon, title, color = 'brand' }) {
-  const colors = {
-    brand: 'from-blue-600 to-indigo-600', emerald: 'from-emerald-600 to-teal-600',
-    amber: 'from-amber-500 to-orange-500', purple: 'from-purple-600 to-violet-600',
-  }
-  return (
-    <div className={`flex items-center gap-3 mb-4 px-4 py-2 rounded-lg bg-gradient-to-r ${colors[color]} text-white shadow-sm`}>
-      {Icon && <Icon className="w-4 h-4" />}
-      <h3 className="text-sm font-semibold">{title}</h3>
-    </div>
-  )
-}
+
 
 export default function InventoryTransactionPage() {
   const table = useTableData(inventoryTransactionApi, 'inventory_transaction')
