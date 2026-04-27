@@ -1,5 +1,6 @@
 const db = require('../data/db');
 const { generateId } = require('../utils/idGenerator');
+const inventoryEngine = require('../services/inventoryEngine');
 const MOCK_USER = 'admin';
 
 function applyRLS(data, user) {
@@ -17,21 +18,42 @@ exports.getAll = (req, res) => {
     res.json({ success:true, data:data.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
+
 exports.getById = (req, res) => {
   const item = (db.inventory_transaction||[]).find(r => r.txn_id === req.params.id);
   if (!item) return res.status(404).json({ success:false, message:'Not found' });
   res.json({ success:true, data:item });
 };
-const inventoryEngine = require('../services/inventoryEngine');
 
 exports.create = async (req, res) => {
   try {
     const body = { ...req.body };
     
     // Ensure all mandatory fields for engine are present
-    const mandatory = ['item_id', 'inv_org_id', 'txn_qty', 'unit_cost', 'txn_type_id', 'txn_action', 'COMPANY_id'];
+    const mandatory = ['item_id', 'txn_qty', 'txn_type_id', 'txn_action', 'COMPANY_id'];
     for (const f of mandatory) {
       if (!body[f] && body[f] !== 0) return res.status(400).json({ success: false, message: `Missing field: ${f}` });
+    }
+
+    // ── Block non-physical items ────────────────────────────────
+    const item = (db.item_master || []).find(i => i.item_id === body.item_id);
+    if (item) {
+      const itemType = (db.item_type || []).find(t => t.item_type_id === item.item_type_id);
+      if (itemType && (itemType.is_physical === 'N' || itemType.is_physical === false)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Inventory transactions are not allowed for non-physical (software) items'
+        });
+      }
+    }
+
+    // Ensure inv_org_id is present (may come as from_inv_org_id)
+    if (!body.inv_org_id) body.inv_org_id = body.from_inv_org_id;
+    if (!body.subinventory_id) body.subinventory_id = body.from_subinventory_id;
+    if (!body.locator_id) body.locator_id = body.from_locator_id;
+
+    if (!body.inv_org_id) {
+      return res.status(400).json({ success: false, message: 'Inventory Organization is required' });
     }
 
     // Process via Inventory Engine
@@ -43,6 +65,7 @@ exports.create = async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 };
+
 exports.update = (req, res) => {
   try {
     const idx = (db.inventory_transaction||[]).findIndex(r => r.txn_id === req.params.id);
@@ -51,6 +74,7 @@ exports.update = (req, res) => {
     res.json({ success:true, data:db.inventory_transaction[idx] });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
+
 exports.remove = (req, res) => {
   try {
     const idx = (db.inventory_transaction||[]).findIndex(r => r.txn_id === req.params.id);
