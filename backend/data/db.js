@@ -2562,49 +2562,67 @@ const db = {
 
   // ── transaction_reason (pk: txn_reason_id) ──
   transaction_reason: [
-  {
-    "txn_reason_id": "TR01",
-    "COMPANY_id": "C02",
-    "business_type_id": "BT02",
-    "bg_id": "BG02",
-    "reason_code": "DAMAGED",
-    "txn_reason": "Damaged goods",
-    "module_id": "MOD01",
-    "active_flag": "True",
-    "effective_from": "2024-01-01 00:00:00",
-    "effective_to": "",
-    "created_by": "admin",
-    "updated_by": "manager1"
-  },
-  {
-    "txn_reason_id": "TR02",
-    "COMPANY_id": "C02",
-    "business_type_id": "BT02",
-    "bg_id": "BG02",
-    "reason_code": "RETURN",
-    "txn_reason": "Customer return",
-    "module_id": "MOD01",
-    "active_flag": "True",
-    "effective_from": "2024-01-01 00:00:00",
-    "effective_to": "",
-    "created_by": "admin",
-    "updated_by": "manager1"
-  },
-  {
-    "txn_reason_id": "TR03",
-    "COMPANY_id": "C03",
-    "business_type_id": "BT03",
-    "bg_id": "BG03",
-    "reason_code": "EXPIRED",
-    "txn_reason": "Expired medicine",
-    "module_id": "MOD01",
-    "active_flag": "True",
-    "effective_from": "2024-01-01 00:00:00",
-    "effective_to": "",
-    "created_by": "admin",
-    "updated_by": "finance_mgr"
-  }
-],
+    {
+      "txn_reason_id": "TR01",
+      "COMPANY_id": "C01",
+      "business_type_id": "BT01",
+      "bg_id": "BG01",
+      "reason_code": "DAMAGED",
+      "txn_reason": "Damaged goods",
+      "category": "ADJUSTMENT",
+      "module_id": "MOD01",
+      "active_flag": "Y",
+      "effective_from": "2024-01-01",
+      "effective_to": "",
+      "created_by": "admin",
+      "updated_by": "admin"
+    },
+    {
+      "txn_reason_id": "TR04",
+      "COMPANY_id": "C01",
+      "business_type_id": "BT01",
+      "bg_id": "BG01",
+      "reason_code": "INITIAL_STOCK",
+      "txn_reason": "Initial Opening Stock",
+      "category": "OPENING",
+      "module_id": "MOD01",
+      "active_flag": "Y",
+      "effective_from": "2024-01-01",
+      "effective_to": "",
+      "created_by": "admin",
+      "updated_by": "admin"
+    },
+    {
+      "txn_reason_id": "TR02",
+      "COMPANY_id": "C02",
+      "business_type_id": "BT02",
+      "bg_id": "BG02",
+      "reason_code": "RETURN",
+      "txn_reason": "Customer return",
+      "category": "RETURN",
+      "module_id": "MOD01",
+      "active_flag": "True",
+      "effective_from": "2024-01-01 00:00:00",
+      "effective_to": "",
+      "created_by": "admin",
+      "updated_by": "manager1"
+    },
+    {
+      "txn_reason_id": "TR03",
+      "COMPANY_id": "C03",
+      "business_type_id": "BT03",
+      "bg_id": "BG03",
+      "reason_code": "EXPIRED",
+      "txn_reason": "Expired medicine",
+      "category": "ADJUSTMENT",
+      "module_id": "MOD01",
+      "active_flag": "True",
+      "effective_from": "2024-01-01 00:00:00",
+      "effective_to": "",
+      "created_by": "admin",
+      "updated_by": "finance_mgr"
+    }
+  ],
 
   // ── opening_stock (pk: opening_stock_id) ──
   opening_stock: [

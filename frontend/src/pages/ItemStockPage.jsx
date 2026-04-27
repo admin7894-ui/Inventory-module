@@ -1,148 +1,91 @@
-import React, { useState, useEffect } from 'react'
-import toast from 'react-hot-toast'
-import { useNavigate } from 'react-router-dom'
-import { useTableData, useDropdownData } from '../hooks/useTableData'
-import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import React, { useState } from 'react'
+import { useTableData } from '../hooks/useTableData'
+import { DataTable, FormPage, Field, Input } from '../components/ui/index'
 import { itemStockApi } from '../services/api'
-import {
-  companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
-  inventoryOrgApi, subinventoryApi, locatorApi, itemMasterApi, uomApi, uomTypeApi,
-  itemCategoryApi, itemSubCategoryApi, brandApi, itemTypeApi, zoneApi,
-  lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
-  categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
-  operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
-  departmentsApi, rolesApi, designationApi, inventoryTransactionApi,
-} from '../services/api'
+import { Box, MapPin, Building, Ruler, BarChart3, Clock } from 'lucide-react'
 
 const COLUMNS = [
-  { key: 'stock_id', label: 'Stock Id' },
-  { key: 'COMPANY_id', label: 'Company Id' },
-  { key: 'business_type_id', label: 'Business Type Id' },
-  { key: 'bg_id', label: 'Bg Id' },
-  { key: 'item_id', label: 'Item Id' },
-  { key: 'inv_org_id', label: 'Inv Org Id' },
-  { key: 'subinventory_id', label: 'Subinventory Id' }
+  { key: 'item_code', label: 'Item Code' },
+  { key: 'item_name', label: 'Item Name' },
+  { key: 'company_name', label: 'Company' },
+  { key: 'inv_org_name', label: 'Org' },
+  { key: 'subinventory_id', label: 'Subinv' },
+  { key: 'onhand_qty', label: 'Onhand', render: (v) => <span className="font-bold text-blue-600">{v}</span> },
+  { key: 'available_qty', label: 'Available', render: (v) => <span className="font-bold text-emerald-600">{v}</span> },
+  { key: 'uom_name', label: 'UOM' },
+  { key: 'total_cost_value', label: 'Value' }
 ]
 
+function SectionHeader({ icon: Icon, title, color = 'brand' }) {
+  const colors = {
+    brand: 'from-blue-600 to-indigo-600', emerald: 'from-emerald-600 to-teal-600',
+    amber: 'from-amber-500 to-orange-500', purple: 'from-purple-600 to-violet-600',
+  }
+  return (
+    <div className={`flex items-center gap-3 mb-4 px-4 py-2 rounded-lg bg-gradient-to-r ${colors[color]} text-white shadow-sm`}>
+      {Icon && <Icon className="w-4 h-4" />}
+      <h3 className="text-sm font-semibold">{title}</h3>
+    </div>
+  )
+}
+
 export default function ItemStockPage() {
-  const navigate = useNavigate()
-  const table = useTableData(itemStockApi, 'item_stock')
-  const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
+  const table = useTableData(itemStockApi, 'item_stock_onhand')
+  const [view, setView] = useState('list')
   const [selected, setSelected] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null)
-  const [formData, setFormData] = useState({})
 
-  // Load all needed dropdowns
-  const companies = []
-  const businessGroups = []
-  const businessTypes = []
-  const { options: locations } = useDropdownData(locationApi, 'loc_dd')
-  const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
-  const { options: subinventories } = useDropdownData(subinventoryApi, 'sub_dd')
-  const { options: locators } = useDropdownData(locatorApi, 'loc2_dd')
-  const { options: items } = useDropdownData(itemMasterApi, 'item_dd')
-  const { options: uoms } = useDropdownData(uomApi, 'uom_dd')
-  const { options: uomTypes } = useDropdownData(uomTypeApi, 'uomt_dd')
-  const { options: itemCategories } = useDropdownData(itemCategoryApi, 'cat_dd')
-  const { options: itemSubCategories } = useDropdownData(itemSubCategoryApi, 'scat_dd')
-  const { options: brands } = useDropdownData(brandApi, 'brand_dd')
-  const { options: itemTypes } = useDropdownData(itemTypeApi, 'itype_dd')
-  const { options: zones } = useDropdownData(zoneApi, 'zone_dd')
-  const { options: lots } = useDropdownData(lotMasterApi, 'lot_dd')
-  const { options: serials } = useDropdownData(serialMasterApi, 'serial_dd')
-  const { options: txnTypes } = useDropdownData(transactionTypeApi, 'txntype_dd')
-  const { options: txnReasons } = useDropdownData(transactionReasonApi, 'txnrsn_dd')
-  const { options: categorySets } = useDropdownData(categorySetApi, 'catset_dd')
-  const { options: costMethods } = useDropdownData(costMethodApi, 'cm_dd')
-  const { options: costTypes } = useDropdownData(costTypeApi, 'ct_dd')
-  const { options: shipMethods } = useDropdownData(shipMethodApi, 'sm_dd')
-  const { options: legalEntities } = useDropdownData(legalEntityApi, 'le_dd')
-  const { options: operatingUnits } = useDropdownData(operatingUnitApi, 'ou_dd')
-  const { options: securityProfiles } = useDropdownData(securityProfileApi, 'sp_dd')
-  const { options: profileAccesses } = useDropdownData(profileAccessApi, 'pa_dd')
-  const { options: securityRolesList } = useDropdownData(securityRolesApi, 'sr_dd')
-  const { options: depts } = useDropdownData(departmentsApi, 'dept_dd')
-  const { options: rolesList } = useDropdownData(rolesApi, 'roles_dd')
-  const { options: designations } = useDropdownData(designationApi, 'desig_dd')
-  const { options: inventoryTransactions } = useDropdownData(inventoryTransactionApi, 'invtxn_dd')
-
-  const dropdowns = {
-    company: companies, businessGroup: businessGroups, businessType: businessTypes,
-    location: locations, module: modules, inventoryOrg: inventoryOrgs,
-    subinventory: subinventories, locator: locators, itemMaster: items,
-    uom: uoms, uomType: uomTypes, itemCategory: itemCategories, itemSubCategory: itemSubCategories,
-    brand: brands, itemType: itemTypes, zone: zones, lotMaster: lots, serialMaster: serials,
-    transactionType: txnTypes, transactionReason: txnReasons, categorySet: categorySets,
-    costMethod: costMethods, costType: costTypes, shipMethod: shipMethods,
-    legalEntity: legalEntities, operatingUnit: operatingUnits,
-    securityProfile: securityProfiles, profileAccess: profileAccesses,
-    securityRoles: securityRolesList, departments: depts, roles: rolesList, designation: designations,
-    inventory_transaction: inventoryTransactions,
-  }
-
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
-
-  const handleCreate = () => {
-    setFormData({ active_flag: 'Y', effective_from: new Date().toISOString().split('T')[0] })
-    setView('create')
-  }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
+  const handleView = (row) => { setSelected(row); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
 
-  const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
-    e.preventDefault()
-    try {
-      if (view === 'edit') {
-        await table.update(selected['stock_id'], formData)
-      } else {
-        await table.create(formData)
-      }
-      handleBack()
-    } catch { }
-  }
-
-  const handleDelete = async () => {
-    await table.remove(confirmDelete['stock_id'])
-    setConfirmDelete(null)
-  }
-  console.log(dropdowns.last_transaction_id);
-
-  if (view !== 'list') {
+  if (view === 'view' && selected) {
     return (
-      <FormPage title={view === 'view' ? `View Item Stock (Onhand)` : view === 'edit' ? `Edit Item Stock (Onhand)` : `New Item Stock (Onhand)`}
-        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}>
-        <div className="card p-6 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Stock Id (Auto-gen)"><Input value={formData.stock_id} readOnly /></Field>
-            <CompanyGroup formData={formData} setField={setField} />
+      <FormPage title="Onhand Stock Details" onBack={handleBack} mode="view">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="card p-6">
+            <SectionHeader icon={Box} title="Item Information" />
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Item Code"><Input value={selected.item_code} readOnly /></Field>
+              <Field label="Item Name"><Input value={selected.item_name} readOnly /></Field>
+              <Field label="UOM"><Input value={selected.uom_name} readOnly /></Field>
+              <Field label="Lot Number"><Input value={selected.lot_number || '--'} readOnly /></Field>
+            </div>
+          </div>
 
-            <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id', v)} options={dropdowns.itemMaster?.map(r => { return { value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` } })} /></Field>
-            <Field label="Inv Org Id"><Select value={formData.inv_org_id} onChange={v => setField('inv_org_id', v)} options={dropdowns.inventoryOrg?.map(r => { return { value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id } })} /></Field>
-            <Field label="Subinventory Id"><Select value={formData.subinventory_id} onChange={v => setField('subinventory_id', v)} options={dropdowns.subinventory?.map(r => { return { value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id } })} /></Field>
-            <Field label="Locator Id"><Select value={formData.locator_id} onChange={v => setField('locator_id', v)} options={dropdowns.locator?.map(r => { return { value: r.locator_id, label: r.locator_name || r.locator_id } })} /></Field>
-            <Field label="Lot"><Select value={formData.lot_id} onChange={v => setField('lot_id', v)} options={dropdowns.lotMaster?.map(r => { return { value: r.lot_id, label: r.lot_number || r.lot_id } })} /></Field>
-            <Field label="Serial"><Select value={formData.serial_id} onChange={v => setField('serial_id', v)} options={dropdowns.serialMaster?.map(r => { return { value: r.serial_id, label: r.serial_number || r.serial_id } })} /></Field>
-            <Field label="Uom Id"><Select value={formData.uom_id} onChange={v => setField('uom_id', v)} options={dropdowns.uom?.map(r => { return { value: r.uom_id, label: `${r.uom_code || ''} - ${r.uom_name || r.uom_id}` } })} /></Field>
-            <Field label="Onhand Qty"><Input type="number" step="any" value={formData.onhand_qty} onChange={e => setField('onhand_qty', e.target.value)} /></Field>
-            <Field label="Reserved Qty"><Input type="number" step="any" value={formData.reserved_qty} onChange={e => setField('reserved_qty', e.target.value)} /></Field>
-            <Field label="Available Qty (Auto-calc)"><Input value={formData.available_qty} readOnly /></Field>
-            <Field label="In Transit Qty"><Input type="number" step="any" value={formData.in_transit_qty} onChange={e => setField('in_transit_qty', e.target.value)} /></Field>
-            <Field label="Unit Cost"><Input type="number" step="any" value={formData.unit_cost} onChange={e => setField('unit_cost', e.target.value)} /></Field>
-            <Field label="Total Cost Value (Auto-calc)"><Input value={formData.total_cost_value} readOnly /></Field>
-            <Field label="Last Transaction Id"><Select value={formData.last_transaction_id} onChange={v => setField('last_transaction_id', v)} options={dropdowns.inventory_transaction?.map(r => { return { value: r.txn_id, label: r.txn_number || r.txn_id } })} /></Field>
-            <Field label="Last Updated Date"><DateInput value={formData.last_updated_date} onChange={v => setField('last_updated_date', v)} /></Field>
-            <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id', v)} options={dropdowns.module?.map(r => { return { value: r.module_id, label: r.module_name || r.module_id } })} /></Field>
-            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
-            <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from', v)} /></Field>
-            <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to', v)} /></Field>
-            <AuditFields formData={formData} setField={setField} />
+          <div className="card p-6">
+            <SectionHeader icon={BarChart3} title="Inventory Balances" color="emerald" />
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Onhand Qty"><Input value={selected.onhand_qty} readOnly className="font-bold text-blue-700 bg-blue-50" /></Field>
+              <Field label="Available Qty"><Input value={selected.available_qty} readOnly className="font-bold text-emerald-700 bg-emerald-50" /></Field>
+              <Field label="Reserved Qty"><Input value={selected.reserved_qty || 0} readOnly /></Field>
+              <Field label="In Transit Qty"><Input value={selected.in_transit_qty || 0} readOnly /></Field>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <SectionHeader icon={MapPin} title="Location" color="purple" />
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Organization"><Input value={selected.inv_org_name} readOnly /></Field>
+              <Field label="Subinventory"><Input value={selected.subinventory_id} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_id || '--'} readOnly /></Field>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <SectionHeader icon={Building} title="Organization" color="amber" />
+            <div className="grid grid-cols-1 gap-4">
+              <Field label="Company"><Input value={selected.company_name} readOnly /></Field>
+              <Field label="Business Group"><Input value={selected.bg_id} readOnly /></Field>
+              <Field label="Business Type"><Input value={selected.business_type_id} readOnly /></Field>
+            </div>
+          </div>
+
+          <div className="card p-6 md:col-span-2">
+            <SectionHeader icon={Clock} title="Financials & Audit" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Field label="Unit Cost"><Input value={selected.unit_cost} readOnly /></Field>
+              <Field label="Total Value"><Input value={selected.total_cost_value} readOnly className="font-bold" /></Field>
+              <Field label="Last Txn ID"><Input value={selected.last_transaction_id} readOnly /></Field>
+            </div>
           </div>
         </div>
       </FormPage>
@@ -150,32 +93,14 @@ export default function ItemStockPage() {
   }
 
   return (
-    <>
-      <DataTable
-        title="Item Stock (Onhand)"
-        subtitle="Manage Item Stock (Onhand) records"
-        columns={COLUMNS}
-        data={table.rows}
-        total={table.total}
-        page={table.page}
-        pages={table.pages}
-        loading={table.isLoading}
-        onSearch={table.handleSearch}
-        onPageChange={table.setPage}
-        onSort={table.handleSort}
-        sortBy={table.sortBy}
-        sortOrder={table.sortOrder}
-        onCreate={handleCreate}
-        actions={{ onView: handleView, onEdit: handleEdit, onDelete: setConfirmDelete }}
-      />
-      <ConfirmDialog
-        open={!!confirmDelete}
-        title="Delete Record"
-        message={`Delete "${confirmDelete?.['{pk_field}']}"? This cannot be undone.`}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(null)}
-        loading={table.isDeleting}
-      />
-    </>
+    <DataTable
+      title="Onhand Stock"
+      subtitle="Current real-time inventory balances across all locations"
+      columns={COLUMNS} data={table.rows} total={table.total}
+      page={table.page} pages={table.pages} loading={table.isLoading}
+      onSearch={table.handleSearch} onPageChange={table.setPage}
+      onSort={table.handleSort} sortBy={table.sortBy} sortOrder={table.sortOrder}
+      actions={{ onView: handleView }}
+    />
   )
 }

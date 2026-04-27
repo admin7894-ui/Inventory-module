@@ -11,12 +11,46 @@ function applyRLS(data, user) {
 
 exports.getAll = (req, res) => {
   try {
-    let data = applyRLS([...(db.inventory_transaction || [])], req.user);
+    let rawData = applyRLS([...(db.inventory_transaction || [])], req.user);
+    
+    // Perform JOINs for view screen
+    const data = rawData.map(txn => {
+      const item = (db.item_master || []).find(i => i.item_id === txn.item_id);
+      const org = (db.inventory_org || []).find(o => o.inv_org_id === txn.inv_org_id);
+      const reason = (db.transaction_reason || []).find(r => r.txn_reason_id === txn.txn_reason_id);
+      const uom = (db.uom_unit_of_measure || []).find(u => u.uom_id === txn.uom_id);
+      
+      return {
+        ...txn,
+        item_name: item ? item.item_name : (txn.item_id || ''),
+        item_code: item ? item.item_code : '',
+        inv_org_name: org ? org.inv_org_name : (txn.inv_org_id || ''),
+        txn_reason_name: reason ? reason.txn_reason : '',
+        uom_name: uom ? uom.uom_name : '',
+        // Ensure lot/serial are displayed from whatever field they are in
+        display_lot: txn.lot_number || txn.lot_id || '',
+        display_serial: txn.serial_number || txn.serial_id || ''
+      };
+    });
+
     const { search, page = 1, limit = 50 } = req.query;
-    if (search) { const q = search.toLowerCase(); data = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q))); }
-    const total = data.length, p = parseInt(page), l = parseInt(limit);
-    res.json({ success:true, data:data.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
-  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+    let filteredData = data;
+    if (search) { 
+      const q = search.toLowerCase(); 
+      filteredData = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q))); 
+    }
+    
+    const total = filteredData.length, p = parseInt(page), l = parseInt(limit);
+    res.json({ 
+      success: true, 
+      data: filteredData.slice((p-1)*l, p*l), 
+      total, 
+      page: p, 
+      pages: Math.ceil(total/l) 
+    });
+  } catch(e) { 
+    res.status(500).json({ success:false, message:e.message }); 
+  }
 };
 
 exports.getById = (req, res) => {
@@ -39,7 +73,7 @@ exports.create = async (req, res) => {
     const item = (db.item_master || []).find(i => i.item_id === body.item_id);
     if (item) {
       const itemType = (db.item_type || []).find(t => t.item_type_id === item.item_type_id);
-      if (itemType && (itemType.is_physical === 'N' || itemType.is_physical === false)) {
+      if (itemType && (itemType.is_physical === 'N' || itemType.is_physical === false || itemType.is_physical === 'False')) {
         return res.status(400).json({
           success: false,
           message: 'Inventory transactions are not allowed for non-physical (software) items'

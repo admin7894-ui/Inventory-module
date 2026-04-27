@@ -45,6 +45,17 @@ const schemas = {
     bg_id: { required: true, pattern: PATTERNS.bg_id },
     business_type_id: { required: true, pattern: PATTERNS.business_type_id }
   },
+  opening_stock: {
+    item_id: { required: true, pattern: PATTERNS.item_id },
+    txn_reason_id: { required: true },
+    inv_org_id: { required: true },
+    subinventory_id: { required: true },
+    opening_qty: { required: true, numeric: true, positive: true },
+    unit_cost: { required: true, numeric: true, positive: true },
+    COMPANY_id: { required: true, pattern: PATTERNS.company_id },
+    bg_id: { required: true, pattern: PATTERNS.bg_id },
+    business_type_id: { required: true, pattern: PATTERNS.business_type_id }
+  },
   // Default schema for any table to ensure common fields
   default: {
     COMPANY_id: { required: true, pattern: PATTERNS.company_id },
