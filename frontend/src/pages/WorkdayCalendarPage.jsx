@@ -5,7 +5,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
-import { workdayCalendarApi, moduleApi } from '../services/api'
+import { workdayCalendarApi } from '../services/api'
 import { validateWorkdayCalendar } from '../validations/workdayCalendarValidation'
 
 const COLUMNS = [
@@ -29,8 +29,6 @@ export default function WorkdayCalendarPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({ holidays: [] })
   const [errors, setErrors] = useState({})
-
-  const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
 
   const setField = (k, v) => {
     setFormData(p => ({ ...p, [k]: v }))
@@ -93,7 +91,6 @@ export default function WorkdayCalendarPage() {
       newH[idx] = { ...newH[idx], [k]: v }
       return { ...p, holidays: newH }
     })
-    // Clear holiday error if any
     const errKey = `${k}_${idx}`
     if (errors[errKey]) setErrors(p => { const newE = { ...p }; delete newE[errKey]; return newE; })
   }
@@ -150,7 +147,6 @@ export default function WorkdayCalendarPage() {
         mode={view}
       >
         <div className="space-y-6">
-          {/* Header Section */}
           <div className="card p-6 glass-effect">
             <h3 className="text-lg font-semibold mb-4 text-brand-700">Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -166,7 +162,7 @@ export default function WorkdayCalendarPage() {
               <Field label="Year" required error={errors.year}>
                 <Input type="number" value={formData.year} onChange={e => setField('year', e.target.value)} placeholder="e.g. 2026" />
               </Field>
-              <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id', v)} options={modules?.map(r => ({ value: r.module_id, label: r.module_name }))} /></Field>
+              
               <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
               <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from', v)} /></Field>
               <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to', v)} /></Field>
@@ -176,7 +172,6 @@ export default function WorkdayCalendarPage() {
             </div>
           </div>
 
-          {/* Weekly Off Days Section */}
           <div className="card p-6 glass-effect">
             <h3 className="text-lg font-semibold mb-2 text-brand-700">Weekly Off Days</h3>
             <p className="text-sm text-gray-500 mb-4">Select days that are considered weekly holidays</p>
@@ -203,7 +198,6 @@ export default function WorkdayCalendarPage() {
             </div>
           </div>
 
-          {/* Holidays Section */}
           <div className="card p-6 glass-effect overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-700">Holidays List</h3>

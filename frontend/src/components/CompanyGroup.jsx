@@ -1,52 +1,73 @@
 import React from 'react'
-import { Field, Select } from './ui/index'
+import { Field, Select, Input } from './ui/index'
 import { Loader2 } from 'lucide-react'
 import { useCompanyLogic } from '../hooks/useCompanyLogic'
 
 export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
   const { 
+    businessGroups,
     companies, 
-    businessGroups, 
-    businessTypes, 
+    businessTypes,
+    allModules,
     isLoadingBG, 
+    isLoadingCompany,
     isLoadingBT, 
+    handleBGChange,
     handleCompanyChange 
   } = useCompanyLogic(formData, setField)
+
+  const onBGChange = (v) => {
+    handleBGChange(v)
+    if (handleBlur) handleBlur('bg_id')
+  }
 
   const onCompanyChange = (v) => {
     handleCompanyChange(v)
     if (handleBlur) handleBlur('COMPANY_id')
   }
 
+  // Get current module name for display
+  const currentModule = allModules.find(m => m.module_id === formData.module_id)
+  const moduleName = currentModule ? (currentModule.module_name || currentModule.module_id) : '-- Auto-filled --'
+
   return (
     <>
-      <Field label="Company" required error={errors.COMPANY_id}>
-        <Select 
-          value={formData.COMPANY_id} 
-          onChange={onCompanyChange} 
-          onBlur={() => handleBlur?.('COMPANY_id')}
-          error={errors.COMPANY_id}
-          options={companies.map(r => ({ 
-            value: r.company_id, 
-            label: r.company_name || r.company_id 
-          }))} 
-        />
-      </Field>
-
       <Field label="Business Group" required error={errors.bg_id}>
         <div className="relative">
           <Select 
             value={formData.bg_id} 
-            onChange={v => setField('bg_id', v)} 
-            disabled={true} 
-            placeholder={!formData.COMPANY_id ? 'Select Company first' : isLoadingBG ? 'Loading...' : '-- Auto-filled --'}
+            onChange={onBGChange} 
+            onBlur={() => handleBlur?.('bg_id')}
             error={errors.bg_id}
+            placeholder={isLoadingBG ? 'Loading...' : '-- Select --'}
             options={businessGroups.map(r => ({ 
               value: r.bg_id, 
               label: r.bg_name || r['Business Group Name'] || r.bg_id 
             }))} 
           />
           {isLoadingBG && (
+            <div className="absolute right-8 top-1/2 -translate-y-1/2">
+              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+            </div>
+          )}
+        </div>
+      </Field>
+
+      <Field label="Company" required error={errors.COMPANY_id}>
+        <div className="relative">
+          <Select 
+            value={formData.COMPANY_id} 
+            onChange={onCompanyChange} 
+            onBlur={() => handleBlur?.('COMPANY_id')}
+            disabled={!formData.bg_id}
+            placeholder={!formData.bg_id ? 'Select Business Group first' : isLoadingCompany ? 'Loading...' : '-- Select --'}
+            error={errors.COMPANY_id}
+            options={companies.map(r => ({ 
+              value: r.company_id, 
+              label: r.company_name || r.company_id 
+            }))} 
+          />
+          {isLoadingCompany && (
             <div className="absolute right-8 top-1/2 -translate-y-1/2">
               <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
             </div>
@@ -74,6 +95,15 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
             </div>
           )}
         </div>
+      </Field>
+
+      <Field label="Module" required>
+        <Input 
+          value={moduleName} 
+          readOnly 
+          disabled 
+          className="bg-gray-100 cursor-not-allowed font-medium text-brand-700" 
+        />
       </Field>
     </>
   )

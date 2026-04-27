@@ -1,19 +1,19 @@
 export const validateWorkdayCalendar = (formData) => {
   const errors = {};
 
-  // Company
-  if (!formData.COMPANY_id) {
-    errors.COMPANY_id = "Please select a valid option";
-  }
-
-  // Business Group
-  if (formData.COMPANY_id && !formData.bg_id) {
+  // Business Group (Parent)
+  if (!formData.bg_id) {
     errors.bg_id = "Please select a valid option";
-  } else if (!formData.COMPANY_id) {
-    errors.bg_id = "Select Company first";
   }
 
-  // Business Type
+  // Company (Child of BG)
+  if (formData.bg_id && !formData.COMPANY_id) {
+    errors.COMPANY_id = "Please select a valid option";
+  } else if (!formData.bg_id) {
+    errors.COMPANY_id = "Select Business Group first";
+  }
+
+  // Business Type (Child of Company)
   if (formData.COMPANY_id && !formData.business_type_id) {
     errors.business_type_id = "Please select a valid option";
   } else if (!formData.COMPANY_id) {
@@ -58,7 +58,6 @@ export const validateWorkdayCalendar = (formData) => {
       if (!h.holiday_date) {
         errors[`holiday_date_${index}`] = "Holiday date required";
       } else {
-        // Check if holiday date is within effective range
         const hDate = new Date(h.holiday_date);
         const fromDate = new Date(formData.effective_from);
         const toDate = formData.effective_to ? new Date(formData.effective_to) : null;

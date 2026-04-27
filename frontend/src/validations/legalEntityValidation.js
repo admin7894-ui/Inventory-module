@@ -1,19 +1,19 @@
 export const validateLegalEntity = (formData) => {
   const errors = {};
 
-  // Company
-  if (!formData.COMPANY_id) {
-    errors.COMPANY_id = "Please select a valid option";
-  }
-
-  // Business Group
-  if (formData.COMPANY_id && !formData.bg_id) {
+  // Business Group (Parent)
+  if (!formData.bg_id) {
     errors.bg_id = "Please select a valid option";
-  } else if (!formData.COMPANY_id) {
-    errors.bg_id = "Select Company first";
   }
 
-  // Business Type
+  // Company (Child of BG)
+  if (formData.bg_id && !formData.COMPANY_id) {
+    errors.COMPANY_id = "Please select a valid option";
+  } else if (!formData.bg_id) {
+    errors.COMPANY_id = "Select Business Group first";
+  }
+
+  // Business Type (Child of Company)
   if (formData.COMPANY_id && !formData.business_type_id) {
     errors.business_type_id = "Please select a valid option";
   } else if (!formData.COMPANY_id) {
@@ -49,7 +49,7 @@ export const validateLegalEntity = (formData) => {
     errors.currency_code = "Currency code must be 3 uppercase letters (e.g., INR, USD)";
   }
 
-  // Module
+  // Module (Auto-filled)
   if (!formData.module_id) {
     errors.module_id = "Module is required";
   }

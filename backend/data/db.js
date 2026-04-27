@@ -295,6 +295,7 @@ const db = {
   company: [
     {
       "company_id": "C01",
+      "bg_id": "BG01",
       "business_type_id": "BT01",
       "company_name": "ABC Retail Pvt Ltd",
       "TAN": "TAN12345",
@@ -311,6 +312,7 @@ const db = {
     },
     {
       "company_id": "C02",
+      "bg_id": "BG02",
       "business_type_id": "BT02",
       "company_name": "XYZ Warehousing Ltd",
       "TAN": "TAN67890",
@@ -327,6 +329,7 @@ const db = {
     },
     {
       "company_id": "C03",
+      "bg_id": "BG03",
       "business_type_id": "BT03",
       "company_name": "MediCare India Pvt Ltd",
       "TAN": "TAN99001",
