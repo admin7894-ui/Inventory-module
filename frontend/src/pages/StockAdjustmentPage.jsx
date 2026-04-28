@@ -3,14 +3,17 @@ import toast from 'react-hot-toast'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { 
+  DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, 
+  Input, AuditFields, MultiSelect, SectionHeader 
+} from '../components/ui/index'
 import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck } from 'lucide-react'
 import {
-  stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi, 
+  stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
-  lotMasterApi, serialMasterApi, itemStockApi
+  lotMasterApi, serialMasterApi, itemStockApi,
+  itemOrgAssignmentApi, itemSubinvRestrictionApi
 } from '../services/api'
-import { MultiSelect, SectionHeader } from '../components/ui/index'
 
 const COLUMNS = [
   { key: 'adjustment_id', label: 'ID' },
@@ -29,8 +32,6 @@ const COLUMNS = [
     </span>
   )},
 ]
-
-
 
 export default function StockAdjustmentPage() {
   const table = useTableData(stockAdjustmentApi, 'stock_adjustment')
@@ -51,10 +52,23 @@ export default function StockAdjustmentPage() {
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
   const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
   const { options: serials }          = useDropdownData(serialMasterApi, 'ser_dd')
-  const { rows: allStock, isLoading: loadingStock, reload: reloadStock } = useTableData(itemStockApi, 'item_stock_onhand', { limit: 1000 })
+  const { options: assignments }      = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
+  const { options: restrictions }     = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
+  const { rows: allStock }            = useTableData(itemStockApi, 'item_stock_onhand', { limit: 1000 })
+
+  const isTransfer = formData.txn_action === 'TRANSFER';
+
+  const filteredItems = useMemo(() => {
+    if (!items?.length || !assignments?.length || !restrictions?.length) return []
+    return items.filter(item => {
+      const isAssigned = assignments.some(a => String(a.item_id) === String(item.item_id))
+      const hasRestrictions = restrictions.some(r => String(r.item_id) === String(item.item_id))
+      return isAssigned && hasRestrictions
+    })
+  }, [items, assignments, restrictions])
 
   const selectedItem = useMemo(() => {
-    return (items || []).find(i => i.item_id === formData.item_id);
+    return (items || []).find(i => String(i.item_id) === String(formData.item_id));
   }, [items, formData.item_id]);
 
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
@@ -68,49 +82,104 @@ export default function StockAdjustmentPage() {
 
   const itemStock = useMemo(() => {
     if (!formData.item_id || !allStock) return []
-    return allStock.filter(s => s.item_id === formData.item_id)
+    return allStock.filter(s => String(s.item_id) === String(formData.item_id))
   }, [formData.item_id, allStock])
 
   const currentStockInfo = useMemo(() => {
     if (!formData.item_id || !formData.inv_org_id || !formData.subinventory_id) return null
     return itemStock.find(s => 
-      s.inv_org_id === formData.inv_org_id && 
-      s.subinventory_id === formData.subinventory_id && 
-      (s.locator_id || '') === (formData.locator_id || '') &&
-      (isLotControlled ? s.lot_id === formData.lot_id : true) &&
+      String(s.inv_org_id) === String(formData.inv_org_id) && 
+      String(s.subinventory_id) === String(formData.subinventory_id) && 
+      (String(s.locator_id || '')) === (String(formData.locator_id || '')) &&
+      (isLotControlled ? String(s.lot_id) === String(formData.lot_id) : true) &&
       (isSerialControlled ? (formData.serial_ids?.includes(s.serial_id) || s.serial_id === formData.serial_id) : true)
     )
   }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, formData.locator_id, formData.lot_id, formData.serial_id, formData.serial_ids, itemStock, isLotControlled, isSerialControlled])
 
   const handleTxnTypeChange = (tid) => {
-    const type = (txnTypes || []).find(t => t.txn_type_id === tid);
+    const type = (txnTypes || []).find(t => String(t.txn_type_id) === String(tid));
     if (type) {
-      const isTransfer = type.txn_action === 'TRANSFER';
+      const transfer = type.txn_action === 'TRANSFER';
       setFormData(prev => ({
         ...prev,
         txn_type_id: tid,
         txn_action: type.txn_action,
-        transfer_flag: isTransfer ? 'Y' : 'N',
-        approval_status: isTransfer ? 'APPROVED' : 'PENDING'
+        transfer_flag: transfer ? 'Y' : 'N',
+        approval_status: transfer ? 'APPROVED' : 'PENDING'
       }));
     }
   };
 
   const handleItemChange = (iid) => {
-    const item = (items || []).find(i => i.item_id === iid);
+    const item = (items || []).find(i => String(i.item_id) === String(iid));
     if (item) {
       setFormData(prev => ({
         ...prev,
         item_id: iid,
         uom_id: item.primary_uom_id || prev.uom_id,
         unit_cost: item.standard_cost || prev.unit_cost || 0,
+        inv_org_id: '',
+        subinventory_id: '',
+        locator_id: '',
+        to_inv_org_id: '',
+        to_subinventory_id: '',
         lot_id: '',
         serial_id: ''
       }));
     }
   };
 
-  const isTransfer = formData.txn_action === 'TRANSFER';
+  // Filtered dropdowns based on Item selection
+  const filteredOrgs = useMemo(() => {
+    if (!formData.item_id || !inventoryOrgs?.length || !assignments?.length) return []
+    const itemAssignments = assignments.filter(a => String(a.item_id) === String(formData.item_id))
+    return inventoryOrgs.filter(org => itemAssignments.some(a => String(a.inv_org_id) === String(org.inv_org_id)))
+  }, [formData.item_id, inventoryOrgs, assignments])
+
+  const filteredSubinventories = useMemo(() => {
+    if (!formData.item_id || !formData.inv_org_id || !subinventories?.length || !restrictions?.length) return []
+    const itemRestrictions = restrictions.filter(r => 
+      String(r.item_id) === String(formData.item_id) && 
+      String(r.inv_org_id) === String(formData.inv_org_id)
+    )
+    return subinventories.filter(s => itemRestrictions.some(r => String(r.subinventory_id) === String(s.subinventory_id)))
+  }, [formData.item_id, formData.inv_org_id, subinventories, restrictions])
+
+  const filteredToOrgs = useMemo(() => {
+    return filteredOrgs // Item must be assigned to "To Org" as well
+  }, [filteredOrgs])
+
+  const filteredToSubinventories = useMemo(() => {
+    if (!formData.item_id || !formData.to_inv_org_id || !subinventories?.length || !restrictions?.length) return []
+    const itemRestrictions = restrictions.filter(r => 
+      String(r.item_id) === String(formData.item_id) && 
+      String(r.inv_org_id) === String(formData.to_inv_org_id)
+    )
+    return subinventories.filter(s => itemRestrictions.some(r => String(r.subinventory_id) === String(s.subinventory_id)))
+  }, [formData.item_id, formData.to_inv_org_id, subinventories, restrictions])
+
+  // Auto-selection logic
+  useEffect(() => {
+    if (view === 'create' || view === 'edit') {
+      // Auto-select Source Org
+      if (!formData.inv_org_id && filteredOrgs.length === 1) {
+        setField('inv_org_id', filteredOrgs[0].inv_org_id)
+      }
+      // Auto-select Source Subinventory
+      if (formData.inv_org_id && !formData.subinventory_id && filteredSubinventories.length === 1) {
+        setField('subinventory_id', filteredSubinventories[0].subinventory_id)
+      }
+      // Auto-select To Org
+      if (isTransfer && !formData.to_inv_org_id && filteredToOrgs.length === 1) {
+        setField('to_inv_org_id', filteredToOrgs[0].inv_org_id)
+      }
+      // Auto-select To Subinventory
+      if (isTransfer && formData.to_inv_org_id && !formData.to_subinventory_id && filteredToSubinventories.length === 1) {
+        setField('to_subinventory_id', filteredToSubinventories[0].subinventory_id)
+      }
+    }
+  }, [view, isTransfer, formData.inv_org_id, formData.subinventory_id, formData.to_inv_org_id, formData.to_subinventory_id, filteredOrgs, filteredSubinventories, filteredToOrgs, filteredToSubinventories, setField])
+
   const currentAdjQty = useMemo(() => {
     if (isTransfer) return parseFloat(formData.physical_qty || 0);
     return parseFloat(formData.physical_qty || 0) - parseFloat(formData.system_qty || 0);
@@ -180,7 +249,7 @@ export default function StockAdjustmentPage() {
             <CompanyGroup formData={formData} setField={setField} errors={errors} />
             <Field label="Item" required error={errors.item_id}>
               <Select value={formData.item_id} onChange={handleItemChange} error={errors.item_id} disabled={view !== 'create'}
-                options={items?.map(r => ({ value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` }))} />
+                options={filteredItems.map(r => ({ value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` }))} />
             </Field>
             <Field label="Adjustment Type" required error={errors.txn_type_id}>
               <Select value={formData.txn_type_id} onChange={handleTxnTypeChange} error={errors.txn_type_id} disabled={view === 'view'}
@@ -205,15 +274,12 @@ export default function StockAdjustmentPage() {
               <h4 className="text-xs font-bold uppercase text-gray-500 mb-3">{isTransfer ? 'Source Location' : 'Location'}</h4>
               <div className="space-y-3">
                 <Field label="Org" required error={errors.inv_org_id}>
-                  <Select value={formData.inv_org_id} onChange={v => setField('inv_org_id', v)} disabled={view === 'view'}
-                    options={inventoryOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
+                  <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); }} disabled={view === 'view'}
+                    options={filteredOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
                 </Field>
                 <Field label="Subinventory">
                   <Select value={formData.subinventory_id} onChange={v => setField('subinventory_id', v)} disabled={view === 'view'}
-                    options={subinventories?.filter(r => {
-                      if (!isTransfer) return r.inv_org_id === formData.inv_org_id
-                      return itemStock.some(s => s.inv_org_id === formData.inv_org_id && s.subinventory_id === r.subinventory_id && parseFloat(s.available_qty) > 0)
-                    }).map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
+                    options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                 </Field>
               </div>
             </div>
@@ -223,12 +289,12 @@ export default function StockAdjustmentPage() {
                 <h4 className="text-xs font-bold uppercase text-blue-600 mb-3">Destination Location</h4>
                 <div className="space-y-3">
                   <Field label="To Org" required error={errors.to_inv_org_id}>
-                    <Select value={formData.to_inv_org_id} onChange={v => setField('to_inv_org_id', v)} disabled={view === 'view'}
-                      options={inventoryOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
+                    <Select value={formData.to_inv_org_id} onChange={v => { setField('to_inv_org_id', v); setField('to_subinventory_id', ''); }} disabled={view === 'view'}
+                      options={filteredToOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
                   </Field>
                   <Field label="To Subinventory">
                     <Select value={formData.to_subinventory_id} onChange={v => setField('to_subinventory_id', v)} disabled={view === 'view'}
-                      options={subinventories?.filter(r => r.inv_org_id === formData.to_inv_org_id).map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
+                      options={filteredToSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                   </Field>
                 </div>
               </div>
@@ -273,7 +339,7 @@ export default function StockAdjustmentPage() {
                 <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
                   options={lots?.filter(r => {
                     if (!isTransfer) return true
-                    return itemStock.some(s => s.lot_id === r.lot_id && parseFloat(s.available_qty) > 0)
+                    return itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
                   }).map(r => ({ value: r.lot_id, label: r.lot_number }))} />
               </Field>
             )}
@@ -285,7 +351,7 @@ export default function StockAdjustmentPage() {
                 }} disabled={view === 'view'}
                   options={serials?.filter(r => {
                     if (!isTransfer) return true
-                    return itemStock.some(s => s.serial_id === r.serial_id && parseFloat(s.available_qty) > 0)
+                    return itemStock.some(s => String(s.serial_id) === String(r.serial_id) && parseFloat(s.available_qty) > 0)
                   }).map(r => ({ value: r.serial_id, label: r.serial_number }))} />
               </Field>
             )}

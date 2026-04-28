@@ -1943,6 +1943,28 @@ const db = {
     "updated_by": "finance_mgr",
     "created_at": "2024-01-01 10:00",
     "updated_at": "2024-01-01 10:00"
+  },
+  {
+    "item_id": "ITEM-101",
+    "COMPANY_id": "C02",
+    "business_type_id": "BT02",
+    "bg_id": "BG02",
+    "item_code": "DELL-MON-U27",
+    "item_name": "Dell UltraSharp 27 Monitor",
+    "item_type_id": "IT02",
+    "brand_id": "BR04",
+    "category_id": "CAT02",
+    "sub_category_id": "SCAT03",
+    "primary_uom_id": "UOM01",
+    "is_stock_item": "Y",
+    "is_serial_controlled": "N",
+    "is_lot_controlled": "N",
+    "is_expirable": "N",
+    "standard_cost": "15000",
+    "list_price": "22000",
+    "module_id": "MOD01",
+    "active_flag": "True",
+    "created_at": "2024-04-01 10:00"
   }
 ],
 
@@ -2244,6 +2266,21 @@ const db = {
       "effective_to": "",
       "created_by": "admin",
       "updated_by": "manager1"
+    },
+    {
+      "item_subinv_id": "ISR04",
+      "COMPANY_id": "C02",
+      "business_type_id": "BT02",
+      "item_id": "ITEM-101",
+      "inv_org_id": "INVORG02",
+      "subinventory_id": "SUB01",
+      "locator_id": "BIN-001",
+      "module_id": "MOD01",
+      "active_flag": "Y",
+      "effective_from": "2024-01-01",
+      "effective_to": "",
+      "created_by": "admin",
+      "updated_by": "admin"
     }
   ],
 
@@ -2295,6 +2332,24 @@ const db = {
     "min_qty": "True",
     "max_qty": "500",
     "safety_stock_qty": "10",
+    "lot_divisible_flag": "N",
+    "module_id": "MOD01",
+    "active_flag": "True",
+    "effective_from": "2024-01-01",
+    "effective_to": "",
+    "created_by": "admin",
+    "updated_by": "admin"
+  },
+  {
+    "item_org_assign_id": "IOA04",
+    "COMPANY_id": "C02",
+    "business_type_id": "BT02",
+    "bg_id": "BG02",
+    "item_id": "ITEM-101",
+    "inv_org_id": "INVORG02",
+    "min_qty": "5",
+    "max_qty": "200",
+    "safety_stock_qty": "20",
     "lot_divisible_flag": "N",
     "module_id": "MOD01",
     "active_flag": "True",
@@ -3630,6 +3685,130 @@ const db = {
     "updated_at": "2024-03-10 11:00"
   }
 ],
+
+  // ── item_stock_onhand (pk: stock_id) ──
+  item_stock_onhand: [
+    {
+      "stock_id": "STK001",
+      "COMPANY_id": "C02",
+      "business_type_id": "BT02",
+      "bg_id": "BG02",
+      "item_id": "ITEM-002",
+      "inv_org_id": "INVORG02",
+      "subinventory_id": "SUB01",
+      "locator_id": "BIN-001",
+      "lot_id": "",
+      "serial_id": "SER01",
+      "onhand_qty": 1,
+      "available_qty": 1,
+      "reserved_qty": 0,
+      "unit_cost": 60000,
+      "total_cost_value": "60000.0000",
+      "last_transaction_id": "TXN001",
+      "active_flag": "Y"
+    },
+    {
+      "stock_id": "STK002",
+      "COMPANY_id": "C03",
+      "business_type_id": "BT03",
+      "bg_id": "BG03",
+      "item_id": "ITEM-003",
+      "inv_org_id": "INVORG03",
+      "subinventory_id": "SUB02",
+      "locator_id": "BIN-001",
+      "lot_id": "LOT01",
+      "onhand_qty": 455,
+      "available_qty": 455,
+      "reserved_qty": 0,
+      "unit_cost": 45,
+      "total_cost_value": "20475.0000",
+      "last_transaction_id": "TXN002",
+      "active_flag": "Y"
+    },
+    {
+      "stock_id": "STK003",
+      "COMPANY_id": "C02",
+      "business_type_id": "BT02",
+      "bg_id": "BG02",
+      "item_id": "ITEM-101",
+      "inv_org_id": "INVORG02",
+      "subinventory_id": "SUB01",
+      "locator_id": "BIN-001",
+      "onhand_qty": 50,
+      "available_qty": 50,
+      "reserved_qty": 0,
+      "unit_cost": 15000,
+      "total_cost_value": "750000.0000",
+      "last_transaction_id": "TXN003",
+      "active_flag": "Y"
+    }
+  ],
+
+  // ── inventory_transaction (pk: txn_id) ──
+  inventory_transaction: [
+    {
+      "txn_id": "TXN001",
+      "COMPANY_id": "C02",
+      "item_id": "ITEM-002",
+      "inv_org_id": "INVORG02",
+      "subinventory_id": "SUB01",
+      "locator_id": "BIN-001",
+      "txn_type_id": "TT06",
+      "txn_action": "IN",
+      "txn_qty": 1,
+      "unit_cost": 60000,
+      "txn_date": "2024-01-15",
+      "reference_type": "OPENING_STOCK",
+      "txn_status": "COMPLETED"
+    },
+    {
+      "txn_id": "TXN002",
+      "COMPANY_id": "C03",
+      "item_id": "ITEM-003",
+      "inv_org_id": "INVORG03",
+      "subinventory_id": "SUB02",
+      "locator_id": "BIN-001",
+      "txn_type_id": "TT06",
+      "txn_action": "IN",
+      "txn_qty": 455,
+      "unit_cost": 45,
+      "txn_date": "2024-03-01",
+      "reference_type": "OPENING_STOCK",
+      "txn_status": "COMPLETED"
+    },
+    {
+      "txn_id": "TXN003",
+      "COMPANY_id": "C02",
+      "item_id": "ITEM-101",
+      "inv_org_id": "INVORG02",
+      "subinventory_id": "SUB01",
+      "locator_id": "BIN-001",
+      "txn_type_id": "TT06",
+      "txn_action": "IN",
+      "txn_qty": 50,
+      "unit_cost": 15000,
+      "txn_date": "2024-04-01",
+      "reference_type": "OPENING_STOCK",
+      "txn_status": "COMPLETED"
+    }
+  ],
+
+  // ── stock_ledger (pk: ledger_id) ──
+  stock_ledger: [
+    {
+      "ledger_id": "LED001",
+      "COMPANY_id": "C02",
+      "item_id": "ITEM-101",
+      "inv_org_id": "INVORG02",
+      "subinventory_id": "SUB01",
+      "locator_id": "BIN-001",
+      "transaction_id": "TXN003",
+      "dr_qty": 50,
+      "cr_qty": 0,
+      "balance_qty": 50,
+      "transaction_date": "2024-04-01"
+    }
+  ],
 
   // ── workday_calendar (pk: calendar_id) ──
   workday_calendar: [

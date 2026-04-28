@@ -7,6 +7,7 @@ import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X
 import {
   openingStockApi, moduleApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, itemTypeApi, transactionReasonApi,
+  itemOrgAssignmentApi, itemSubinvRestrictionApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -49,6 +50,8 @@ export default function OpeningStockPage() {
   const { options: uoms }          = useDropdownData(uomApi, 'uom_dd')
   const { options: itemTypes }     = useDropdownData(itemTypeApi, 'itype_dd')
   const { options: txnReasons }    = useDropdownData(transactionReasonApi, 'txnr_dd')
+  const { options: assignments }   = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
+  const { options: restrictions }  = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
 
   // Filter reasons: active + category = 'OPENING'
   const filteredReasons = useMemo(() => {
@@ -60,14 +63,21 @@ export default function OpeningStockPage() {
 
   // Filter items: only physical + stock items
   const physicalStockItems = useMemo(() => {
-    if (!allItems?.length || !itemTypes?.length) return []
+    if (!allItems?.length || !itemTypes?.length || !assignments?.length || !restrictions?.length) return []
     return allItems.filter(item => {
       const type = itemTypes.find(t => String(t.item_type_id) === String(item.item_type_id))
       const isPhys = type && (type.is_physical === 'Y' || type.is_physical === true || type.is_physical === 'True')
       const isStock = item.is_stock_item === 'Y' || item.is_stock_item === true || item.is_stock_item === 'True'
-      return isPhys && isStock
+      if (!isPhys || !isStock) return false
+
+      // Check if item is assigned to at least one Org
+      const isAssigned = assignments.some(a => String(a.item_id) === String(item.item_id))
+      // Check if item has at least one Subinventory restriction
+      const hasRestrictions = restrictions.some(r => String(r.item_id) === String(item.item_id))
+      
+      return isAssigned && hasRestrictions
     })
-  }, [allItems, itemTypes])
+  }, [allItems, itemTypes, assignments, restrictions])
 
   // Selected item's config
   const selectedItem = useMemo(() => {
@@ -94,6 +104,50 @@ export default function OpeningStockPage() {
     }
   }, [view, filteredReasons, formData.txn_reason_id, setField])
 
+  // Filtered dropdowns based on Item selection
+  const filteredOrgs = useMemo(() => {
+    if (!formData.item_id || !inventoryOrgs?.length || !assignments?.length) return []
+    const itemAssignments = assignments.filter(a => String(a.item_id) === String(formData.item_id))
+    return inventoryOrgs.filter(org => itemAssignments.some(a => String(a.inv_org_id) === String(org.inv_org_id)))
+  }, [formData.item_id, inventoryOrgs, assignments])
+
+  const filteredSubinventories = useMemo(() => {
+    if (!formData.item_id || !formData.inv_org_id || !subinventories?.length || !restrictions?.length) return []
+    const itemRestrictions = restrictions.filter(r => 
+      String(r.item_id) === String(formData.item_id) && 
+      String(r.inv_org_id) === String(formData.inv_org_id)
+    )
+    return subinventories.filter(s => itemRestrictions.some(r => String(r.subinventory_id) === String(s.subinventory_id)))
+  }, [formData.item_id, formData.inv_org_id, subinventories, restrictions])
+
+  const filteredLocators = useMemo(() => {
+    if (!formData.item_id || !formData.inv_org_id || !formData.subinventory_id || !locators?.length || !restrictions?.length) return []
+    const itemRestrictions = restrictions.filter(r => 
+      String(r.item_id) === String(formData.item_id) && 
+      String(r.inv_org_id) === String(formData.inv_org_id) &&
+      String(r.subinventory_id) === String(formData.subinventory_id)
+    )
+    return locators.filter(l => itemRestrictions.some(r => String(r.locator_id) === String(l.locator_id)))
+  }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, locators, restrictions])
+
+  // Auto-selection logic
+  useEffect(() => {
+    if (view === 'create' || view === 'edit') {
+      // Auto-select Org
+      if (!formData.inv_org_id && filteredOrgs.length === 1) {
+        setField('inv_org_id', filteredOrgs[0].inv_org_id)
+      }
+      // Auto-select Subinventory
+      if (formData.inv_org_id && !formData.subinventory_id && filteredSubinventories.length === 1) {
+        setField('subinventory_id', filteredSubinventories[0].subinventory_id)
+      }
+      // Auto-select Locator
+      if (formData.subinventory_id && !formData.locator_id && filteredLocators.length === 1) {
+        setField('locator_id', filteredLocators[0].locator_id)
+      }
+    }
+  }, [view, formData.inv_org_id, formData.subinventory_id, formData.locator_id, filteredOrgs, filteredSubinventories, filteredLocators, setField])
+
   // Handle item change — reset tracking fields, auto-fill UOM
   const handleItemChange = useCallback((itemId) => {
     const item = allItems?.find(i => String(i.item_id) === String(itemId))
@@ -101,6 +155,9 @@ export default function OpeningStockPage() {
       ...prev,
       item_id: itemId,
       uom_id: item?.primary_uom_id || prev.uom_id,
+      inv_org_id: '',
+      subinventory_id: '',
+      locator_id: '',
       lot_number: '',
       expiry_date: '',
     }))
@@ -234,15 +291,15 @@ export default function OpeningStockPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Inventory Organization" required error={errors.inv_org_id}>
                 <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} error={errors.inv_org_id} disabled={view === 'view'}
-                  options={inventoryOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
+                  options={filteredOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
               </Field>
               <Field label="Subinventory" required error={errors.subinventory_id}>
                 <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} error={errors.subinventory_id} disabled={view === 'view'}
-                  options={subinventories?.filter(s => s.inv_org_id === formData.inv_org_id).map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
+                  options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
               </Field>
               <Field label="Locator / Bin">
                 <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view'}
-                  options={locators?.filter(l => l.subinventory_id === formData.subinventory_id).map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))} />
+                  options={filteredLocators.map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))} />
               </Field>
               <Field label="UOM">
                 <Select value={formData.uom_id} onChange={v => setField('uom_id', v)} disabled={view === 'view'}
