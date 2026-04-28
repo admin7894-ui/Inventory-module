@@ -1,7 +1,11 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
-import { validate } from '../validations/validationEngine'
+import { 
+  openingStockValidation, 
+  validateOpeningStock, 
+  openingStockDynamicValidation 
+} from '../validations/openingStockValidation'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, SectionHeader } from '../components/ui/index'
 import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X, Loader2, CheckCircle2 } from 'lucide-react'
@@ -211,11 +215,23 @@ export default function OpeningStockPage() {
 
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    const { errors: valErrors, isValid } = validate('opening_stock', formData, {
+    
+    // 1. Static validation based on schema
+    let valErrors = validateOpeningStock(formData, openingStockValidation)
+
+    // 2. Dynamic validation for Lot/Serial
+    const dynamicErrors = openingStockDynamicValidation(formData, {
       isLotControlled, isSerialControlled, serialMode, serialInputs
     })
+
+    // 3. Merge and check
+    valErrors = { ...valErrors, ...dynamicErrors }
     setErrors(valErrors)
-    if (!isValid) return toast.error('Please fix the highlighted errors')
+
+    if (Object.keys(valErrors).length > 0) {
+      return toast.error('Please fix the highlighted errors')
+    }
+
     try {
       const payload = { ...formData, total_value: totalValue, active_flag: 'Y' }
       if (isSerialControlled && serialMode === 'manual') {

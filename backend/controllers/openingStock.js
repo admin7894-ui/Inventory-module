@@ -128,6 +128,19 @@ exports.create = async (req, res) => {
     const qty = parseFloat(body.opening_qty || 0);
     if (qty <= 0) return res.status(400).json({ success: false, message: 'Opening quantity must be greater than 0' });
 
+    // Unit Cost validation
+    const cost = parseFloat(body.unit_cost || 0);
+    if (cost < 0) return res.status(400).json({ success: false, message: 'Unit cost must be a non-negative number' });
+
+    // Date validation
+    if (body.opening_date) {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (new Date(body.opening_date) > today) {
+        return res.status(400).json({ success: false, message: 'Opening date cannot be in the future' });
+      }
+    }
+
     // Lot validation for lot-controlled items
     if (isYes(item.is_lot_controlled) && !body.lot_number) {
       return res.status(400).json({ success: false, message: 'Lot number is required' });

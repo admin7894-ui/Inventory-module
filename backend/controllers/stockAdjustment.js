@@ -22,7 +22,6 @@ exports.getAll = (req, res) => {
     }));
     rawData = applyRLS(rawData, req.user);
 
-    // Perform JOINs
     const data = rawData.map(row => {
       const item = (db.item_master || []).find(i => i.item_id === row.item_id);
       const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
@@ -31,7 +30,6 @@ exports.getAll = (req, res) => {
       const org = (db.inventory_org || []).find(o => o.inv_org_id === row.inv_org_id);
       const subinv = (db.subinventory || []).find(s => s.subinventory_id === row.subinventory_id);
       const locator = (db.locator___bin || []).find(l => l.locator_id === row.locator_id);
-      
       return {
         ...row,
         item_name: item ? item.item_name : '',
@@ -46,16 +44,16 @@ exports.getAll = (req, res) => {
       };
     });
     const { search, page = 1, limit = 50 } = req.query;
-    if (search) { const q = search.toLowerCase(); data = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q))); }
-    const total = data.length, p = parseInt(page), l = parseInt(limit);
-    res.json({ success:true, data:data.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
+    let filtered = data;
+    if (search) { const q = search.toLowerCase(); filtered = filtered.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q))); }
+    const total = filtered.length, p = parseInt(page), l = parseInt(limit);
+    res.json({ success:true, data:filtered.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
 
 exports.getById = (req, res) => {
   const row = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
   if (!row) return res.status(404).json({ success:false, message:'Not found' });
-  
   const item = (db.item_master || []).find(i => i.item_id === row.item_id);
   const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
   const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
@@ -63,7 +61,6 @@ exports.getById = (req, res) => {
   const org = (db.inventory_org || []).find(o => o.inv_org_id === row.inv_org_id);
   const subinv = (db.subinventory || []).find(s => s.subinventory_id === row.subinventory_id);
   const locator = (db.locator___bin || []).find(l => l.locator_id === row.locator_id);
-
   const data = {
     ...row,
     COMPANY_id: row.COMPANY_id || row.company_id || '',
@@ -93,32 +90,54 @@ exports.create = async (req, res) => {
     const body = { ...req.body };
     if (!body[PK]) body[PK] = generateId(TABLE);
     body.COMPANY_id = body.COMPANY_id || body.company_id;
-    
+
     const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
     const item = (db.item_master || []).find(i => i.item_id === body.item_id);
     const isSerialControlled = item && (item.is_serial_controlled === 'Y' || item.is_serial_controlled === true);
-    
+
     if (isTransfer) {
+      // ── 1. Require destination org + subinventory ──
       if (!body.to_inv_org_id || !body.to_subinventory_id) {
         return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
       }
-      
-      // Check Ship Network
-      const network = (db.ship_network || []).find(n => 
-        (n.from_inv_org_id === body.inv_org_id || n['Dropdown from_inv_org_id'] === body.inv_org_id) && 
-        n.to_inv_org_id === body.to_inv_org_id &&
-        (n.active_flag === 'Y' || n.active_flag === 'True' || n.active_flag === true)
-      );
-      if (!network) {
-        return res.status(400).json({ success: false, message: `Ship Network does not exist between ${body.inv_org_id} and ${body.to_inv_org_id}` });
+
+      // ── 2. Block source = destination ──
+      const sameOrg  = body.inv_org_id === body.to_inv_org_id;
+      const sameSub  = body.subinventory_id === body.to_subinventory_id;
+      const sameLoc  = (body.locator_id || '') === (body.to_locator_id || '');
+      if (sameOrg && sameSub && sameLoc) {
+        return res.status(400).json({ success: false, message: 'Source and Destination cannot be the same location' });
       }
 
-      // Stock Validation
-      const stocks = (db.item_stock_onhand || []).filter(s => 
-        s.item_id === body.item_id && 
-        s.inv_org_id === body.inv_org_id && 
-        s.subinventory_id === body.subinventory_id && 
-        (s.locator_id || '') === (body.locator_id || '')
+      // ── 3. Ship Network check (only for inter-org transfers) ──
+      if (!sameOrg) {
+        const network = (db.ship_network || []).find(n =>
+          (n.from_inv_org_id === body.inv_org_id || n['Dropdown from_inv_org_id'] === body.inv_org_id) &&
+          n.to_inv_org_id === body.to_inv_org_id &&
+          (n.active_flag === 'Y' || n.active_flag === 'True' || n.active_flag === true)
+        );
+        if (!network) {
+          return res.status(400).json({ success: false, message: `No active Ship Network between ${body.inv_org_id} and ${body.to_inv_org_id}` });
+        }
+      }
+
+      // ── 4. Validate Destination is mapped in Item Subinv Restriction ──
+      const destRestriction = (db.item_subinventory_restriction || []).find(r =>
+        String(r.item_id) === String(body.item_id) &&
+        String(r.inv_org_id) === String(body.to_inv_org_id) &&
+        String(r.subinventory_id) === String(body.to_subinventory_id) &&
+        (!r.locator_id || !body.to_locator_id || String(r.locator_id) === String(body.to_locator_id))
+      );
+      if (!destRestriction) {
+        return res.status(400).json({ success: false, message: `Destination location is not mapped for this item in Item-Subinventory Restrictions` });
+      }
+
+      // ── 5. Stock Validation at Source ──
+      const stocks = (db.item_stock_onhand || []).filter(s =>
+        String(s.item_id) === String(body.item_id) &&
+        String(s.inv_org_id) === String(body.inv_org_id) &&
+        String(s.subinventory_id) === String(body.subinventory_id) &&
+        (String(s.locator_id || '')) === (String(body.locator_id || ''))
       );
 
       let availableQty = 0;
@@ -126,7 +145,6 @@ exports.create = async (req, res) => {
         const selectedSerials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
         body.serial_ids = selectedSerials;
         body.adjustment_qty = selectedSerials.length;
-        
         const validSerials = stocks.filter(s => selectedSerials.includes(s.serial_id) && parseFloat(s.available_qty) > 0);
         if (validSerials.length !== selectedSerials.length) {
           return res.status(400).json({ success: false, message: 'One or more selected serials are not available in this location' });
@@ -135,9 +153,12 @@ exports.create = async (req, res) => {
       } else {
         const lotStock = stocks.find(s => (s.lot_id || '') === (body.lot_id || ''));
         availableQty = lotStock ? parseFloat(lotStock.available_qty || 0) : 0;
+        if (availableQty <= 0) {
+          return res.status(400).json({ success: false, message: `No stock available at selected source location` });
+        }
         body.adjustment_qty = Math.abs(parseFloat(body.adjustment_qty || body.physical_qty || 0));
       }
-      
+
       const requestedQty = body.adjustment_qty;
       if (availableQty < requestedQty) {
         return res.status(400).json({ success: false, message: `Insufficient stock (Requested: ${requestedQty}, Available: ${availableQty})` });
@@ -160,10 +181,10 @@ exports.create = async (req, res) => {
     body.updated_by = req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
     body.updated_at = new Date().toISOString();
-    
+
     if (!db[TABLE]) db[TABLE] = [];
     db[TABLE].push(body);
-    
+
     if (body.approval_status === 'APPROVED') await autoCreateTransaction(body, req.user);
     res.status(201).json({ success: true, data: body, message: 'Stock adjustment saved' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
@@ -173,25 +194,19 @@ exports.update = async (req, res) => {
   try {
     const idx = (db[TABLE] || []).findIndex(r => r[PK] === req.params.id);
     if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
-    
     const prev = db[TABLE][idx];
     const body = { ...req.body };
     body.COMPANY_id = body.COMPANY_id || body.company_id;
-    
     const updated = { ...prev, ...body, [PK]: req.params.id, updated_by: req.user?.username || MOCK_USER, updated_at: new Date().toISOString() };
-    
     const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y';
     if (!isTransfer) {
       updated.adjustment_qty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
     }
     updated.adjustment_value = (updated.adjustment_qty * parseFloat(updated.unit_cost || 0)).toFixed(4);
-
     if (updated.approval_status === 'APPROVED' && !updated.approved_by) {
       updated.approved_by = req.user?.username || MOCK_USER;
     }
-
     db[TABLE][idx] = updated;
-    
     if (prev.approval_status !== 'APPROVED' && updated.approval_status === 'APPROVED') {
       await autoCreateTransaction(updated, req.user);
     }
