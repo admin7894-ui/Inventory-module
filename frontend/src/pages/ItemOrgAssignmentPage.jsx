@@ -21,8 +21,7 @@ const COLUMNS = [
   { key: 'business_type_id', label: 'Business Type Id' },
   { key: 'bg_id', label: 'Bg Id' },
   { key: 'item_id', label: 'Item Id' },
-  { key: 'inv_org_id', label: 'Inv Org Id' },
-  { key: 'subinventory_id', label: 'Subinventory Id' }
+  { key: 'inv_org_id', label: 'Inv Org Id' }
 ]
 
 export default function ItemOrgAssignmentPage() {
@@ -122,8 +121,6 @@ export default function ItemOrgAssignmentPage() {
 
       <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
       <Field label="Inv Org Id"><Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
-      <Field label="Subinventory Id"><Select value={formData.subinventory_id} onChange={v => setField('subinventory_id',v)} options={dropdowns.subinventory?.map(r=>{return{value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}})} /></Field>
-      <Field label="Locator Id"><Select value={formData.locator_id} onChange={v => setField('locator_id',v)} options={dropdowns.locator?.map(r=>{return{value:r.locator_id,label:r.locator_name||r.locator_id}})} /></Field>
       <Field label="Min Qty"><Input type="number" step="any"  value={formData.min_qty} onChange={e => setField('min_qty',e.target.value)} /></Field>
       <Field label="Max Qty"><Input type="number" step="any"  value={formData.max_qty} onChange={e => setField('max_qty',e.target.value)} /></Field>
       <Field label="Safety Stock Qty"><Input type="number" step="any"  value={formData.safety_stock_qty} onChange={e => setField('safety_stock_qty',e.target.value)} /></Field>

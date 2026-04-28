@@ -231,6 +231,9 @@ class InventoryEngine {
     const cost = parseFloat(unit_cost || 0);
     const action = txn_action.toUpperCase();
 
+    // 0. Validate Assignments (Org and Subinventory)
+    this.validateAssignments({ item_id, inv_org_id, subinventory_id, locator_id });
+
     // 1. Idempotency Check
     const existing = db.inventory_transaction.find(t => 
       t.reference_id === reference_id && 
@@ -537,6 +540,57 @@ class InventoryEngine {
         reference_no: adj.adjustment_id
       }, user);
     }
+    }
+  }
+
+  // ─── VALIDATION HELPERS ───────────────────────────────────────
+
+  /**
+   * Validates that the item is correctly assigned to the Org
+   * and restricted to the specified Subinventory/Locator.
+   */
+  validateAssignments({ item_id, inv_org_id, subinventory_id, locator_id }) {
+    // 1. Check Item Org Assignment
+    const orgAssignment = (db.item_org_assignment || []).find(a => 
+      a.item_id === item_id && a.inv_org_id === inv_org_id
+    );
+    if (!orgAssignment) {
+      throw new Error(`Item ${item_id} is not assigned to Inventory Organization ${inv_org_id}. Please assign it first in Item Org Assignment.`);
+    }
+
+    // 2. Check Org Parameters for Locator Control
+    const orgParam = (db.org_parameter || []).find(p => p.inv_org_id === inv_org_id);
+    const locatorControlEnabled = orgParam && (orgParam.locator_control === 'Y' || orgParam.locator_control === 'True' || orgParam.locator_control === true);
+
+    if (locatorControlEnabled && !locator_id) {
+       throw new Error(`Locator is mandatory for Inventory Organization ${inv_org_id} (Locator Control is enabled).`);
+    }
+
+    // 3. Check Subinventory Restriction
+    // Mapping is MANDATORY for all stock items.
+    const restrictions = (db.item_subinventory_restriction || []).filter(r => 
+      r.item_id === item_id && r.inv_org_id === inv_org_id
+    );
+
+    if (restrictions.length === 0) {
+       throw new Error(`Item ${item_id} has no Subinventory Rules (Restrictions) defined for Org ${inv_org_id}. Item must be mapped to a subinventory before transactions.`);
+    }
+
+    const isAllowed = restrictions.find(r => {
+      const subMatch = r.subinventory_id === subinventory_id;
+      if (!subMatch) return false;
+
+      // If locator control is OFF, we only care about subinventory match
+      if (!locatorControlEnabled) return true;
+
+      // If locator control is ON, we must match the locator
+      // If the restriction record has no locator, it might mean "all locators in this subinv" 
+      // but usually restrictions are specific. Let's assume strict mapping.
+      return (r.locator_id === locator_id || (!r.locator_id && !locator_id));
+    });
+
+    if (!isAllowed) {
+      throw new Error(`Item ${item_id} is not allowed in Subinventory ${subinventory_id}${locator_id ? ' and Locator ' + locator_id : ''} based on Item-Subinv Rules.`);
     }
   }
 }
