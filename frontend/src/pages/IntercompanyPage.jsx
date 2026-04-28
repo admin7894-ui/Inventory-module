@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
 import { intercompanyApi } from '../services/api'
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -28,6 +29,7 @@ const COLUMNS = [
 export default function IntercompanyPage() {
   const navigate = useNavigate()
   const table = useTableData(intercompanyApi, 'intercompany')
+  const v = useFormValidation('intercompany')
   const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -80,30 +82,31 @@ export default function IntercompanyPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    v.clearError(k)
+  }
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
     e.preventDefault()
+    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') {
-        await table.update(selected['interco_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['interco_id'], formData)
+      else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch { }
   }
 
   const handleDelete = async () => {
@@ -115,22 +118,81 @@ export default function IntercompanyPage() {
     return (
       <FormPage title={view==='view'?`View Intercompany`:view==='edit'?`Edit Intercompany`:`New Intercompany`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.hasErrors && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium">
+            ⚠️ Please fix the highlighted errors below before submitting.
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Interco Id (Auto-gen)"><Input value={formData.interco_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
-      <Field label="Ship Ou Id"><Select value={formData.ship_ou_id} onChange={v => setField('ship_ou_id',v)} options={dropdowns.operatingUnit?.map(r=>{return{value:r.op_id,label:r.ou_name||r.op_id}})} /></Field>
-      <Field label="Sell Ou Id"><Select value={formData.sell_ou_id} onChange={v => setField('sell_ou_id',v)} options={dropdowns.operatingUnit?.map(r=>{return{value:r.op_id,label:r.ou_name||r.op_id}})} /></Field>
-      <Field label="Relation Type"><Select value={formData.relation_type} onChange={v => setField('relation_type',v)} options={["Internal","External"]} /></Field>
-      <Field label="Description"><textarea className="input" disabled={view==='view'} rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} /></Field>
-      <Field label="Ar Inv Method Id"><Input value={formData.ar_inv_method_id} onChange={e => setField('ar_inv_method_id',e.target.value)} /></Field>
-      <Field label="Ap Inv Method Id"><Input value={formData.ap_inv_method_id} onChange={e => setField('ap_inv_method_id',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Interco Id (Auto-gen)"><Input value={formData.interco_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
+            
+            <Field label="Ship OU" required error={v.fieldError('ship_ou_id')}>
+              <Select value={formData.ship_ou_id} 
+                onChange={v => setField('ship_ou_id', v)} 
+                onBlur={() => v.handleBlur('ship_ou_id', formData)}
+                error={v.fieldError('ship_ou_id')}
+                options={dropdowns.operatingUnit?.map(r => ({ value: r.op_id, label: r.ou_name || r.op_id }))} />
+            </Field>
+
+            <Field label="Sell OU" required error={v.fieldError('sell_ou_id')}>
+              <Select value={formData.sell_ou_id} 
+                onChange={v => setField('sell_ou_id', v)} 
+                onBlur={() => v.handleBlur('sell_ou_id', formData)}
+                error={v.fieldError('sell_ou_id')}
+                options={dropdowns.operatingUnit?.map(r => ({ value: r.op_id, label: r.ou_name || r.op_id }))} />
+            </Field>
+
+            <Field label="Relation Type" required error={v.fieldError('relation_type')}>
+              <Select value={formData.relation_type} 
+                onChange={v => setField('relation_type', v)} 
+                onBlur={() => v.handleBlur('relation_type', formData)}
+                error={v.fieldError('relation_type')}
+                options={["Internal", "External"].map(o => ({ value: o, label: o }))} />
+            </Field>
+
+            <Field label="Description" error={v.fieldError('description')}>
+              <textarea className={`input ${v.fieldError('description') ? 'border-red-500' : ''}`} 
+                disabled={view === 'view'} rows={3} 
+                value={formData.description || ''} 
+                onChange={e => setField('description', e.target.value)}
+                onBlur={() => v.handleBlur('description', formData)} />
+            </Field>
+
+            <Field label="AR Inv Method" required error={v.fieldError('ar_inv_method_id')}>
+              <Input value={formData.ar_inv_method_id} 
+                onChange={e => setField('ar_inv_method_id', e.target.value)}
+                onBlur={() => v.handleBlur('ar_inv_method_id', formData)}
+                error={v.fieldError('ar_inv_method_id')} />
+            </Field>
+
+            <Field label="AP Inv Method" required error={v.fieldError('ap_inv_method_id')}>
+              <Input value={formData.ap_inv_method_id} 
+                onChange={e => setField('ap_inv_method_id', e.target.value)}
+                onBlur={() => v.handleBlur('ap_inv_method_id', formData)}
+                error={v.fieldError('ap_inv_method_id')} />
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
+            
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v => setField('effective_from', v)}
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')} />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v => setField('effective_to', v)}
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')} />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )

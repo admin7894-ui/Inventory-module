@@ -10,6 +10,15 @@ const { validateStockAdjustment } = require('./stockAdjustmentValidator');
 const { validateCostMethod } = require('./costMethodValidator');
 const { validateCostType } = require('./costTypeValidator');
 const { validateOrgParameter } = require('./orgParameterValidator');
+const { validateShipMethod } = require('./shipMethodValidator');
+const { validateShipNetwork } = require('./shipNetworkValidator');
+const { validateIntercompany } = require('./intercompanyValidator');
+const { validateUomType } = require('./uomTypeValidator');
+const { validateUom } = require('./uomValidator');
+const { validateUomConv } = require('./uomConvValidator');
+const { validateCategorySet } = require('./categorySetValidator');
+const { validateItemCategory } = require('./itemCategoryValidator');
+const { validateItemSubCategory } = require('./itemSubCategoryValidator');
 
 /**
  * Express validation middleware factory
@@ -38,5 +47,14 @@ module.exports = {
   validateStockAdjustment,
   validateCostMethod,
   validateCostType,
-  validateOrgParameter
+  validateOrgParameter,
+  validateShipMethod,
+  validateShipNetwork,
+  validateIntercompany,
+  validateUomType,
+  validateUom,
+  validateUomConv,
+  validateCategorySet,
+  validateItemCategory,
+  validateItemSubCategory
 };

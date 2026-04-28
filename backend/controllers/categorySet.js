@@ -49,6 +49,10 @@ exports.create = (req, res) => {
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
+    
+    // Uniqueness check for category_set_code
+    if ((db[TABLE]||[]).find(r => r.category_set_code === body.category_set_code))
+      return res.status(400).json({ success:false, message:`Category Set Code "${body.category_set_code}" already exists` });
     body.created_by = body.created_by || req.user?.username || MOCK_USER;
     body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
@@ -63,6 +67,11 @@ exports.update = (req, res) => {
   try {
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
+
+    // Uniqueness check for category_set_code
+    if (req.body.category_set_code && (db[TABLE]||[]).find(r => r.category_set_code === req.body.category_set_code && r[PK] !== req.params.id))
+      return res.status(400).json({ success:false, message:`Category Set Code "${req.body.category_set_code}" already exists` });
+
     db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
     res.json({ success:true, data:db[TABLE][idx], message:'Updated' });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }

@@ -318,6 +318,143 @@ const RULES = {
     return e;
   },
 
+  // ━━━━━━━━━━━━━━ SHIP METHOD ━━━━━━━━━━━━━━
+  ship_method: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.ship_method_name)) e.ship_method_name = 'Ship Method Name is required';
+    else if (!REGEX.NAME.test(d.ship_method_name)) e.ship_method_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.method_code)) e.method_code = 'Method Code is required';
+    else if (!REGEX.CODE.test(d.method_code)) e.method_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ SHIP NETWORK ━━━━━━━━━━━━━━
+  ship_network: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.from_inv_org_id)) e.from_inv_org_id = 'From Inv Org is required';
+    if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'To Inv Org is required';
+    if (!isEmpty(d.from_inv_org_id) && !isEmpty(d.to_inv_org_id) && String(d.from_inv_org_id) === String(d.to_inv_org_id))
+      e.to_inv_org_id = 'Source and Destination Organizations must be different';
+    if (isEmpty(d.transfer_type)) e.transfer_type = 'Transfer Type is required';
+    if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = 'Default Ship Method is required';
+    if (isEmpty(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'Lead Time is required';
+    else if (!isNonNegativeNumber(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'Lead Time must be ≥ 0';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ INTERCOMPANY ━━━━━━━━━━━━━━
+  intercompany: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.ship_ou_id)) e.ship_ou_id = 'Ship OU is required';
+    if (isEmpty(d.sell_ou_id)) e.sell_ou_id = 'Sell OU is required';
+    if (!isEmpty(d.ship_ou_id) && !isEmpty(d.sell_ou_id) && String(d.ship_ou_id) === String(d.sell_ou_id))
+      e.sell_ou_id = 'Ship OU and Sell OU must be different';
+    if (isEmpty(d.relation_type)) e.relation_type = 'Relation Type is required';
+    if (isEmpty(d.ar_inv_method_id)) e.ar_inv_method_id = 'AR Inv Method is required';
+    if (isEmpty(d.ap_inv_method_id)) e.ap_inv_method_id = 'AP Inv Method is required';
+    if (d.description && d.description.length > 250) e.description = 'Description: max 250 characters';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ UOM TYPE ━━━━━━━━━━━━━━
+  uom_type: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.uom_type_name)) e.uom_type_name = 'UOM Type Name is required';
+    else if (!REGEX.NAME.test(d.uom_type_name)) e.uom_type_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.uom_type_code)) e.uom_type_code = 'UOM Type Code is required';
+    else if (!REGEX.CODE.test(d.uom_type_code)) e.uom_type_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ UOM ━━━━━━━━━━━━━━
+  uom: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.uom_type_id)) e.uom_type_id = 'UOM Type is required';
+    if (isEmpty(d.uom_name)) e.uom_name = 'UOM Name is required';
+    else if (!REGEX.NAME.test(d.uom_name)) e.uom_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.uom_code)) e.uom_code = 'UOM Code is required';
+    else if (!REGEX.CODE.test(d.uom_code)) e.uom_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.decimal_precision)) e.decimal_precision = 'Decimal Precision is required';
+    else {
+      const prec = Number(d.decimal_precision);
+      if (isNaN(prec) || prec < 0 || prec > 6) e.decimal_precision = 'Precision: 0–6';
+    }
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ UOM CONVERSION ━━━━━━━━━━━━━━
+  uom_conv: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.item_id)) e.item_id = 'Item is required';
+    if (isEmpty(d.from_uom_id)) e.from_uom_id = 'From UOM is required';
+    if (isEmpty(d.to_uom_id)) e.to_uom_id = 'To UOM is required';
+    else if (!isEmpty(d.from_uom_id) && String(d.from_uom_id) === String(d.to_uom_id)) e.to_uom_id = 'Units must be different';
+    if (isEmpty(d.conversion_rate)) e.conversion_rate = 'Rate is required';
+    else if (!isPositiveNumber(d.conversion_rate)) e.conversion_rate = 'Rate must be > 0';
+    if (isEmpty(d.conversion_type)) e.conversion_type = 'Conversion Type is required';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ CATEGORY SET ━━━━━━━━━━━━━━
+  category_set: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.category_set_name)) e.category_set_name = 'Category Set Name is required';
+    else if (!REGEX.NAME.test(d.category_set_name)) e.category_set_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.category_set_code)) e.category_set_code = 'Category Set Code is required';
+    else if (!REGEX.CODE.test(d.category_set_code)) e.category_set_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (d.description && d.description.length > 250) e.description = 'Description: max 250 chars';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ ITEM CATEGORY ━━━━━━━━━━━━━━
+  item_category: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.category_set_id)) e.category_set_id = 'Category Set is required';
+    if (isEmpty(d.category_name)) e.category_name = 'Category Name is required';
+    else if (!REGEX.NAME.test(d.category_name)) e.category_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.category_code)) e.category_code = 'Category Code is required';
+    else if (!REGEX.CODE.test(d.category_code)) e.category_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ ITEM SUB CATEGORY ━━━━━━━━━━━━━━
+  item_sub_category: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.category_id)) e.category_id = 'Category is required';
+    if (isEmpty(d.sub_category_name)) e.sub_category_name = 'Sub Category Name is required';
+    else if (!REGEX.NAME.test(d.sub_category_name)) e.sub_category_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.sub_category_code)) e.sub_category_code = 'Sub Category Code is required';
+    else if (!REGEX.CODE.test(d.sub_category_code)) e.sub_category_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
   // ━━━━━━━━━━━━━━ GENERIC FALLBACK ━━━━━━━━━━━━━━
   // For simple master pages that just need company group + dates
   _generic: (d, opts = {}) => {

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
 import { shipNetworkApi } from '../services/api'
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -28,6 +29,7 @@ const COLUMNS = [
 export default function ShipNetworkPage() {
   const navigate = useNavigate()
   const table = useTableData(shipNetworkApi, 'ship_network')
+  const v = useFormValidation('ship_network')
   const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -80,28 +82,29 @@ export default function ShipNetworkPage() {
     securityRoles: securityRolesList, departments: depts, roles: rolesList, designation: designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    v.clearError(k)
+  }
 
   const handleCreate = () => {
-    setFormData({ active_flag: 'Y', effective_from: new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
     e.preventDefault()
+    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') {
-        await table.update(selected['ship_network_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['ship_network_id'], formData)
+      else await table.create(formData)
       handleBack()
     } catch { }
   }
@@ -115,19 +118,71 @@ export default function ShipNetworkPage() {
     return (
       <FormPage title={view === 'view' ? `View Ship Network` : view === 'edit' ? `Edit Ship Network` : `New Ship Network`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}>
+        {v.hasErrors && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium">
+            ⚠️ Please fix the highlighted errors below before submitting.
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Ship Network Id (Auto-gen)"><Input value={formData.ship_network_id} readOnly /></Field>
-            <CompanyGroup formData={formData} setField={setField} />
-            <Field label="From Inv Org Id"><Select value={formData.from_inv_org_id} onChange={v => setField('from_inv_org_id', v)} options={dropdowns.inventoryOrg?.map(r => { return { value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id } })} /></Field>
-            <Field label="To Inv Org Id"><Select value={formData.to_inv_org_id} onChange={v => setField('to_inv_org_id', v)} options={dropdowns.inventoryOrg?.map(r => { return { value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id } })} /></Field>
-            <Field label="Transfer Type"><Input value={formData.transfer_type} onChange={e => setField('transfer_type', e.target.value)} /></Field>
-            <Field label="Default Ship Method Id"><Select value={formData.default_ship_method_id} onChange={v => setField('default_ship_method_id', v)} options={dropdowns.shipMethod?.map(r => { return { value: r.ship_method_id, label: r.ship_method_name || r.ship_method_id } })} /></Field>
-            <Field label="Intransit Lead Time Days"><Input value={formData.intransit_lead_time_days} onChange={e => setField('intransit_lead_time_days', e.target.value)} /></Field>
-            <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id', v)} options={dropdowns.module?.map(r => { return { value: r.module_id, label: r.module_name || r.module_id } })} /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
+            
+            <Field label="From Inv Org" required error={v.fieldError('from_inv_org_id')}>
+              <Select value={formData.from_inv_org_id} 
+                onChange={v => setField('from_inv_org_id', v)} 
+                onBlur={() => v.handleBlur('from_inv_org_id', formData)}
+                error={v.fieldError('from_inv_org_id')}
+                options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
+            </Field>
+
+            <Field label="To Inv Org" required error={v.fieldError('to_inv_org_id')}>
+              <Select value={formData.to_inv_org_id} 
+                onChange={v => setField('to_inv_org_id', v)} 
+                onBlur={() => v.handleBlur('to_inv_org_id', formData)}
+                error={v.fieldError('to_inv_org_id')}
+                options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
+            </Field>
+
+            <Field label="Transfer Type" required error={v.fieldError('transfer_type')}>
+              <Input value={formData.transfer_type} 
+                onChange={e => setField('transfer_type', e.target.value)}
+                onBlur={() => v.handleBlur('transfer_type', formData)}
+                error={v.fieldError('transfer_type')} />
+            </Field>
+
+            <Field label="Default Ship Method" required error={v.fieldError('default_ship_method_id')}>
+              <Select value={formData.default_ship_method_id} 
+                onChange={v => setField('default_ship_method_id', v)} 
+                onBlur={() => v.handleBlur('default_ship_method_id', formData)}
+                error={v.fieldError('default_ship_method_id')}
+                options={dropdowns.shipMethod?.map(r => ({ value: r.ship_method_id, label: r.ship_method_name || r.ship_method_id }))} />
+            </Field>
+
+            <Field label="Intransit Lead Time Days" required error={v.fieldError('intransit_lead_time_days')}>
+              <Input type="number" value={formData.intransit_lead_time_days} 
+                onChange={e => setField('intransit_lead_time_days', e.target.value)}
+                onBlur={() => v.handleBlur('intransit_lead_time_days', formData)}
+                error={v.fieldError('intransit_lead_time_days')} />
+            </Field>
+
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
-            <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from', v)} /></Field>
-            <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to', v)} /></Field>
+            
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v => setField('effective_from', v)}
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')} />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v => setField('effective_to', v)}
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')} />
+            </Field>
+
             <AuditFields formData={formData} setField={setField} />
           </div>
         </div>

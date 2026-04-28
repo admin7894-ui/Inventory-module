@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
 import { uomConvApi } from '../services/api'
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -28,6 +29,7 @@ const COLUMNS = [
 export default function UomConvPage() {
   const navigate = useNavigate()
   const table = useTableData(uomConvApi, 'uom_conv')
+  const v = useFormValidation('uom_conv')
   const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -80,30 +82,31 @@ export default function UomConvPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    v.clearError(k)
+  }
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
     e.preventDefault()
+    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') {
-        await table.update(selected['uom_conv_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['uom_conv_id'], formData)
+      else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch { }
   }
 
   const handleDelete = async () => {
@@ -115,22 +118,74 @@ export default function UomConvPage() {
     return (
       <FormPage title={view==='view'?`View UOM Conversion`:view==='edit'?`Edit UOM Conversion`:`New UOM Conversion`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.hasErrors && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium">
+            ⚠️ Please fix the highlighted errors below before submitting.
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Uom Conv Id (Auto-gen)"><Input value={formData.uom_conv_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Uom Conv Id (Auto-gen)"><Input value={formData.uom_conv_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-      <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
-      <Field label="From Uom Id"><Select value={formData.from_uom_id} onChange={v => setField('from_uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:r.uom_name||r.uom_id}})} /></Field>
-      <Field label="To Uom Id"><Select value={formData.to_uom_id} onChange={v => setField('to_uom_id',v)} options={dropdowns.uom?.map(r=>{return{value:r.uom_id,label:r.uom_name||r.uom_id}})} /></Field>
-      <Field label="Conversion Rate"><Input type="number" step="any"  value={formData.conversion_rate} onChange={e => setField('conversion_rate',e.target.value)} /></Field>
-      <Field label="Conversion Type"><Select value={formData.conversion_type} onChange={v => setField('conversion_type',v)} options={["Item","Standard"]} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Item" required error={v.fieldError('item_id')}>
+              <Select value={formData.item_id} 
+                onChange={v => setField('item_id', v)} 
+                onBlur={() => v.handleBlur('item_id', formData)}
+                error={v.fieldError('item_id')}
+                options={dropdowns.itemMaster?.map(r => ({ value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` }))} />
+            </Field>
+
+            <Field label="From UOM" required error={v.fieldError('from_uom_id')}>
+              <Select value={formData.from_uom_id} 
+                onChange={v => setField('from_uom_id', v)} 
+                onBlur={() => v.handleBlur('from_uom_id', formData)}
+                error={v.fieldError('from_uom_id')}
+                options={dropdowns.uom?.map(r => ({ value: r.uom_id, label: r.uom_name || r.uom_id }))} />
+            </Field>
+
+            <Field label="To UOM" required error={v.fieldError('to_uom_id')}>
+              <Select value={formData.to_uom_id} 
+                onChange={v => setField('to_uom_id', v)} 
+                onBlur={() => v.handleBlur('to_uom_id', formData)}
+                error={v.fieldError('to_uom_id')}
+                options={dropdowns.uom?.map(r => ({ value: r.uom_id, label: r.uom_name || r.uom_id }))} />
+            </Field>
+
+            <Field label="Conversion Rate" required error={v.fieldError('conversion_rate')}>
+              <Input type="number" step="any" value={formData.conversion_rate} 
+                onChange={e => setField('conversion_rate', e.target.value)}
+                onBlur={() => v.handleBlur('conversion_rate', formData)}
+                error={v.fieldError('conversion_rate')} />
+            </Field>
+
+            <Field label="Conversion Type" required error={v.fieldError('conversion_type')}>
+              <Select value={formData.conversion_type} 
+                onChange={v => setField('conversion_type', v)} 
+                onBlur={() => v.handleBlur('conversion_type', formData)}
+                error={v.fieldError('conversion_type')}
+                options={["Item", "Standard"]} />
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
+
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v => setField('effective_from', v)}
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')} />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v => setField('effective_to', v)}
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')} />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )

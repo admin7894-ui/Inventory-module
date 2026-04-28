@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
+import { autoCode } from '../validations/validationEngine'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -28,10 +30,12 @@ const COLUMNS = [
 export default function ItemSubCategoryPage() {
   const navigate = useNavigate()
   const table = useTableData(itemSubCategoryApi, 'item_sub_category')
+  const v = useFormValidation('item_sub_category')
   const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const existingCodes = table.rows.map(r => r.sub_category_code)
 
   // Load all needed dropdowns
   const companies = []
@@ -80,30 +84,37 @@ export default function ItemSubCategoryPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => {
+      const next = { ...p, [k]: val }
+      if (k === 'sub_category_name') {
+        next.sub_category_code = autoCode(val, 'SC_', existingCodes)
+      }
+      return next
+    })
+    v.clearError(k)
+  }
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
     e.preventDefault()
+    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') {
-        await table.update(selected['sub_category_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['sub_category_id'], formData)
+      else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch { }
   }
 
   const handleDelete = async () => {
@@ -115,21 +126,67 @@ export default function ItemSubCategoryPage() {
     return (
       <FormPage title={view==='view'?`View Item Sub Category`:view==='edit'?`Edit Item Sub Category`:`New Item Sub Category`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.hasErrors && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium">
+            ⚠️ Please fix the highlighted errors below before submitting.
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Sub Category Id (Auto-gen)"><Input value={formData.sub_category_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Sub Category Id (Auto-gen)"><Input value={formData.sub_category_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-      <Field label="Category"><Select value={formData.category_id} onChange={v => setField('category_id',v)} options={dropdowns.itemCategory?.map(r=>{return{value:r.category_id,label:r.category_name||r.category_id}})} /></Field>
-      <Field label="Sub Category Code"><Input value={formData.sub_category_code} onChange={e => setField('sub_category_code',e.target.value)} /></Field>
-      <Field label="Sub Category Name"><Input value={formData.sub_category_name} onChange={e => setField('sub_category_name',e.target.value)} /></Field>
-      <Field label="Description"><textarea className="input" disabled={view==='view'} rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Category" required error={v.fieldError('category_id')}>
+              <Select value={formData.category_id} 
+                onChange={v => setField('category_id', v)} 
+                onBlur={() => v.handleBlur('category_id', formData)}
+                error={v.fieldError('category_id')}
+                options={dropdowns.itemCategory?.map(r => ({ value: r.category_id, label: r.category_name || r.category_id }))} />
+            </Field>
+
+            <Field label="Sub Category Name" required error={v.fieldError('sub_category_name')}>
+              <Input value={formData.sub_category_name} 
+                onChange={e => setField('sub_category_name', e.target.value)}
+                onBlur={() => v.handleBlur('sub_category_name', formData)}
+                error={v.fieldError('sub_category_name')} />
+            </Field>
+
+            <Field label="Sub Category Code" required error={v.fieldError('sub_category_code')}>
+              <Input value={formData.sub_category_code} 
+                readOnly
+                onBlur={() => v.handleBlur('sub_category_code', formData)}
+                error={v.fieldError('sub_category_code')}
+                placeholder="Auto-generated from name" />
+            </Field>
+
+            <Field label="Description">
+              <textarea 
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 resize-none h-24 dark:bg-slate-800 dark:border-slate-700"
+                disabled={view === 'view'}
+                value={formData.description || ''} 
+                onChange={e => setField('description', e.target.value)}
+              />
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
+
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v => setField('effective_from', v)}
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')} />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v => setField('effective_to', v)}
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')} />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )

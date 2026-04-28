@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
+import { autoCode } from '../validations/validationEngine'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -28,10 +30,12 @@ const COLUMNS = [
 export default function UomPage() {
   const navigate = useNavigate()
   const table = useTableData(uomApi, 'uom')
+  const v = useFormValidation('uom')
   const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const existingCodes = table.rows.map(r => r.uom_code)
 
   // Load all needed dropdowns
   const companies = []
@@ -80,30 +84,39 @@ export default function UomPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => {
+      const next = { ...p, [k]: val }
+      if (k === 'uom_name') {
+        next.uom_code = autoCode(val, 'UOM_', existingCodes)
+      }
+      return next
+    })
+    v.clearError(k)
+  }
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01',
+      decimal_precision: 0,
+      base_uom_flag: 'N'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
     e.preventDefault()
+    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') {
-        await table.update(selected['uom_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['uom_id'], formData)
+      else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch { }
   }
 
   const handleDelete = async () => {
@@ -115,22 +128,67 @@ export default function UomPage() {
     return (
       <FormPage title={view==='view'?`View UOM`:view==='edit'?`Edit UOM`:`New UOM`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.hasErrors && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium">
+            ⚠️ Please fix the highlighted errors below before submitting.
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Uom Id (Auto-gen)"><Input value={formData.uom_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Uom Id (Auto-gen)"><Input value={formData.uom_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-      <Field label="UOM Type"><Select value={formData.uom_type_id} onChange={v => setField('uom_type_id',v)} options={dropdowns.uomType?.map(r=>{return{value:r.uom_type_id,label:r.uom_type_name||r.uom_type_id}})} /></Field>
-      <Field label="Uom Code"><Input value={formData.uom_code} onChange={e => setField('uom_code',e.target.value)} /></Field>
-      <Field label="Uom Name"><Input value={formData.uom_name} onChange={e => setField('uom_name',e.target.value)} /></Field>
-      <Field label="Base Uom Flag"><Input value={formData.base_uom_flag} onChange={e => setField('base_uom_flag',e.target.value)} /></Field>
-      <Field label="Decimal Precision"><Input value={formData.decimal_precision} onChange={e => setField('decimal_precision',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="UOM Type" required error={v.fieldError('uom_type_id')}>
+              <Select value={formData.uom_type_id} 
+                onChange={v => setField('uom_type_id', v)} 
+                onBlur={() => v.handleBlur('uom_type_id', formData)}
+                error={v.fieldError('uom_type_id')}
+                options={dropdowns.uomType?.map(r => ({ value: r.uom_type_id, label: r.uom_type_name || r.uom_type_id }))} />
+            </Field>
+
+            <Field label="Uom Name" required error={v.fieldError('uom_name')}>
+              <Input value={formData.uom_name} 
+                onChange={e => setField('uom_name', e.target.value)}
+                onBlur={() => v.handleBlur('uom_name', formData)}
+                error={v.fieldError('uom_name')} />
+            </Field>
+
+            <Field label="Uom Code" required error={v.fieldError('uom_code')}>
+              <Input value={formData.uom_code} 
+                readOnly
+                onBlur={() => v.handleBlur('uom_code', formData)}
+                error={v.fieldError('uom_code')}
+                placeholder="Auto-generated from name" />
+            </Field>
+
+            <Field label="Base Uom Flag"><Toggle value={formData.base_uom_flag} onChange={v => setField('base_uom_flag', v)} /></Field>
+
+            <Field label="Decimal Precision" required error={v.fieldError('decimal_precision')}>
+              <Input type="number" step="1" min="0" max="6" value={formData.decimal_precision} 
+                onChange={e => setField('decimal_precision', e.target.value)}
+                onBlur={() => v.handleBlur('decimal_precision', formData)}
+                error={v.fieldError('decimal_precision')} />
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
+
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v => setField('effective_from', v)}
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')} />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v => setField('effective_to', v)}
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')} />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )
