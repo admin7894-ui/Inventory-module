@@ -16,7 +16,7 @@ import {
   inventoryTransactionApi, stockLedgerApi
 } from '../services/api'
 
-import { validators, validateForm } from '../validations/index'
+import { validate } from '../validations/validationEngine'
 
 const COLUMNS = [
   { key: 'txn_type_id', label: 'Txn Type Id' },
@@ -113,22 +113,9 @@ export default function TransactionTypePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Schema-based validation
-    const schema = {
-      txn_type_code: [validators.required],
-      txn_type_name: [validators.required],
-      txn_action: [validators.required],
-      txn_category: [validators.required],
-      COMPANY_id: [validators.required],
-      bg_id: [validators.required],
-      business_type_id: [validators.required],
-      module_id: [validators.required],
-      effective_from: [validators.required]
-    };
-
-    const formErrors = validateForm(formData, schema);
-    if (Object.keys(formErrors).length > 0) {
-      setErrors(formErrors);
+    const { errors: valErrors, isValid } = validate('transaction_type', formData)
+    if (!isValid) {
+      setErrors(valErrors);
       return toast.error('Please fix validation errors');
     }
 

@@ -6,7 +6,7 @@ import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 import { workdayCalendarApi } from '../services/api'
-import { validateWorkdayCalendar } from '../validations/workdayCalendarValidation'
+import { validate, autoCode } from '../validations/validationEngine'
 
 const COLUMNS = [
   { key: 'calendar_id', label: 'Calendar ID' },
@@ -30,8 +30,17 @@ export default function WorkdayCalendarPage() {
   const [formData, setFormData] = useState({ holidays: [] })
   const [errors, setErrors] = useState({})
 
+  const [codeEdited, setCodeEdited] = useState(false)
+
+  const existingCodes = table.rows.map(r => r.calendar_code)
   const setField = (k, v) => {
-    setFormData(p => ({ ...p, [k]: v }))
+    setFormData(p => {
+      const next = { ...p, [k]: v }
+      if (k === 'calendar_name' && !codeEdited) {
+        next.calendar_code = autoCode(v, 'WC_', existingCodes)
+      }
+      return next
+    })
     if (errors[k]) setErrors(p => { const newE = { ...p }; delete newE[k]; return newE; })
   }
 
@@ -42,6 +51,7 @@ export default function WorkdayCalendarPage() {
       weekly_off_days: [],
       holidays: []
     })
+    setCodeEdited(false)
     setErrors({})
     setView('create')
   }
@@ -51,6 +61,7 @@ export default function WorkdayCalendarPage() {
       const res = await workdayCalendarApi.getOne(row.calendar_id)
       setSelected(row)
       setFormData({ ...res.data, holidays: res.data.holidays || [] })
+      setCodeEdited(true)
       setErrors({})
       setView('edit')
     } catch (e) {
@@ -105,25 +116,22 @@ export default function WorkdayCalendarPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const { errors: valErrors, isValid } = validateWorkdayCalendar(formData)
+    const { errors: valErrors, isValid } = validate('workday_calendar', formData)
     if (!isValid) {
       setErrors(valErrors)
-      toast.error("Please fix the errors in the form")
+      toast.error('Please fix the highlighted errors')
       return
     }
 
     try {
       if (view === 'edit') {
-        await workdayCalendarApi.update(selected.calendar_id, formData)
-        toast.success("Updated successfully")
+        await table.update(selected.calendar_id, formData)
       } else {
-        await workdayCalendarApi.create(formData)
-        toast.success("Created successfully")
+        await table.create(formData)
       }
-      table.refresh()
       handleBack()
     } catch (err) {
-      toast.error(err.response?.data?.message || "Operation failed")
+      // Errors are handled by useTableData toast
     }
   }
 
@@ -154,7 +162,7 @@ export default function WorkdayCalendarPage() {
               <CompanyGroup formData={formData} setField={setField} errors={errors} />
               
               <Field label="Calendar Code" required error={errors.calendar_code}>
-                <Input value={formData.calendar_code} onChange={e => setField('calendar_code', e.target.value)} placeholder="e.g. CAL-2026" />
+                <Input value={formData.calendar_code} readOnly placeholder="Auto-generated from name" />
               </Field>
               <Field label="Calendar Name" required error={errors.calendar_name}>
                 <Input value={formData.calendar_name} onChange={e => setField('calendar_name', e.target.value)} placeholder="e.g. India Work Calendar" />

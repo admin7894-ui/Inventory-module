@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/inventoryOrg');
+const { validate, validateOperatingUnit } = require('../validators');
 
 router.get('/all', ctrl.getAll);
 router.get('/', ctrl.getAll);

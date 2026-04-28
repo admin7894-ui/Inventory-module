@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
+import { validate } from '../validations/validationEngine'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { 
   DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, 
@@ -40,6 +41,7 @@ export default function StockAdjustmentPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
+  const [touched, setTouched] = useState({})
 
   // Dropdowns
   const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -185,6 +187,12 @@ export default function StockAdjustmentPage() {
     return parseFloat(formData.physical_qty || 0) - parseFloat(formData.system_qty || 0);
   }, [isTransfer, formData.physical_qty, formData.system_qty]);
 
+  const handleBlur = useCallback((k) => {
+    setTouched(p => ({ ...p, [k]: true }))
+    const { errors: valErrors } = validate('stock_adjustment', formData, { isTransfer, isLotControlled, isSerialControlled })
+    setErrors(valErrors)
+  }, [formData, isTransfer, isLotControlled, isSerialControlled])
+
   const handleCreate = () => {
     setFormData({ 
       active_flag: 'Y', 
@@ -192,12 +200,12 @@ export default function StockAdjustmentPage() {
       adjustment_date: new Date().toISOString().split('T')[0],
       approval_status: 'PENDING'
     })
-    setErrors({})
+    setErrors({}); setTouched({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setTouched({}); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setTouched({}); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); setErrors({}); setTouched({}) }
 
   const handleDelete = async () => {
     if (!confirmDelete) return
@@ -205,23 +213,12 @@ export default function StockAdjustmentPage() {
     setConfirmDelete(null)
   }
 
-  const validate = () => {
-    const e = {}
-    if (!formData.COMPANY_id) e.COMPANY_id = 'Required'
-    if (!formData.bg_id) e.bg_id = 'Required'
-    if (!formData.item_id) e.item_id = 'Required'
-    if (!formData.txn_type_id) e.txn_type_id = 'Required'
-    if (!formData.inv_org_id) e.inv_org_id = 'Required'
-    if (isTransfer && !formData.to_inv_org_id) e.to_inv_org_id = 'Required'
-    if (isLotControlled && !formData.lot_id) e.lot_id = 'Lot Required'
-    if (isSerialControlled && (!formData.serial_ids || formData.serial_ids.length === 0)) e.serial_ids = 'Serial Required'
-    return e
-  }
-
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return toast.error('Please fix validation errors') }
+    const { errors: valErrors, isValid } = validate('stock_adjustment', formData, { isTransfer, isLotControlled, isSerialControlled })
+    setErrors(valErrors)
+    setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}))
+    if (!isValid) return toast.error('Please fix the highlighted errors')
     
     try {
       const payload = { 

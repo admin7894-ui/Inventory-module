@@ -13,7 +13,7 @@ const PREFIXES = {
   profile_access: 'PA',
   security_roles: 'SR',
   table_access: 'TA',
-  legal_enity: 'LE',
+  legal_entity: 'LE',
   operating_unit: 'OU',
   inventory_org: 'INV',
   workday_calendar: 'CAL',

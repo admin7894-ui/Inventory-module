@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
-import { validateLegalEntity } from '../validations/legalEntityValidation'
+import { validate } from '../validations/validationEngine'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 
@@ -42,7 +42,7 @@ export default function LegalEntityPage() {
 
   const handleBlur = (k) => {
     setTouched(p => ({ ...p, [k]: true }))
-    const { errors: valErrors } = validateLegalEntity(formData)
+    const { errors: valErrors } = validate('legal_entity', formData)
     setErrors(valErrors)
   }
 
@@ -71,7 +71,7 @@ export default function LegalEntityPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    const { errors: valErrors, isValid } = validateLegalEntity(formData)
+    const { errors: valErrors, isValid } = validate('legal_entity', formData)
     setErrors(valErrors)
     setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}))
 

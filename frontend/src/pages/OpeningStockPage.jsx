@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
+import { validate } from '../validations/validationEngine'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, SectionHeader } from '../components/ui/index'
 import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X, Loader2, CheckCircle2 } from 'lucide-react'
@@ -208,29 +209,13 @@ export default function OpeningStockPage() {
   const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
 
-  const validate = () => {
-    const e = {}
-    if (!formData.COMPANY_id) e.COMPANY_id = 'Required'
-    if (!formData.bg_id) e.bg_id = 'Required'
-    if (!formData.item_id) e.item_id = 'Select an item'
-    if (!formData.txn_reason_id) e.txn_reason_id = 'Reason required'
-    if (!formData.inv_org_id) e.inv_org_id = 'Required'
-    if (!formData.subinventory_id) e.subinventory_id = 'Required'
-    const qty = parseFloat(formData.opening_qty || 0)
-    if (qty <= 0) e.opening_qty = 'Quantity must be > 0'
-    if (!formData.unit_cost) e.unit_cost = 'Unit cost is required'
-    if (isLotControlled && !formData.lot_number) e.lot_number = 'Lot number is required'
-    if (isSerialControlled && serialMode === 'manual') {
-      const validSerials = serialInputs.filter(s => s.trim())
-      if (validSerials.length !== qty) e.serial_numbers = `Need exactly ${qty} serial numbers`
-    }
-    return e
-  }
-
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return toast.error('Please fix validation errors') }
+    const { errors: valErrors, isValid } = validate('opening_stock', formData, {
+      isLotControlled, isSerialControlled, serialMode, serialInputs
+    })
+    setErrors(valErrors)
+    if (!isValid) return toast.error('Please fix the highlighted errors')
     try {
       const payload = { ...formData, total_value: totalValue, active_flag: 'Y' }
       if (isSerialControlled && serialMode === 'manual') {

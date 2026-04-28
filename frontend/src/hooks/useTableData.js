@@ -53,6 +53,7 @@ export function useTableData(api, queryKey) {
     create: createM.mutateAsync,
     update: (id, data) => updateM.mutateAsync({ id, data }),
     remove: deleteM.mutateAsync,
+    refresh: () => qc.invalidateQueries([queryKey]),
     isCreating: createM.isPending,
     isUpdating: updateM.isPending,
     isDeleting: deleteM.isPending,

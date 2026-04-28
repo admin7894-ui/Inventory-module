@@ -2,106 +2,64 @@ import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
+import { validate, autoCode } from '../validations/validationEngine'
+import { useFormValidation } from '../validations/useFormValidation'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 
 import {
-  companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
-  inventoryOrgApi, subinventoryApi, locatorApi, itemMasterApi, uomApi, uomTypeApi,
-  itemCategoryApi, itemSubCategoryApi, brandApi, itemTypeApi, zoneApi,
-  lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
-  categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
-  operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
-  departmentsApi, rolesApi, designationApi,
+  locationApi, moduleApi, legalEntityApi, operatingUnitApi, inventoryOrgApi
 } from '../services/api'
 
 const COLUMNS = [
   { key: 'inv_org_id', label: 'Inv Org Id' },
-  { key: 'COMPANY_id', label: 'Company Id' },
-  { key: 'location_id', label: 'Location Id' },
-  { key: 'bg_id', label: 'Bg Id' },
+  { key: 'inv_org_name', label: 'Inv Org Name' },
+  { key: 'inv_org_code', label: 'Inv Org Code' },
   { key: 'le_id', label: 'Le Id' },
-  { key: 'business_type_id', label: 'Business Type Id' },
-  { key: 'inv_org_name', label: 'Inv Org Name' }
+  { key: 'location_id', label: 'Location' },
+  { key: 'active_flag', label: 'Status', type: 'badge' }
 ]
 
 export default function InventoryOrgPage() {
   const navigate = useNavigate()
   const table = useTableData(inventoryOrgApi, 'inventory_org')
-  const [view, setView] = useState('list') // 'list' | 'create' | 'edit' | 'view'
+  const v = useFormValidation('inventory_org')
+  const [view, setView] = useState('list')
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const [codeEdited, setCodeEdited] = useState(false)
 
-  // Load all needed dropdowns
-  const companies = []
-  const businessGroups = []
-  const businessTypes = []
-  const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
-  const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
-  const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
-  const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
-  const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
-  const { options: uoms }             = useDropdownData(uomApi, 'uom_dd')
-  const { options: uomTypes }         = useDropdownData(uomTypeApi, 'uomt_dd')
-  const { options: itemCategories }   = useDropdownData(itemCategoryApi, 'cat_dd')
-  const { options: itemSubCategories }= useDropdownData(itemSubCategoryApi, 'scat_dd')
-  const { options: brands }           = useDropdownData(brandApi, 'brand_dd')
-  const { options: itemTypes }        = useDropdownData(itemTypeApi, 'itype_dd')
-  const { options: zones }            = useDropdownData(zoneApi, 'zone_dd')
-  const { options: lots }             = useDropdownData(lotMasterApi, 'lot_dd')
-  const { options: serials }          = useDropdownData(serialMasterApi, 'serial_dd')
-  const { options: txnTypes }         = useDropdownData(transactionTypeApi, 'txntype_dd')
-  const { options: txnReasons }       = useDropdownData(transactionReasonApi, 'txnrsn_dd')
-  const { options: categorySets }     = useDropdownData(categorySetApi, 'catset_dd')
-  const { options: costMethods }      = useDropdownData(costMethodApi, 'cm_dd')
-  const { options: costTypes }        = useDropdownData(costTypeApi, 'ct_dd')
-  const { options: shipMethods }      = useDropdownData(shipMethodApi, 'sm_dd')
-  const { options: legalEntities }    = useDropdownData(legalEntityApi, 'le_dd')
-  const { options: operatingUnits }   = useDropdownData(operatingUnitApi, 'ou_dd')
-  const { options: securityProfiles } = useDropdownData(securityProfileApi, 'sp_dd')
-  const { options: profileAccesses }  = useDropdownData(profileAccessApi, 'pa_dd')
-  const { options: securityRolesList }= useDropdownData(securityRolesApi, 'sr_dd')
-  const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
-  const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
-  const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
+  const { options: locations }      = useDropdownData(locationApi, 'loc_dd')
+  const { options: modules }        = useDropdownData(moduleApi, 'mod_dd')
+  const { options: legalEntities }  = useDropdownData(legalEntityApi, 'le_dd')
 
-  const dropdowns = {
-    company:companies, businessGroup:businessGroups, businessType:businessTypes,
-    location:locations, module:modules, inventoryOrg:inventoryOrgs,
-    subinventory:subinventories, locator:locators, itemMaster:items,
-    uom:uoms, uomType:uomTypes, itemCategory:itemCategories, itemSubCategory:itemSubCategories,
-    brand:brands, itemType:itemTypes, zone:zones, lotMaster:lots, serialMaster:serials,
-    transactionType:txnTypes, transactionReason:txnReasons, categorySet:categorySets,
-    costMethod:costMethods, costType:costTypes, shipMethod:shipMethods,
-    legalEntity:legalEntities, operatingUnit:operatingUnits,
-    securityProfile:securityProfiles, profileAccess:profileAccesses,
-    securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
+  const existingCodes = table.rows.map(r => r.inv_org_code)
+  const setField = (k, val) => {
+    setFormData(p => {
+      const next = { ...p, [k]: val }
+      if (k === 'inv_org_name') {
+        next.inv_org_code = autoCode(val, 'INV_', existingCodes)
+      }
+      return next
+    })
+    v.clearError(k)
   }
-
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ active_flag: 'Y', effective_from: new Date().toISOString().split('T')[0] })
+    setCodeEdited(false); v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setCodeEdited(true); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
-
     e.preventDefault()
+    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') {
-        await table.update(selected['inv_org_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['inv_org_id'], formData)
+      else await table.create(formData)
       handleBack()
     } catch {}
   }
@@ -113,24 +71,76 @@ export default function InventoryOrgPage() {
 
   if (view !== 'list') {
     return (
-      <FormPage title={view==='view'?`View Inventory Org`:view==='edit'?`Edit Inventory Org`:`New Inventory Org`}
+      <FormPage title={view==='view'?'View Inventory Org':view==='edit'?'Edit Inventory Org':'New Inventory Org'}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+
+        {v.hasErrors && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium">
+            ⚠️ Please fix the highlighted errors below before submitting.
+          </div>
+        )}
+
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Inv Org Id (Auto-gen)"><Input value={formData.inv_org_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
-      <Field label="Location"><Select value={formData.location_id} onChange={v => setField('location_id',v)} options={dropdowns.location?.map(r=>{return{value:r.location_id,label:r.location_name||r.location_id}})} /></Field>
-      
-      <Field label="Legal Entity"><Select value={formData.le_id} onChange={v => setField('le_id',v)} options={dropdowns.legalEntity?.map(r=>{return{value:r.le_id,label:r.le_name||r.le_id}})} /></Field>
-      
-      <Field label="Inv Org Name"><Input value={formData.inv_org_name} onChange={e => setField('inv_org_name',e.target.value)} /></Field>
-      <Field label="Inv Org Code"><Input value={formData.inv_org_code} onChange={e => setField('inv_org_code',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Inv Org Id (Auto-gen)"><Input value={formData.inv_org_id} readOnly /></Field>
+
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors}
+              handleBlur={(k) => v.handleBlur(k, formData)} />
+
+            <Field label="Legal Entity" required error={v.fieldError('le_id')}>
+              <Select value={formData.le_id} onChange={val => setField('le_id', val)}
+                onBlur={() => v.handleBlur('le_id', formData)}
+                error={v.fieldError('le_id')}
+                options={legalEntities?.map(r => ({ value: r.le_id, label: r.le_name || r.le_id }))} />
+            </Field>
+
+            <Field label="Inv Org Name" required error={v.fieldError('inv_org_name')}>
+              <Input value={formData.inv_org_name}
+                onChange={e => setField('inv_org_name', e.target.value)}
+                onBlur={() => v.handleBlur('inv_org_name', formData)}
+                error={v.fieldError('inv_org_name')} />
+            </Field>
+
+            <Field label="Inv Org Code" required error={v.fieldError('inv_org_code')}>
+              <Input value={formData.inv_org_code}
+                readOnly
+                onBlur={() => v.handleBlur('inv_org_code', formData)}
+                error={v.fieldError('inv_org_code')}
+                placeholder="Auto-generated from name" />
+            </Field>
+
+            <Field label="Location" required error={v.fieldError('location_id')}>
+              <Select value={formData.location_id} onChange={val => setField('location_id', val)}
+                onBlur={() => v.handleBlur('location_id', formData)}
+                error={v.fieldError('location_id')}
+                options={locations?.map(r => ({ value: r.location_id, label: r.location_name || r.location_id }))} />
+            </Field>
+
+            <Field label="Module" required error={v.fieldError('module_id')}>
+              <Select value={formData.module_id} onChange={val => setField('module_id', val)}
+                onBlur={() => v.handleBlur('module_id', formData)}
+                error={v.fieldError('module_id')}
+                options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
+
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from}
+                onChange={val => setField('effective_from', val)}
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')} />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to}
+                onChange={val => setField('effective_to', val)}
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')} />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )
@@ -153,12 +163,12 @@ export default function InventoryOrgPage() {
         sortBy={table.sortBy}
         sortOrder={table.sortOrder}
         onCreate={handleCreate}
-        actions={{ onView:handleView, onEdit:handleEdit, onDelete:setConfirmDelete }}
+        actions={{ onView: handleView, onEdit: handleEdit, onDelete: setConfirmDelete }}
       />
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete Record"
-        message={`Delete "${confirmDelete?.['{pk_field}']}"? This cannot be undone.`}
+        message={`Delete "${confirmDelete?.inv_org_name}"? This cannot be undone.`}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
         loading={table.isDeleting}

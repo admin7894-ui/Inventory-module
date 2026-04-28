@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
+import { validate } from '../validations/validationEngine'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 import { Package, Monitor, Box, Truck, BarChart3, DollarSign, Shield, FileText, AlertTriangle } from 'lucide-react'
@@ -74,6 +75,7 @@ export default function ItemMasterPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
+  const [touched, setTouched] = useState({})
 
   // Load dropdowns
   const companies = [], businessGroups = [], businessTypes = []
@@ -157,45 +159,27 @@ export default function ItemMasterPage() {
     })
   }, [])
 
+  const handleBlur = useCallback((k) => {
+    setTouched(p => ({ ...p, [k]: true }))
+    const { errors: valErrors } = validate('item_master', formData, { isPhysical })
+    setErrors(valErrors)
+  }, [formData, isPhysical])
+
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setErrors({})
+    setErrors({}); setTouched({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
-
-  // Validation
-  const validate = () => {
-    const e = {}
-    if (!formData.COMPANY_id) e.COMPANY_id = 'Required'
-    if (!formData.business_type_id) e.business_type_id = 'Required'
-    if (!formData.bg_id) e.bg_id = 'Required'
-    if (!formData.item_name) e.item_name = 'Item name is required'
-    if (!formData.item_type_id) e.item_type_id = 'Item type is required'
-
-    if (isPhysical) {
-      if (!formData.primary_uom_id) e.primary_uom_id = 'Primary UOM is required for physical items'
-      if (formData.is_serial_controlled === 'Y' && formData.is_lot_controlled === 'Y')
-        e.is_lot_controlled = 'Cannot enable both Serial and Lot control'
-      if (formData.is_expirable === 'Y' && !formData.shelf_life_days)
-        e.shelf_life_days = 'Shelf life is required when item is expirable'
-    }
-
-    if (isPhysical === false) {
-      if (formData.is_license_required === 'Y') {
-        if (!formData.license_type) e.license_type = 'License type is required'
-        if (!formData.max_users) e.max_users = 'Max users is required'
-      }
-    }
-    return e
-  }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setTouched({}); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setTouched({}); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); setErrors({}); setTouched({}) }
 
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return toast.error('Please fix validation errors') }
+    const { errors: valErrors, isValid } = validateItemMaster(formData, { isPhysical })
+    setErrors(valErrors)
+    setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}))
+    if (!isValid) return toast.error('Please fix the highlighted errors')
     try {
       if (view === 'edit') await table.update(selected['item_id'], formData)
       else await table.create(formData)
