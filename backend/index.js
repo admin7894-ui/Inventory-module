@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const db = require('./data/db');
 const { initCounters } = require('./utils/idGenerator');
+const { decoratePayload } = require('./utils/fkDisplay');
 
 // Initialize ID counters from existing data
 initCounters(db);
@@ -14,6 +15,12 @@ app.use(helmet());
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
+
+app.use('/api', (req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (payload) => json(decoratePayload(payload));
+  next();
+});
 
 // ── Auth middleware ───────────────────────────────────────────
 app.use(require('./middleware/auth'));
@@ -78,7 +85,7 @@ app.use((err, req, res, next) => {
 });
 app.use((req, res) => res.status(404).json({ success: false, message: `${req.path} not found` }));
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 6000;
 app.listen(PORT, () => {
   console.log(`\n🚀 ERP Backend → http://localhost:${PORT}`);
   console.log(`📋 46 tables | All routes active\n`);

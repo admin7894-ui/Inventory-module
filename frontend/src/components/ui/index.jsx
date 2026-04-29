@@ -187,6 +187,16 @@ export function ConfirmDialog({ open, title, message, onConfirm, onCancel, loadi
 }
 
 // ── Data Table ────────────────────────────────────────────────
+function displayValue(row, col, index) {
+  if (!row || index === 0) return row?.[col.key]
+  const candidates = [`${col.key}_display`, `${col.key}_name`, col.displayKey].filter(Boolean)
+  for (const key of candidates) {
+    const value = row[key]
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value
+  }
+  return row[col.key]
+}
+
 export function DataTable({ title, subtitle, columns, data, total, page, pages, limit, onSearch, onPageChange, onSort, sortBy, sortOrder, loading, onCreate, actions = {}, renderCell, filterBar }) {
   const [search, setSearch] = useState('')
 
@@ -246,7 +256,7 @@ export function DataTable({ title, subtitle, columns, data, total, page, pages, 
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {columns.map(col => (
+                    {columns.map((col, colIndex) => (
                       <td key={col.key} className="td"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-20" /></td>
                     ))}
                     <td className="td"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-16" /></td>
@@ -257,14 +267,14 @@ export function DataTable({ title, subtitle, columns, data, total, page, pages, 
               ) : (
                 data.map((row, i) => (
                   <tr key={i} className={clsx('tr-hover', i % 2 === 1 && 'bg-gray-50 dark:bg-gray-800/50')}>
-                    {columns.map(col => (
+                    {columns.map((col, colIndex) => (
                       <td key={col.key} className="td">
                         {renderCell ? renderCell(col, row) : (
-                          col.render ? col.render(row[col.key], row) :
-                          col.type === 'badge' ? <StatusBadge value={row[col.key]} /> :
+                          col.render ? col.render(displayValue(row, col, colIndex), row) :
+                          col.type === 'badge' ? <StatusBadge value={displayValue(row, col, colIndex)} /> :
                           col.type === 'toggle' ? <Toggle value={row[col.key]} disabled /> :
                           col.type === 'currency' ? <span className="font-medium text-emerald-700">₹{parseFloat(row[col.key]||0).toLocaleString()}</span> :
-                          <span className="text-gray-700 dark:text-gray-300">{String(row[col.key] || '—')}</span>
+                          <span className="text-gray-700 dark:text-gray-300">{String(displayValue(row, col, colIndex) || '�')}</span>
                         )}
                       </td>
                     ))}

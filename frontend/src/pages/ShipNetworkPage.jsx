@@ -121,7 +121,6 @@ export default function ShipNetworkPage() {
     await table.remove(confirmDelete['ship_network_id'])
     setConfirmDelete(null)
   }
-  console.log("default ship method", dropdowns.shipMethod)
   if (view !== 'list') {
     return (
       <FormPage title={view === 'view' ? `View Ship Network` : view === 'edit' ? `Edit Ship Network` : `New Ship Network`}
