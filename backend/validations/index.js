@@ -66,39 +66,39 @@ const schemas = {
 
 function validateRequest(table, data) {
   const schema = schemas[table] || schemas.default;
-  const errors = [];
+  const errors = {};
   
   for (const [field, rules] of Object.entries(schema)) {
     const val = data[field];
     
     if (rules.required && !commonValidators.required(val)) {
-      errors.push(`${field} is required`);
+      errors[field] = 'This field is required';
       continue;
     }
 
     if (val === undefined || val === null || val === '') continue;
 
     if (rules.pattern && !commonValidators.isPatternMatch(val, rules.pattern)) {
-      errors.push(`${field} format invalid`);
+      errors[field] = 'Invalid format';
     }
 
     if (rules.lov && !commonValidators.isEnum(val, rules.lov)) {
-      errors.push(`${field} must be one of: ${rules.lov.join(', ')}`);
+      errors[field] = `Must be one of: ${rules.lov.join(', ')}`;
     }
 
     if (rules.numeric && !commonValidators.isNumber(val)) {
-      errors.push(`${field} must be a number`);
+      errors[field] = 'Must be a number';
     }
 
     if (rules.positive && !commonValidators.isPositive(val)) {
-      errors.push(`${field} must be positive`);
+      errors[field] = 'Must be positive';
     }
   }
 
   // Cross-field validation
   if (data.effective_from && data.effective_to) {
     if (!commonValidators.isDateRangeValid(data.effective_from, data.effective_to)) {
-      errors.push('Effective From cannot be after Effective To');
+      errors.effective_to = 'Effective To cannot be before Effective From';
     }
   }
 
@@ -108,7 +108,7 @@ function validateRequest(table, data) {
 const validateMiddleware = (table) => (req, res, next) => {
   if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
     const errors = validateRequest(table, req.body);
-    if (errors.length > 0) {
+    if (Object.keys(errors).length > 0) {
       return res.status(400).json({ success: false, errors, message: 'Validation failed' });
     }
   }

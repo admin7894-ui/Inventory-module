@@ -37,6 +37,8 @@ exports.getAll = (req, res) => {
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
 
+const { validateItemSubinvRestriction } = require('../validators/index');
+
 exports.getById = (req, res) => {
   const item = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
   if (!item) return res.status(404).json({ success:false, message:'Not found' });
@@ -45,10 +47,29 @@ exports.getById = (req, res) => {
 
 exports.create = (req, res) => {
   try {
+    const { errors, isValid } = validateItemSubinvRestriction(req.body);
+    
+    // Relationship integrity
+    if (req.body.subinventory_id && req.body.inv_org_id) {
+      const sub = (db.subinventory || []).find(s => s.subinventory_id === req.body.subinventory_id);
+      if (sub && sub.inv_org_id !== req.body.inv_org_id) {
+        errors.subinventory_id = 'Invalid Subinventory for selected Org';
+      }
+    }
+    if (req.body.locator_id && req.body.subinventory_id) {
+      const loc = (db.locator || []).find(l => l.locator_id === req.body.locator_id);
+      if (loc && loc.subinventory_id !== req.body.subinventory_id) {
+        errors.locator_id = 'Invalid Locator for selected Subinventory';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });
+
     const body = { ...req.body };
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
+    
     body.created_by = body.created_by || req.user?.username || MOCK_USER;
     body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
@@ -61,6 +82,24 @@ exports.create = (req, res) => {
 
 exports.update = (req, res) => {
   try {
+    const { errors, isValid } = validateItemSubinvRestriction(req.body);
+    
+    // Relationship integrity
+    if (req.body.subinventory_id && req.body.inv_org_id) {
+      const sub = (db.subinventory || []).find(s => s.subinventory_id === req.body.subinventory_id);
+      if (sub && sub.inv_org_id !== req.body.inv_org_id) {
+        errors.subinventory_id = 'Invalid Subinventory for selected Org';
+      }
+    }
+    if (req.body.locator_id && req.body.subinventory_id) {
+      const loc = (db.locator || []).find(l => l.locator_id === req.body.locator_id);
+      if (loc && loc.subinventory_id !== req.body.subinventory_id) {
+        errors.locator_id = 'Invalid Locator for selected Subinventory';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });
+
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
     db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };

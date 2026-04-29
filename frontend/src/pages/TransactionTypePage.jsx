@@ -15,8 +15,8 @@ import {
   departmentsApi, rolesApi, designationApi,
   inventoryTransactionApi, stockLedgerApi
 } from '../services/api'
-
-import { validate } from '../validations/validationEngine'
+import { validate, autoCode } from '../validations/validationEngine'
+import { ErrorBanner } from '../components/ui/index'
 
 const COLUMNS = [
   { key: 'txn_type_id', label: 'Txn Type Id' },
@@ -96,8 +96,20 @@ export default function TransactionTypePage() {
     }
   }, [view, selected, allTransactions, allLedgers]);
 
+  const validateField = (k, v) => {
+    const val = typeof v === 'string' ? v.trim() : v;
+    const { errors: newErrors } = validate('transaction_type', { ...formData, [k]: val });
+    setErrors(prev => ({ ...prev, [k]: newErrors[k] }));
+  }
+
   const setField = (k, v) => {
-    setFormData(p => ({ ...p, [k]: v }));
+    setFormData(p => {
+      const next = { ...p, [k]: v };
+      if (k === 'txn_type_name' && view === 'create') {
+        next.txn_type_code = autoCode(v, 'TXN_TYPE_');
+      }
+      return next;
+    });
     if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
   }
 
@@ -113,10 +125,14 @@ export default function TransactionTypePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const { errors: valErrors, isValid } = validate('transaction_type', formData)
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors, isValid } = validate('transaction_type', trimmedData);
+    
     if (!isValid) {
       setErrors(valErrors);
-      return toast.error('Please fix validation errors');
+      return toast.error('Please fix the highlighted errors');
     }
 
     try {
@@ -126,7 +142,14 @@ export default function TransactionTypePage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      console.error('Submission error:', err);
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors);
+      } else {
+        toast.error(err.response?.data?.message || 'Save failed');
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -138,33 +161,28 @@ export default function TransactionTypePage() {
     return (
       <FormPage title={view==='view'?`View Transaction Type`:view==='edit'?`Edit Transaction Type`:`New Transaction Type`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        <ErrorBanner message={Object.keys(errors).length > 0 ? "Please fix the highlighted errors" : null} />
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <Field label="Txn Type Id (Auto-gen)"><Input value={formData.txn_type_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} errors={errors} />
+      <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={validateField} />
 
-      <Field label="Txn Type Code" error={errors.txn_type_code}><Input value={formData.txn_type_code} onChange={e => setField('txn_type_code',e.target.value)} /></Field>
-      <Field label="Txn Type Name" error={errors.txn_type_name}><Input value={formData.txn_type_name} onChange={e => setField('txn_type_name',e.target.value)} /></Field>
-      <Field label="Transaction Action" error={errors.txn_action}><Select value={formData.txn_action} onChange={v => setField('txn_action',v)} options={["IN","OUT","TRANSFER","ADJUSTMENT"]} /></Field>
-      <Field label="Txn Category" error={errors.txn_category}>
+      <Field label="Txn Type Code" required error={errors.txn_type_code}><Input value={formData.txn_type_code} readOnly className="bg-gray-50" /></Field>
+      <Field label="Txn Type Name" required error={errors.txn_type_name}><Input value={formData.txn_type_name} onChange={e => setField('txn_type_name',e.target.value)} onBlur={() => validateField('txn_type_name', formData.txn_type_name)} /></Field>
+      <Field label="Transaction Action" required error={errors.txn_action}><Select value={formData.txn_action} onChange={v => setField('txn_action',v)} onBlur={() => validateField('txn_action', formData.txn_action)} options={["IN","OUT","TRANSFER","ADJUSTMENT"]} /></Field>
+      <Field label="Txn Category" required error={errors.txn_category}>
         <Select 
           value={formData.txn_category} 
           onChange={v => setField('txn_category',v)} 
           options={TXN_CATEGORIES} 
           disabled={view === 'edit' && isUsed}
+          error={errors.txn_category}
         />
         {isUsed && view === 'edit' && <p className="text-xs text-amber-600 mt-1">Cannot change category: record is used in transactions</p>}
       </Field>
-      <Field label="Module" error={errors.module_id}>
-        <Select 
-          value={formData.module_id} 
-          onChange={v => setField('module_id',v)} 
-          options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} 
-        />
-      </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From" error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
+      <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
+      <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>
       <AuditFields formData={formData} setField={setField} />
       </div>
         </div>

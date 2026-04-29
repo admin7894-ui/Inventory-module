@@ -43,17 +43,30 @@ exports.getById = (req, res) => {
   res.json({ success:true, data:item });
 };
 
-const { validateRequest } = require('../validations/index');
+const { validateTransactionType } = require('../validators/index');
 
 exports.create = (req, res) => {
   try {
-    const errors = validateRequest(TABLE, req.body);
-    if (errors.length > 0) return res.status(400).json({ success: false, errors });
+    const { errors, isValid } = validateTransactionType(req.body);
+    if (!isValid) return res.status(400).json({ success: false, errors });
 
     const body = { ...req.body };
+    
+    // Auto-code generation logic
+    if (body.txn_type_name) {
+      const cleanName = body.txn_type_name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+      body.txn_type_code = `TXN_TYPE_${cleanName}`.substring(0, 20);
+    }
+
+    // Unique code check
+    if ((db[TABLE]||[]).find(r => r.txn_type_code === body.txn_type_code)) {
+      return res.status(400).json({ success: false, errors: { txn_type_code: 'Transaction Type Code already exists' } });
+    }
+
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
+
     body.created_by = body.created_by || req.user?.username || MOCK_USER;
     body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
@@ -66,13 +79,20 @@ exports.create = (req, res) => {
 
 exports.update = (req, res) => {
   try {
-    const errors = validateRequest(TABLE, req.body);
-    if (errors.length > 0) return res.status(400).json({ success: false, errors });
+    const { errors, isValid } = validateTransactionType(req.body);
+    if (!isValid) return res.status(400).json({ success: false, errors });
 
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
     
     const prev = db[TABLE][idx];
+
+    // Unique code check
+    if (req.body.txn_type_code && req.body.txn_type_code !== prev.txn_type_code) {
+      if ((db[TABLE]||[]).find(r => r.txn_type_code === req.body.txn_type_code)) {
+        return res.status(400).json({ success: false, errors: { txn_type_code: 'Transaction Type Code already exists' } });
+      }
+    }
     
     // Check if used in transactions
     const isUsed = (db.inventory_transaction || []).some(t => t.txn_type_id === req.params.id) ||

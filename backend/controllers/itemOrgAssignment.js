@@ -37,6 +37,8 @@ exports.getAll = (req, res) => {
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };
 
+const { validateItemOrgAssignment } = require('../validators/index');
+
 exports.getById = (req, res) => {
   const item = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
   if (!item) return res.status(404).json({ success:false, message:'Not found' });
@@ -45,6 +47,18 @@ exports.getById = (req, res) => {
 
 exports.create = (req, res) => {
   try {
+    const { errors, isValid } = validateItemOrgAssignment(req.body);
+    
+    // Prevent duplicate assignment
+    if (req.body.item_id && req.body.inv_org_id) {
+      const exists = (db[TABLE] || []).find(r => r.item_id === req.body.item_id && r.inv_org_id === req.body.inv_org_id);
+      if (exists) {
+        errors.inv_org_id = 'Item already assigned to this Organization';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });
+
     const body = { ...req.body };
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
@@ -61,6 +75,18 @@ exports.create = (req, res) => {
 
 exports.update = (req, res) => {
   try {
+    const { errors, isValid } = validateItemOrgAssignment(req.body);
+
+    // Prevent duplicate assignment (if changed)
+    if (req.body.item_id && req.body.inv_org_id) {
+      const exists = (db[TABLE] || []).find(r => r.item_id === req.body.item_id && r.inv_org_id === req.body.inv_org_id && r[PK] !== req.params.id);
+      if (exists) {
+        errors.inv_org_id = 'Item already assigned to this Organization';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });
+
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
     db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };

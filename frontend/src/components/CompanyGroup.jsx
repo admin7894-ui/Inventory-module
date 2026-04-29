@@ -18,12 +18,12 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
 
   const onBGChange = (v) => {
     handleBGChange(v)
-    if (handleBlur) handleBlur('bg_id')
+    if (handleBlur) handleBlur('bg_id', v)
   }
 
   const onCompanyChange = (v) => {
     handleCompanyChange(v)
-    if (handleBlur) handleBlur('COMPANY_id')
+    if (handleBlur) handleBlur('COMPANY_id', v)
   }
 
   // Get current module name for display
@@ -37,7 +37,7 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
           <Select 
             value={formData.bg_id} 
             onChange={onBGChange} 
-            onBlur={() => handleBlur?.('bg_id')}
+            onBlur={(e) => handleBlur?.('bg_id', formData.bg_id)}
             error={errors.bg_id}
             placeholder={isLoadingBG ? 'Loading...' : '-- Select --'}
             options={businessGroups.map(r => ({ 
@@ -58,7 +58,7 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
           <Select 
             value={formData.COMPANY_id} 
             onChange={onCompanyChange} 
-            onBlur={() => handleBlur?.('COMPANY_id')}
+            onBlur={(e) => handleBlur?.('COMPANY_id', formData.COMPANY_id)}
             disabled={!formData.bg_id}
             placeholder={!formData.bg_id ? 'Select Business Group first' : isLoadingCompany ? 'Loading...' : '-- Select --'}
             error={errors.COMPANY_id}
@@ -79,8 +79,8 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
         <div className="relative">
           <Select 
             value={formData.business_type_id} 
-            onChange={v => { setField('business_type_id', v); handleBlur?.('business_type_id') }} 
-            onBlur={() => handleBlur?.('business_type_id')}
+            onChange={v => { setField('business_type_id', v); handleBlur?.('business_type_id', v) }} 
+            onBlur={(e) => handleBlur?.('business_type_id', formData.business_type_id)}
             disabled={!formData.COMPANY_id}
             placeholder={!formData.COMPANY_id ? 'Select Company first' : isLoadingBT ? 'Loading...' : '-- Select --'}
             error={errors.business_type_id}

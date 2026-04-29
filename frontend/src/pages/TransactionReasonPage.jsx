@@ -14,6 +14,8 @@ import {
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
   departmentsApi, rolesApi, designationApi,
 } from '../services/api'
+import { validate, autoCode } from '../validations/validationEngine'
+import { ErrorBanner } from '../components/ui/index'
 
 const COLUMNS = [
   { key: 'txn_reason_id', label: 'Txn Reason Id' },
@@ -32,6 +34,7 @@ export default function TransactionReasonPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const [errors, setErrors] = useState({})
 
   // Load all needed dropdowns
   const companies = []
@@ -80,22 +83,45 @@ export default function TransactionReasonPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const validateField = (k, v) => {
+    const val = typeof v === 'string' ? v.trim() : v;
+    const { errors: newErrors } = validate('transaction_reason', { ...formData, [k]: val });
+    setErrors(prev => ({ ...prev, [k]: newErrors[k] }));
+  }
+
+  const setField = (k, v) => {
+    setFormData(p => {
+      const next = { ...p, [k]: v };
+      if (k === 'txn_reason' && view === 'create') {
+        next.reason_code = autoCode(v, 'R_');
+      }
+      return next;
+    });
+    if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
+  }
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setErrors({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
+    e.preventDefault();
+    
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors, isValid } = validate('transaction_reason', trimmedData);
+    
+    if (!isValid) {
+      setErrors(valErrors);
+      return toast.error('Please fix the highlighted errors');
     }
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['txn_reason_id'], formData)
@@ -103,7 +129,9 @@ export default function TransactionReasonPage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) setErrors(err.response.data.errors)
+    }
   }
 
   const handleDelete = async () => {
@@ -115,17 +143,20 @@ export default function TransactionReasonPage() {
     return (
       <FormPage title={view==='view'?`View Transaction Reason`:view==='edit'?`Edit Transaction Reason`:`New Transaction Reason`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        <ErrorBanner message={Object.keys(errors).length > 0 ? "Please fix the highlighted errors" : null} />
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <Field label="Txn Reason Id (Auto-gen)"><Input value={formData.txn_reason_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+      <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={validateField} />
 
-      <Field label="Reason Code"><Input value={formData.reason_code} onChange={e => setField('reason_code',e.target.value)} /></Field>
-      <Field label="Txn Reason"><Input value={formData.txn_reason} onChange={e => setField('txn_reason',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
+      <Field label="Reason Code" required error={errors.reason_code}><Input value={formData.reason_code} readOnly className="bg-gray-50" /></Field>
+      <Field label="Txn Reason" required error={errors.txn_reason}><Input value={formData.txn_reason} onChange={e => setField('txn_reason',e.target.value)} onBlur={() => validateField('txn_reason', formData.txn_reason)} /></Field>
+      <Field label="Module" required error={errors.module_id}>
+        <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
+      </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
+      <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
+      <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>
       <AuditFields formData={formData} setField={setField} />
       </div>
         </div>

@@ -101,10 +101,16 @@ export default function ItemMasterPage() {
   const isPhysical = selectedItemType ? (selectedItemType.is_physical === 'Y' || selectedItemType.is_physical === true) : null
   const hasTypeSelected = selectedItemType !== null
 
+  const validateField = useCallback((k, v) => {
+    const val = typeof v === 'string' ? v.trim() : v;
+    const { errors: newErrors } = validate('item_master', { ...formData, [k]: val }, { isPhysical });
+    setErrors(prev => ({ ...prev, [k]: newErrors[k] }));
+  }, [formData, isPhysical])
+
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }))
-    setErrors(p => { const n = { ...p }; delete n[k]; return n })
-  }, [])
+    if (errors[k]) setErrors(p => ({ ...p, [k]: null }))
+  }, [errors])
 
   // Handle Item Type change — reset irrelevant fields
   const handleItemTypeChange = useCallback((typeId) => {
@@ -159,11 +165,9 @@ export default function ItemMasterPage() {
     })
   }, [])
 
-  const handleBlur = useCallback((k) => {
-    setTouched(p => ({ ...p, [k]: true }))
-    const { errors: valErrors } = validate('item_master', formData, { isPhysical })
-    setErrors(valErrors)
-  }, [formData, isPhysical])
+  const handleBlur = useCallback((k, v) => {
+    validateField(k, v !== undefined ? v : formData[k]);
+  }, [validateField, formData])
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
@@ -175,11 +179,15 @@ export default function ItemMasterPage() {
   const handleBack = () => { setView('list'); setSelected(null); setErrors({}); setTouched({}) }
 
   const handleSubmit = async (ev) => {
-    ev.preventDefault()
-    const { errors: valErrors, isValid } = validateItemMaster(formData, { isPhysical })
-    setErrors(valErrors)
-    setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}))
-    if (!isValid) return toast.error('Please fix the highlighted errors')
+    ev.preventDefault();
+    
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors, isValid } = validate('item_master', trimmedData, { isPhysical });
+    
+    setErrors(valErrors);
+    if (!isValid) return toast.error('Please fix the highlighted errors');
     try {
       if (view === 'edit') await table.update(selected['item_id'], formData)
       else await table.create(formData)
@@ -209,13 +217,13 @@ export default function ItemMasterPage() {
           <SectionHeader icon={FileText} title="Item Identity" subtitle="Basic item information" color="brand" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Item Id (Auto-gen)"><Input value={formData.item_id} readOnly /></Field>
-            <CompanyGroup formData={formData} setField={setField} errors={errors} />
-            <Field label="Item Code"><Input value={formData.item_code} onChange={e => setField('item_code',e.target.value)} /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={handleBlur} />
+            <Field label="Item Code"><Input value={formData.item_code} onChange={e => setField('item_code',e.target.value)} onBlur={() => handleBlur('item_code')} /></Field>
             <Field label="Item Name" required error={errors.item_name}>
-              <Input value={formData.item_name} onChange={e => setField('item_name',e.target.value)} error={errors.item_name} />
+              <Input value={formData.item_name} onChange={e => setField('item_name',e.target.value)} onBlur={() => handleBlur('item_name')} error={errors.item_name} />
             </Field>
             <Field label="Item Type" required error={errors.item_type_id}>
-              <Select value={formData.item_type_id} onChange={handleItemTypeChange}
+              <Select value={formData.item_type_id} onChange={handleItemTypeChange} onBlur={() => handleBlur('item_type_id')}
                 error={errors.item_type_id}
                 options={dropdowns.itemType?.map(r=>({value:r.item_type_id,label:r.item_type_name||r.item_type_id}))} />
               {hasTypeSelected && (

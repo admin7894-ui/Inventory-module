@@ -6,8 +6,8 @@
 
 // ── Helpers ──────────────────────────────────────────────────
 const isEmpty = (v) => v === null || v === undefined || String(v).trim() === '';
-const isPositiveNumber = (v) => !isNaN(v) && Number(v) > 0;
-const isNonNegativeNumber = (v) => !isNaN(v) && Number(v) >= 0;
+const isPositiveNumber = (v) => !isNaN(v) && Number(String(v).trim()) > 0;
+const isNonNegativeNumber = (v) => !isNaN(v) && Number(String(v).trim()) >= 0;
 const isValidDate = (v) => !isEmpty(v) && !isNaN(new Date(v).getTime());
 const isFutureDate = (v) => isValidDate(v) && new Date(v) > new Date();
 
@@ -20,23 +20,23 @@ const REGEX = {
 };
 
 // Require a field; returns error string or null
-const req = (val, label) => isEmpty(val) ? `${label} is required` : null;
-const reqDrop = (val, label) => isEmpty(val) ? `Please select ${label}` : null;
-const posNum = (val, label) => !isEmpty(val) && !isPositiveNumber(val) ? `${label} must be > 0` : null;
-const nonNeg = (val, label) => !isEmpty(val) && !isNonNegativeNumber(val) ? `${label} must be ≥ 0` : null;
+const req = (val, label) => isEmpty(val) ? 'This field is required' : null;
+const reqDrop = (val, label) => isEmpty(val) ? 'This field is required' : null;
+const posNum = (val, label) => !isEmpty(val) && !isPositiveNumber(val) ? 'Invalid format' : null;
+const nonNeg = (val, label) => !isEmpty(val) && !isNonNegativeNumber(val) ? 'Invalid format' : null;
 
 // Common: Company Group cascade
 function validateCompanyGroup(e, d) {
-  if (isEmpty(d.bg_id)) e.bg_id = 'Business Group is required';
-  if (isEmpty(d.COMPANY_id)) e.COMPANY_id = 'Company is required';
-  if (isEmpty(d.business_type_id)) e.business_type_id = 'Business Type is required';
+  if (isEmpty(d.bg_id)) e.bg_id = 'This field is required';
+  if (isEmpty(d.COMPANY_id)) e.COMPANY_id = 'This field is required';
+  if (isEmpty(d.business_type_id)) e.business_type_id = 'This field is required';
 }
 
 // Common: Date range
 function validateDates(e, d) {
-  if (isEmpty(d.effective_from)) e.effective_from = 'Effective From is required';
+  if (isEmpty(d.effective_from)) e.effective_from = 'This field is required';
   if (d.effective_from && d.effective_to && new Date(d.effective_to) < new Date(d.effective_from)) {
-    e.effective_to = 'Effective To must be ≥ Effective From';
+    e.effective_to = 'Invalid format';
   }
 }
 
@@ -48,14 +48,14 @@ const RULES = {
   legal_entity: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.le_name)) e.le_name = 'Legal Entity Name is required';
-    else if (!REGEX.NAME.test(d.le_name)) e.le_name = 'LE Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.tax_registration_no)) e.tax_registration_no = 'Tax Registration No is required';
-    else if (!REGEX.GST.test(d.tax_registration_no)) e.tax_registration_no = 'Must be 15 uppercase alphanumeric chars';
-    if (isEmpty(d.location_id)) e.location_id = 'Please select Location';
-    if (isEmpty(d.currency_code)) e.currency_code = 'Currency code is required';
-    else if (!REGEX.CURRENCY.test(d.currency_code)) e.currency_code = 'Must be 3 uppercase letters (e.g. INR)';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.le_name)) e.le_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.le_name).trim())) e.le_name = 'Invalid format';
+    if (isEmpty(d.tax_registration_no)) e.tax_registration_no = 'This field is required';
+    else if (!REGEX.GST.test(String(d.tax_registration_no).trim())) e.tax_registration_no = 'Invalid format';
+    if (isEmpty(d.location_id)) e.location_id = 'This field is required';
+    if (isEmpty(d.currency_code)) e.currency_code = 'This field is required';
+    else if (!REGEX.CURRENCY.test(String(d.currency_code).trim())) e.currency_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -64,15 +64,15 @@ const RULES = {
   operating_unit: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.le_id)) e.le_id = 'Please select Legal Entity';
-    if (isEmpty(d.ou_name)) e.ou_name = 'OU Name is required';
-    else if (!REGEX.NAME.test(d.ou_name)) e.ou_name = 'OU Name: 3–100 chars, no invalid special chars';
-    if (isEmpty(d.ou_short_code)) e.ou_short_code = 'OU Short Code is required';
-    else if (!REGEX.CODE.test(d.ou_short_code)) e.ou_short_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.location_id)) e.location_id = 'Please select Location';
-    if (isEmpty(d.currency_code)) e.currency_code = 'Currency is required';
-    else if (!REGEX.CURRENCY.test(d.currency_code)) e.currency_code = 'Must be 3 uppercase letters';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.le_id)) e.le_id = 'This field is required';
+    if (isEmpty(d.ou_name)) e.ou_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.ou_name).trim())) e.ou_name = 'Invalid format';
+    if (isEmpty(d.ou_short_code)) e.ou_short_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.ou_short_code).trim())) e.ou_short_code = 'Invalid format';
+    if (isEmpty(d.location_id)) e.location_id = 'This field is required';
+    if (isEmpty(d.currency_code)) e.currency_code = 'This field is required';
+    else if (!REGEX.CURRENCY.test(String(d.currency_code).trim())) e.currency_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -81,12 +81,12 @@ const RULES = {
   inventory_org: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_name)) e.inv_org_name = 'Org Name is required';
-    if (isEmpty(d.inv_org_code)) e.inv_org_code = 'Org Code is required';
-    else if (!REGEX.CODE.test(d.inv_org_code)) e.inv_org_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.le_id)) e.le_id = 'Please select Legal Entity';
-    if (isEmpty(d.location_id)) e.location_id = 'Please select Location';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.inv_org_name)) e.inv_org_name = 'This field is required';
+    if (isEmpty(d.inv_org_code)) e.inv_org_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.inv_org_code).trim())) e.inv_org_code = 'Invalid format';
+    if (isEmpty(d.le_id)) e.le_id = 'This field is required';
+    if (isEmpty(d.location_id)) e.location_id = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -95,19 +95,19 @@ const RULES = {
   item_master: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_name)) e.item_name = 'Item Name is required';
-    else if (!REGEX.NAME.test(d.item_name)) e.item_name = 'Item Name: 3–100 chars';
-    if (isEmpty(d.item_type_id)) e.item_type_id = 'Please select Item Type';
-    if (!isEmpty(d.item_code) && !REGEX.CODE.test(d.item_code)) e.item_code = 'Code: 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.item_name)) e.item_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.item_name).trim())) e.item_name = 'Invalid format';
+    if (isEmpty(d.item_type_id)) e.item_type_id = 'This field is required';
+    if (!isEmpty(d.item_code) && !REGEX.CODE.test(String(d.item_code).trim())) e.item_code = 'Invalid format';
 
     const isPhysical = opts.isPhysical;
     if (isPhysical === true) {
-      if (isEmpty(d.primary_uom_id)) e.primary_uom_id = 'Primary UOM is required for physical items';
-      if (isEmpty(d.item_category_id)) e.item_category_id = 'Category is required';
+      if (isEmpty(d.primary_uom_id)) e.primary_uom_id = 'This field is required';
+      if (isEmpty(d.category_id)) e.category_id = 'This field is required';
       if (d.is_serial_controlled === 'Y' && d.is_lot_controlled === 'Y')
-        e.is_lot_controlled = 'Cannot enable both Serial and Lot control';
+        e.is_lot_controlled = 'Invalid format';
       if ((d.is_expirable === 'Y' || d.is_expirable === true) && isEmpty(d.shelf_life_days))
-        e.shelf_life_days = 'Shelf life required when expirable';
+        e.shelf_life_days = 'This field is required';
       const wErr = nonNeg(d.weight_kg, 'Weight'); if (wErr) e.weight_kg = wErr;
       const vErr = nonNeg(d.volume_cbm, 'Volume'); if (vErr) e.volume_cbm = vErr;
       const minErr = posNum(d.min_order_qty, 'Min qty'); if (minErr) e.min_order_qty = minErr;
@@ -242,11 +242,61 @@ const RULES = {
   transaction_type: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.txn_type_code)) e.txn_type_code = 'Type Code is required';
-    if (isEmpty(d.txn_type_name)) e.txn_type_name = 'Type Name is required';
-    if (isEmpty(d.txn_action)) e.txn_action = 'Please select Action';
-    if (isEmpty(d.txn_category)) e.txn_category = 'Please select Category';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.txn_type_name)) e.txn_type_name = 'This field is required';
+    if (isEmpty(d.txn_type_code)) e.txn_type_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.txn_type_code).trim())) e.txn_type_code = 'Invalid format';
+    if (isEmpty(d.txn_action)) e.txn_action = 'This field is required';
+    if (isEmpty(d.txn_category)) e.txn_category = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ TRANSACTION REASON ━━━━━━━━━━━━━━
+  transaction_reason: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.txn_reason)) e.txn_reason = 'This field is required';
+    if (isEmpty(d.reason_code)) e.reason_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.reason_code).trim())) e.reason_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ ITEM SUBINV RESTRICTION ━━━━━━━━━━━━━━
+  item_subinv_restriction: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.item_id)) e.item_id = 'This field is required';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'This field is required';
+    if (isEmpty(d.locator_id)) e.locator_id = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    validateDates(e, d);
+    return e;
+  },
+
+  // ━━━━━━━━━━━━━━ ITEM ORG ASSIGNMENT ━━━━━━━━━━━━━━
+  item_org_assignment: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.item_id)) e.item_id = 'This field is required';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
+    
+    // Stock Policy
+    if (isEmpty(d.min_qty)) e.min_qty = 'This field is required';
+    else if (!isNonNegativeNumber(d.min_qty)) e.min_qty = 'Invalid format';
+    
+    if (isEmpty(d.max_qty)) e.max_qty = 'This field is required';
+    else if (!isPositiveNumber(d.max_qty)) e.max_qty = 'Invalid format';
+    else if (!isEmpty(d.min_qty) && Number(d.max_qty) <= Number(d.min_qty)) 
+      e.max_qty = 'Invalid format';
+
+    if (isEmpty(d.safety_stock_qty)) e.safety_stock_qty = 'This field is required';
+    else if (!isNonNegativeNumber(d.safety_stock_qty)) e.safety_stock_qty = 'Invalid format';
+
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -255,21 +305,21 @@ const RULES = {
   workday_calendar: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.calendar_name)) e.calendar_name = 'Calendar Name is required';
-    else if (!REGEX.NAME.test(d.calendar_name)) e.calendar_name = 'Calendar Name: 3–100 chars';
-    if (isEmpty(d.calendar_code)) e.calendar_code = 'Calendar Code is required';
-    else if (!REGEX.CODE.test(d.calendar_code)) e.calendar_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.year)) e.year = 'Year is required';
+    if (isEmpty(d.calendar_name)) e.calendar_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.calendar_name).trim())) e.calendar_name = 'Invalid format';
+    if (isEmpty(d.calendar_code)) e.calendar_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.calendar_code).trim())) e.calendar_code = 'Invalid format';
+    if (isEmpty(d.year)) e.year = 'This field is required';
     else if (!isPositiveNumber(d.year) || Number(d.year) < 2000 || Number(d.year) > 2100)
-      e.year = 'Year must be between 2000 and 2100';
+      e.year = 'Invalid format';
     if (!d.weekly_off_days || !Array.isArray(d.weekly_off_days) || d.weekly_off_days.length === 0)
-      e.weekly_off_days = 'At least one weekly off day is required';
+      e.weekly_off_days = 'This field is required';
     validateDates(e, d);
     // Holiday validation
     if (d.holidays && Array.isArray(d.holidays)) {
       d.holidays.forEach((h, i) => {
-        if (isEmpty(h.holiday_name)) e[`holiday_name_${i}`] = 'Holiday name is required';
-        if (isEmpty(h.holiday_date)) e[`holiday_date_${i}`] = 'Holiday date is required';
+        if (isEmpty(h.holiday_name)) e[`holiday_name_${i}`] = 'This field is required';
+        if (isEmpty(h.holiday_date)) e[`holiday_date_${i}`] = 'This field is required';
       });
     }
     return e;
@@ -279,11 +329,11 @@ const RULES = {
   cost_method: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.cost_method_name)) e.cost_method_name = 'Cost Method Name is required';
-    else if (!REGEX.NAME.test(d.cost_method_name)) e.cost_method_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.cost_method_code)) e.cost_method_code = 'Cost Method Code is required';
-    else if (!REGEX.CODE.test(d.cost_method_code)) e.cost_method_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.cost_method_name)) e.cost_method_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.cost_method_name).trim())) e.cost_method_name = 'Invalid format';
+    if (isEmpty(d.cost_method_code)) e.cost_method_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.cost_method_code).trim())) e.cost_method_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -292,11 +342,11 @@ const RULES = {
   cost_type: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.cost_type_name)) e.cost_type_name = 'Cost Type Name is required';
-    else if (!REGEX.NAME.test(d.cost_type_name)) e.cost_type_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.cost_type_code)) e.cost_type_code = 'Cost Type Code is required';
-    else if (!REGEX.CODE.test(d.cost_type_code)) e.cost_type_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.cost_type_name)) e.cost_type_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.cost_type_name).trim())) e.cost_type_name = 'Invalid format';
+    if (isEmpty(d.cost_type_code)) e.cost_type_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.cost_type_code).trim())) e.cost_type_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -305,15 +355,15 @@ const RULES = {
   org_parameter: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Inventory Org';
-    if (isEmpty(d.org_code)) e.org_code = 'Org Code is required';
-    else if (!REGEX.CODE.test(d.org_code)) e.org_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.workday_calendar_id)) e.workday_calendar_id = 'Please select Workday Calendar';
-    if (isEmpty(d.cost_method_id)) e.cost_method_id = 'Please select Cost Method';
-    if (isEmpty(d.cost_type_id)) e.cost_type_id = 'Please select Cost Type';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
+    if (isEmpty(d.org_code)) e.org_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.org_code).trim())) e.org_code = 'Invalid format';
+    if (isEmpty(d.workday_calendar_id)) e.workday_calendar_id = 'This field is required';
+    if (isEmpty(d.cost_method_id)) e.cost_method_id = 'This field is required';
+    if (isEmpty(d.cost_type_id)) e.cost_type_id = 'This field is required';
     if (!isEmpty(d.move_order_timeout_days) && !isNonNegativeNumber(d.move_order_timeout_days))
-      e.move_order_timeout_days = 'Timeout days must be ≥ 0';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+      e.move_order_timeout_days = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -322,11 +372,11 @@ const RULES = {
   ship_method: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.ship_method_name)) e.ship_method_name = 'Ship Method Name is required';
-    else if (!REGEX.NAME.test(d.ship_method_name)) e.ship_method_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.method_code)) e.method_code = 'Method Code is required';
-    else if (!REGEX.CODE.test(d.method_code)) e.method_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.ship_method_name)) e.ship_method_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.ship_method_name).trim())) e.ship_method_name = 'Invalid format';
+    if (isEmpty(d.method_code)) e.method_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.method_code).trim())) e.method_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -335,15 +385,15 @@ const RULES = {
   ship_network: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.from_inv_org_id)) e.from_inv_org_id = 'From Inv Org is required';
-    if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'To Inv Org is required';
+    if (isEmpty(d.from_inv_org_id)) e.from_inv_org_id = 'This field is required';
+    if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'This field is required';
     if (!isEmpty(d.from_inv_org_id) && !isEmpty(d.to_inv_org_id) && String(d.from_inv_org_id) === String(d.to_inv_org_id))
-      e.to_inv_org_id = 'Source and Destination Organizations must be different';
-    if (isEmpty(d.transfer_type)) e.transfer_type = 'Transfer Type is required';
-    if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = 'Default Ship Method is required';
-    if (isEmpty(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'Lead Time is required';
-    else if (!isNonNegativeNumber(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'Lead Time must be ≥ 0';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+      e.to_inv_org_id = 'Invalid format';
+    if (isEmpty(d.transfer_type)) e.transfer_type = 'This field is required';
+    if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = 'This field is required';
+    if (isEmpty(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'This field is required';
+    else if (!isNonNegativeNumber(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -352,15 +402,15 @@ const RULES = {
   intercompany: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.ship_ou_id)) e.ship_ou_id = 'Ship OU is required';
-    if (isEmpty(d.sell_ou_id)) e.sell_ou_id = 'Sell OU is required';
+    if (isEmpty(d.ship_ou_id)) e.ship_ou_id = 'This field is required';
+    if (isEmpty(d.sell_ou_id)) e.sell_ou_id = 'This field is required';
     if (!isEmpty(d.ship_ou_id) && !isEmpty(d.sell_ou_id) && String(d.ship_ou_id) === String(d.sell_ou_id))
-      e.sell_ou_id = 'Ship OU and Sell OU must be different';
-    if (isEmpty(d.relation_type)) e.relation_type = 'Relation Type is required';
-    if (isEmpty(d.ar_inv_method_id)) e.ar_inv_method_id = 'AR Inv Method is required';
-    if (isEmpty(d.ap_inv_method_id)) e.ap_inv_method_id = 'AP Inv Method is required';
-    if (d.description && d.description.length > 250) e.description = 'Description: max 250 characters';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+      e.sell_ou_id = 'Invalid format';
+    if (isEmpty(d.relation_type)) e.relation_type = 'This field is required';
+    if (isEmpty(d.ar_inv_method_id)) e.ar_inv_method_id = 'This field is required';
+    if (isEmpty(d.ap_inv_method_id)) e.ap_inv_method_id = 'This field is required';
+    if (d.description && d.description.length > 250) e.description = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -369,11 +419,11 @@ const RULES = {
   uom_type: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.uom_type_name)) e.uom_type_name = 'UOM Type Name is required';
-    else if (!REGEX.NAME.test(d.uom_type_name)) e.uom_type_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.uom_type_code)) e.uom_type_code = 'UOM Type Code is required';
-    else if (!REGEX.CODE.test(d.uom_type_code)) e.uom_type_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.uom_type_name)) e.uom_type_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.uom_type_name).trim())) e.uom_type_name = 'Invalid format';
+    if (isEmpty(d.uom_type_code)) e.uom_type_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.uom_type_code).trim())) e.uom_type_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -382,17 +432,17 @@ const RULES = {
   uom: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.uom_type_id)) e.uom_type_id = 'UOM Type is required';
-    if (isEmpty(d.uom_name)) e.uom_name = 'UOM Name is required';
-    else if (!REGEX.NAME.test(d.uom_name)) e.uom_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.uom_code)) e.uom_code = 'UOM Code is required';
-    else if (!REGEX.CODE.test(d.uom_code)) e.uom_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.decimal_precision)) e.decimal_precision = 'Decimal Precision is required';
+    if (isEmpty(d.uom_type_id)) e.uom_type_id = 'This field is required';
+    if (isEmpty(d.uom_name)) e.uom_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.uom_name).trim())) e.uom_name = 'Invalid format';
+    if (isEmpty(d.uom_code)) e.uom_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.uom_code).trim())) e.uom_code = 'Invalid format';
+    if (isEmpty(d.decimal_precision)) e.decimal_precision = 'This field is required';
     else {
       const prec = Number(d.decimal_precision);
-      if (isNaN(prec) || prec < 0 || prec > 6) e.decimal_precision = 'Precision: 0–6';
+      if (isNaN(prec) || prec < 0 || prec > 6) e.decimal_precision = 'Invalid format';
     }
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -401,14 +451,14 @@ const RULES = {
   uom_conv: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_id)) e.item_id = 'Item is required';
-    if (isEmpty(d.from_uom_id)) e.from_uom_id = 'From UOM is required';
-    if (isEmpty(d.to_uom_id)) e.to_uom_id = 'To UOM is required';
-    else if (!isEmpty(d.from_uom_id) && String(d.from_uom_id) === String(d.to_uom_id)) e.to_uom_id = 'Units must be different';
-    if (isEmpty(d.conversion_rate)) e.conversion_rate = 'Rate is required';
-    else if (!isPositiveNumber(d.conversion_rate)) e.conversion_rate = 'Rate must be > 0';
-    if (isEmpty(d.conversion_type)) e.conversion_type = 'Conversion Type is required';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.item_id)) e.item_id = 'This field is required';
+    if (isEmpty(d.from_uom_id)) e.from_uom_id = 'This field is required';
+    if (isEmpty(d.to_uom_id)) e.to_uom_id = 'This field is required';
+    else if (!isEmpty(d.from_uom_id) && String(d.from_uom_id) === String(d.to_uom_id)) e.to_uom_id = 'Invalid format';
+    if (isEmpty(d.conversion_rate)) e.conversion_rate = 'This field is required';
+    else if (!isPositiveNumber(d.conversion_rate)) e.conversion_rate = 'Invalid format';
+    if (isEmpty(d.conversion_type)) e.conversion_type = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -417,12 +467,11 @@ const RULES = {
   category_set: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.category_set_name)) e.category_set_name = 'Category Set Name is required';
-    else if (!REGEX.NAME.test(d.category_set_name)) e.category_set_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.category_set_code)) e.category_set_code = 'Category Set Code is required';
-    else if (!REGEX.CODE.test(d.category_set_code)) e.category_set_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (d.description && d.description.length > 250) e.description = 'Description: max 250 chars';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.category_set_name)) e.category_set_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.category_set_name).trim())) e.category_set_name = 'Invalid format';
+    if (isEmpty(d.category_set_code)) e.category_set_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.category_set_code).trim())) e.category_set_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -431,12 +480,12 @@ const RULES = {
   item_category: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.category_set_id)) e.category_set_id = 'Category Set is required';
-    if (isEmpty(d.category_name)) e.category_name = 'Category Name is required';
-    else if (!REGEX.NAME.test(d.category_name)) e.category_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.category_code)) e.category_code = 'Category Code is required';
-    else if (!REGEX.CODE.test(d.category_code)) e.category_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.category_set_id)) e.category_set_id = 'This field is required';
+    if (isEmpty(d.category_name)) e.category_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.category_name).trim())) e.category_name = 'Invalid format';
+    if (isEmpty(d.category_code)) e.category_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.category_code).trim())) e.category_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -445,12 +494,12 @@ const RULES = {
   item_sub_category: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.category_id)) e.category_id = 'Category is required';
-    if (isEmpty(d.sub_category_name)) e.sub_category_name = 'Sub Category Name is required';
-    else if (!REGEX.NAME.test(d.sub_category_name)) e.sub_category_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.sub_category_code)) e.sub_category_code = 'Sub Category Code is required';
-    else if (!REGEX.CODE.test(d.sub_category_code)) e.sub_category_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.category_id)) e.category_id = 'This field is required';
+    if (isEmpty(d.sub_category_name)) e.sub_category_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.sub_category_name).trim())) e.sub_category_name = 'Invalid format';
+    if (isEmpty(d.sub_category_code)) e.sub_category_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.sub_category_code).trim())) e.sub_category_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -458,12 +507,11 @@ const RULES = {
   brand: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.brand_name)) e.brand_name = 'Brand Name is required';
-    else if (!REGEX.NAME.test(d.brand_name)) e.brand_name = 'Name: 3–100 chars, no special chars except & ( ) -';
-    if (isEmpty(d.brand_code)) e.brand_code = 'Brand Code is required';
-    else if (!REGEX.CODE.test(d.brand_code)) e.brand_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (d.description && d.description.length > 250) e.description = 'Description: max 250 chars';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.brand_name)) e.brand_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.brand_name).trim())) e.brand_name = 'Invalid format';
+    if (isEmpty(d.brand_code)) e.brand_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.brand_code).trim())) e.brand_code = 'Invalid format';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -471,11 +519,8 @@ const RULES = {
   item_type: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_type_name)) e.item_type_name = 'Item Type Name is required';
-    const isPhysical = d.is_physical === 'Y' || d.is_physical === true;
-    const requiresInv = d.requires_inventory === 'Y' || d.requires_inventory === true;
-    if (!isPhysical && requiresInv) e.requires_inventory = 'Non-physical items cannot require inventory';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.item_type_name)) e.item_type_name = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -483,11 +528,11 @@ const RULES = {
   zone: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.zone_name)) e.zone_name = 'Zone Name is required';
-    if (isEmpty(d.zone_code)) e.zone_code = 'Zone Code is required';
-    else if (!REGEX.CODE.test(d.zone_code)) e.zone_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.zone_type)) e.zone_type = 'Please select Zone Type';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.zone_name)) e.zone_name = 'This field is required';
+    if (isEmpty(d.zone_code)) e.zone_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.zone_code).trim())) e.zone_code = 'Invalid format';
+    if (isEmpty(d.zone_type)) e.zone_type = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -495,18 +540,13 @@ const RULES = {
   subinventory: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Inventory Org is required';
-    if (isEmpty(d.subinventory_name)) e.subinventory_name = 'Subinventory Name is required';
-    if (isEmpty(d.subinventory_code)) e.subinventory_code = 'Subinventory Code is required';
-    else if (!REGEX.CODE.test(d.subinventory_code)) e.subinventory_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.zone_id)) e.zone_id = 'Please select Zone';
-    if (isEmpty(d.material_status)) e.material_status = 'Please select Material Status';
-    const capErr = nonNeg(d.max_capacity_kg, 'Capacity'); if (capErr) e.max_capacity_kg = capErr;
-    if (!isEmpty(d.current_utilization_pct)) {
-      const util = Number(d.current_utilization_pct);
-      if (isNaN(util) || util < 0 || util > 100) e.current_utilization_pct = 'Utilization: 0-100';
-    }
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
+    if (isEmpty(d.subinventory_name)) e.subinventory_name = 'This field is required';
+    if (isEmpty(d.subinventory_code)) e.subinventory_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.subinventory_code).trim())) e.subinventory_code = 'Invalid format';
+    if (isEmpty(d.zone_id)) e.zone_id = 'This field is required';
+    if (isEmpty(d.material_status)) e.material_status = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },
@@ -514,17 +554,14 @@ const RULES = {
   locator: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Subinventory is required';
-    if (isEmpty(d.locator_name)) e.locator_name = 'Locator Name is required';
-    if (isEmpty(d.locator_code)) e.locator_code = 'Locator Code is required';
-    else if (!REGEX.CODE.test(d.locator_code)) e.locator_code = 'Must be 2–20 uppercase alphanumeric or _';
-    if (isEmpty(d.locator_type)) e.locator_type = 'Please select Locator Type';
-    if (isEmpty(d.locator_usage)) e.locator_usage = 'Please select Locator Usage';
-    const wErr = nonNeg(d.max_weight_kg, 'Weight'); if (wErr) e.max_weight_kg = wErr;
-    const vErr = nonNeg(d.max_volume_cbm, 'Volume'); if (vErr) e.max_volume_cbm = vErr;
-    if (isEmpty(d.material_status)) e.material_status = 'Please select Material Status';
-    if (isEmpty(d.temperature_range)) e.temperature_range = 'Please select Temp Range';
-    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'This field is required';
+    if (isEmpty(d.locator_name)) e.locator_name = 'This field is required';
+    if (isEmpty(d.locator_code)) e.locator_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.locator_code).trim())) e.locator_code = 'Invalid format';
+    if (isEmpty(d.locator_type)) e.locator_type = 'This field is required';
+    if (isEmpty(d.locator_usage)) e.locator_usage = 'This field is required';
+    if (isEmpty(d.material_status)) e.material_status = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
   },

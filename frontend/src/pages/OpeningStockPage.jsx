@@ -1,13 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
-import { 
-  openingStockValidation, 
-  validateOpeningStock, 
-  openingStockDynamicValidation 
-} from '../validations/openingStockValidation'
+import { validate } from '../validations/validationEngine'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, SectionHeader } from '../components/ui/index'
+import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, SectionHeader, ErrorBanner } from '../components/ui/index'
 import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X, Loader2, CheckCircle2 } from 'lucide-react'
 import {
   openingStockApi, moduleApi, inventoryOrgApi, subinventoryApi, locatorApi,
@@ -96,10 +92,18 @@ export default function OpeningStockPage() {
   const isExpirable = selectedItem && isYes(selectedItem.is_expirable)
   const shelfLifeDays = selectedItem ? parseInt(selectedItem.shelf_life_days || 0) : 0
 
+  const validateField = useCallback((k, v) => {
+    const val = typeof v === 'string' ? v.trim() : v;
+    const { errors: newErrors } = validate('opening_stock', { ...formData, [k]: val }, {
+      isLotControlled, isSerialControlled, serialMode, serialInputs
+    })
+    setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
+  }, [formData, isLotControlled, isSerialControlled, serialMode, serialInputs])
+
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }))
-    setErrors(p => { const n = { ...p }; delete n[k]; return n })
-  }, [])
+    if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
+  }, [errors])
 
   // Auto-set default txn reason to 'INITIAL_STOCK'
   useEffect(() => {
@@ -216,19 +220,16 @@ export default function OpeningStockPage() {
   const handleSubmit = async (ev) => {
     ev.preventDefault()
     
-    // 1. Static validation based on schema
-    let valErrors = validateOpeningStock(formData, openingStockValidation)
-
-    // 2. Dynamic validation for Lot/Serial
-    const dynamicErrors = openingStockDynamicValidation(formData, {
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors, isValid } = validate('opening_stock', trimmedData, {
       isLotControlled, isSerialControlled, serialMode, serialInputs
     })
-
-    // 3. Merge and check
-    valErrors = { ...valErrors, ...dynamicErrors }
+    
     setErrors(valErrors)
 
-    if (Object.keys(valErrors).length > 0) {
+    if (!isValid) {
       return toast.error('Please fix the highlighted errors')
     }
 
@@ -258,18 +259,19 @@ export default function OpeningStockPage() {
         onBack={handleBack} onSubmit={handleSubmit}
         loading={table.isCreating || table.isUpdating} mode={view}
       >
+        <ErrorBanner message={Object.keys(errors).length > 0 ? "Please fix the highlighted errors" : null} />
         <div className="card p-6 mb-5">
           <SectionHeader icon={Package} title="Organization & Item" subtitle="Primary transaction details" color="brand" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Opening Stock ID (Auto-gen)"><Input value={formData.opening_stock_id} readOnly /></Field>
-            <CompanyGroup formData={formData} setField={setField} errors={errors} />
+            <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={validateField} />
             <Field label="Item" required error={errors.item_id}>
-              <Select value={formData.item_id} onChange={handleItemChange} error={errors.item_id} disabled={view === 'view' || view === 'edit'}
+              <Select value={formData.item_id} onChange={handleItemChange} onBlur={() => validateField('item_id', formData.item_id)} error={errors.item_id} disabled={view === 'view' || view === 'edit'}
                 options={physicalStockItems.map(r => ({ value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` }))} />
             </Field>
 
             <Field label="Transaction Reason" required error={errors.txn_reason_id}>
-              <Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id', v)} error={errors.txn_reason_id} disabled={view === 'view'}
+              <Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id', v)} onBlur={() => validateField('txn_reason_id', formData.txn_reason_id)} error={errors.txn_reason_id} disabled={view === 'view'}
                 options={filteredReasons.map(r => ({ value: r.txn_reason_id, label: `${r.reason_code} - ${r.txn_reason}` }))} />
             </Field>
 
@@ -291,11 +293,11 @@ export default function OpeningStockPage() {
             <SectionHeader icon={MapPin} title="Location & Quantity" subtitle="Where and how much" color="emerald" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Inventory Organization" required error={errors.inv_org_id}>
-                <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} error={errors.inv_org_id} disabled={view === 'view'}
+                <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} onBlur={() => validateField('inv_org_id', formData.inv_org_id)} error={errors.inv_org_id} disabled={view === 'view'}
                   options={filteredOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
               </Field>
               <Field label="Subinventory" required error={errors.subinventory_id}>
-                <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} error={errors.subinventory_id} disabled={view === 'view'}
+                <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} onBlur={() => validateField('subinventory_id', formData.subinventory_id)} error={errors.subinventory_id} disabled={view === 'view'}
                   options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
               </Field>
               <Field label="Locator / Bin">
@@ -308,11 +310,11 @@ export default function OpeningStockPage() {
               </Field>
               <Field label="Opening Qty" required error={errors.opening_qty}>
                 <Input type="number" value={formData.opening_qty} error={errors.opening_qty} disabled={view === 'view' || view === 'edit'}
-                  onChange={e => handleQtyChangeForSerials(e.target.value)} />
+                  onChange={e => handleQtyChangeForSerials(e.target.value)} onBlur={() => validateField('opening_qty', formData.opening_qty)} />
               </Field>
               <Field label="Unit Cost" required error={errors.unit_cost}>
                 <Input type="number" value={formData.unit_cost} error={errors.unit_cost} disabled={view === 'view'}
-                  onChange={e => setField('unit_cost', e.target.value)} />
+                  onChange={e => setField('unit_cost', e.target.value)} onBlur={() => validateField('unit_cost', formData.unit_cost)} />
               </Field>
               <Field label="Total Value (Auto-calc)">
                 <Input value={totalValue} readOnly className="font-semibold text-emerald-700 bg-emerald-50/50" />
@@ -331,7 +333,7 @@ export default function OpeningStockPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Lot Number" required error={errors.lot_number}>
                 <Input value={formData.lot_number} error={errors.lot_number} disabled={view === 'view' || view === 'edit'}
-                  onChange={e => setField('lot_number', e.target.value)} />
+                  onChange={e => setField('lot_number', e.target.value)} onBlur={() => validateField('lot_number', formData.lot_number)} />
               </Field>
               {isExpirable && (
                 <Field label="Expiry Date">

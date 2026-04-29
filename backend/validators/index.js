@@ -24,6 +24,10 @@ const validateItemType = require('./itemTypeValidator');
 const validateZone = require('./zoneValidator');
 const validateSubinventory = require('./subinventoryValidator');
 const validateLocator = require('./locatorValidator');
+const { validateTransactionType } = require('./transactionTypeValidator');
+const { validateTransactionReason } = require('./transactionReasonValidator');
+const { validateItemSubinvRestriction } = require('./itemSubinvRestrictionValidator');
+const { validateItemOrgAssignment } = require('./itemOrgAssignmentValidator');
 
 /**
  * Express validation middleware factory
@@ -66,5 +70,9 @@ module.exports = {
   validateItemType,
   validateZone,
   validateSubinventory,
-  validateLocator
+  validateLocator,
+  validateTransactionType,
+  validateTransactionReason,
+  validateItemSubinvRestriction,
+  validateItemOrgAssignment
 };

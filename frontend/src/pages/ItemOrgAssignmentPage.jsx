@@ -14,6 +14,8 @@ import {
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
   departmentsApi, rolesApi, designationApi,
 } from '../services/api'
+import { validate, autoCode } from '../validations/validationEngine'
+import { ErrorBanner } from '../components/ui/index'
 
 const COLUMNS = [
   { key: 'item_org_assign_id', label: 'Item Org Assign Id' },
@@ -31,11 +33,9 @@ export default function ItemOrgAssignmentPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const [errors, setErrors] = useState({})
 
   // Load all needed dropdowns
-  const companies = []
-  const businessGroups = []
-  const businessTypes = []
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -67,7 +67,6 @@ export default function ItemOrgAssignmentPage() {
   const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
 
   const dropdowns = {
-    company:companies, businessGroup:businessGroups, businessType:businessTypes,
     location:locations, module:modules, inventoryOrg:inventoryOrgs,
     subinventory:subinventories, locator:locators, itemMaster:items,
     uom:uoms, uomType:uomTypes, itemCategory:itemCategories, itemSubCategory:itemSubCategories,
@@ -79,22 +78,39 @@ export default function ItemOrgAssignmentPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const validateField = (k, v) => {
+    const val = typeof v === 'string' ? v.trim() : v;
+    const { errors: newErrors } = validate('item_org_assignment', { ...formData, [k]: val });
+    setErrors(prev => ({ ...prev, [k]: newErrors[k] }));
+  }
+
+  const setField = (k, v) => {
+    setFormData(p => ({ ...p, [k]: v }));
+    if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
+  }
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setErrors({})
     setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
-  const handleBack = () => { setView('list'); setSelected(null) }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
+  const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
+    e.preventDefault();
+    
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors, isValid } = validate('item_org_assignment', trimmedData);
+    
+    if (!isValid) {
+      setErrors(valErrors);
+      return toast.error('Please fix the highlighted errors');
     }
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['item_org_assign_id'], formData)
@@ -102,7 +118,9 @@ export default function ItemOrgAssignmentPage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) setErrors(err.response.data.errors)
+    }
   }
 
   const handleDelete = async () => {
@@ -114,21 +132,36 @@ export default function ItemOrgAssignmentPage() {
     return (
       <FormPage title={view==='view'?`View Item Org Assignment`:view==='edit'?`Edit Item Org Assignment`:`New Item Org Assignment`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        <ErrorBanner message={Object.keys(errors).length > 0 ? "Please fix the highlighted errors" : null} />
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <Field label="Item Org Assign Id (Auto-gen)"><Input value={formData.item_org_assign_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+      <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={validateField} />
 
-      <Field label="Item"><Select value={formData.item_id} onChange={v => setField('item_id',v)} options={dropdowns.itemMaster?.map(r=>{return{value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}})} /></Field>
-      <Field label="Inv Org Id"><Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
-      <Field label="Min Qty"><Input type="number" step="any"  value={formData.min_qty} onChange={e => setField('min_qty',e.target.value)} /></Field>
-      <Field label="Max Qty"><Input type="number" step="any"  value={formData.max_qty} onChange={e => setField('max_qty',e.target.value)} /></Field>
-      <Field label="Safety Stock Qty"><Input type="number" step="any"  value={formData.safety_stock_qty} onChange={e => setField('safety_stock_qty',e.target.value)} /></Field>
+      <Field label="Item" required error={errors.item_id}>
+        <Select value={formData.item_id} onChange={v => setField('item_id',v)} onBlur={() => validateField('item_id', formData.item_id)}
+          options={dropdowns.itemMaster?.map(r=>({value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}))} />
+      </Field>
+      <Field label="Inv Org Id" required error={errors.inv_org_id}>
+        <Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} onBlur={() => validateField('inv_org_id', formData.inv_org_id)}
+          options={dropdowns.inventoryOrg?.map(r=>({value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}))} />
+      </Field>
+      <Field label="Min Qty" required error={errors.min_qty}>
+        <Input type="number" step="any" value={formData.min_qty} onChange={e => setField('min_qty',e.target.value)} onBlur={() => validateField('min_qty', formData.min_qty)} />
+      </Field>
+      <Field label="Max Qty" required error={errors.max_qty}>
+        <Input type="number" step="any" value={formData.max_qty} onChange={e => setField('max_qty',e.target.value)} onBlur={() => validateField('max_qty', formData.max_qty)} />
+      </Field>
+      <Field label="Safety Stock Qty" required error={errors.safety_stock_qty}>
+        <Input type="number" step="any" value={formData.safety_stock_qty} onChange={e => setField('safety_stock_qty',e.target.value)} onBlur={() => validateField('safety_stock_qty', formData.safety_stock_qty)} />
+      </Field>
       <Field label="Lot Divisible Flag"><Toggle value={formData.lot_divisible_flag} onChange={v => setField('lot_divisible_flag',v)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
+      <Field label="Module" required error={errors.module_id}>
+        <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
+      </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
+      <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
+      <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>
       <AuditFields formData={formData} setField={setField} />
       </div>
         </div>

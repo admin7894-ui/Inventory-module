@@ -28,13 +28,21 @@ export function useFormValidation(formName) {
   /** Mark field touched + run full validation (call onBlur) */
   const handleBlur = useCallback((key, formData, options = {}) => {
     setTouched(prev => ({ ...prev, [key]: true }));
-    const { errors: valErrors } = validate(formName, formData, options);
+    // Trim string fields
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors } = validate(formName, trimmedData, options);
     setErrors(valErrors);
   }, [formName]);
 
   /** Run full validation, mark all touched, return isValid (call on submit) */
   const runValidation = useCallback((formData, options = {}) => {
-    const { errors: valErrors, isValid } = validate(formName, formData, options);
+    // Trim string fields
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
+    const { errors: valErrors, isValid } = validate(formName, trimmedData, options);
     setErrors(valErrors);
     setSubmitFailed(!isValid);
     setTouched(
@@ -50,8 +58,8 @@ export function useFormValidation(formName) {
 
   /** Get error for a field (only if touched) */
   const fieldError = useCallback((key) => {
-    return touched[key] ? errors[key] : undefined;
-  }, [errors, touched]);
+    return (touched[key] || submitFailed) ? errors[key] : undefined;
+  }, [errors, touched, submitFailed]);
 
   /** Reset all errors and touched state */
   const reset = useCallback(() => {
