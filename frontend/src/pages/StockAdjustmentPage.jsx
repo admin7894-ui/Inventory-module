@@ -4,6 +4,11 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import {
+  stockAdjustmentValidation,
+  validateStockAdjustment,
+  stockAdjustmentDynamicValidation
+} from '../validations/stockAdjustmentValidation'
+import {
   DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog,
   Input, AuditFields, MultiSelect, SectionHeader
 } from '../components/ui/index'
@@ -57,7 +62,21 @@ export default function StockAdjustmentPage() {
   const { options: restrictions } = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
   const { rows: allStock } = useTableData(itemStockApi, 'item_stock_onhand', { limit: 1000 })
 
+  const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
+
   const isTransfer = formData.txn_action === 'TRANSFER';
+
+  const selectedItem = useMemo(() => {
+    return (items || []).find(i => String(i.item_id) === String(formData.item_id));
+  }, [items, formData.item_id]);
+
+  const isLotControlled = selectedItem && isYes(selectedItem.is_lot_controlled);
+  const isSerialControlled = selectedItem && isYes(selectedItem.is_serial_controlled);
+
+  const setField = useCallback((k, v) => {
+    setFormData(p => ({ ...p, [k]: v }));
+    setErrors(p => { const n = { ...p }; delete n[k]; return n; });
+  }, [])
 
   const filteredItems = useMemo(() => {
     if (!items?.length || !assignments?.length || !restrictions?.length || !formData.COMPANY_id) return []
@@ -73,19 +92,6 @@ export default function StockAdjustmentPage() {
       return isAssigned && hasRestrictions
     })
   }, [items, assignments, restrictions, formData.COMPANY_id])
-
-  const selectedItem = useMemo(() => {
-    return (items || []).find(i => String(i.item_id) === String(formData.item_id));
-  }, [items, formData.item_id]);
-
-  const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
-  const isLotControlled = selectedItem && isYes(selectedItem.is_lot_controlled);
-  const isSerialControlled = selectedItem && isYes(selectedItem.is_serial_controlled);
-
-  const setField = useCallback((k, v) => {
-    setFormData(p => ({ ...p, [k]: v }));
-    setErrors(p => { const n = { ...p }; delete n[k]; return n; });
-  }, [])
 
   const itemStock = useMemo(() => {
     if (!formData.item_id || !allStock) return []
@@ -289,30 +295,26 @@ export default function StockAdjustmentPage() {
     setConfirmDelete(null)
   }
 
-  const validate = () => {
-    const e = {}
-    if (!formData.COMPANY_id) e.COMPANY_id = 'Required'
-    if (!formData.bg_id) e.bg_id = 'Required'
-    if (!formData.item_id) e.item_id = 'Required'
-    if (!formData.txn_type_id) e.txn_type_id = 'Required'
-    if (!formData.inv_org_id) e.inv_org_id = 'Required'
-    if (isTransfer) {
-      if (!formData.to_inv_org_id) e.to_inv_org_id = 'Required'
-      if (!formData.to_subinventory_id) e.to_subinventory_id = 'Required'
-      const srcSame = formData.inv_org_id === formData.to_inv_org_id &&
-        formData.subinventory_id === formData.to_subinventory_id &&
-        (formData.locator_id || '') === (formData.to_locator_id || '')
-      if (srcSame) e.to_locator_id = 'Source and Destination cannot be the same'
-    }
-    if (isLotControlled && !formData.lot_id) e.lot_id = 'Lot Required'
-    if (isSerialControlled && (!formData.serial_ids || formData.serial_ids.length === 0)) e.serial_ids = 'Serial Required'
-    return e
-  }
-
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return toast.error('Please fix validation errors') }
+    
+    // 1. Static validation based on schema
+    let valErrors = validateStockAdjustment(formData, stockAdjustmentValidation)
+
+    // 2. Dynamic validation for Stock/Lot/Serial
+    const dynamicErrors = stockAdjustmentDynamicValidation(
+      formData, 
+      currentStockInfo, 
+      isLotControlled, 
+      isSerialControlled
+    )
+
+    const finalErrors = { ...valErrors, ...dynamicErrors }
+
+    if (Object.keys(finalErrors).length) { 
+      setErrors(finalErrors); 
+      return toast.error('Please fix validation errors') 
+    }
 
     try {
       const payload = {

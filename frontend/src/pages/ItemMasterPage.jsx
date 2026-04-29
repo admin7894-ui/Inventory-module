@@ -17,6 +17,8 @@ import {
   departmentsApi, rolesApi, designationApi,
 } from '../services/api'
 
+import { itemMasterValidation, itemMasterDynamicValidation, validateItemMaster } from '../validations/itemMasterValidation'
+
 const COLUMNS = [
   { key: 'item_id', label: 'Item Id' },
   { key: 'item_code', label: 'Item Code' },
@@ -107,6 +109,32 @@ export default function ItemMasterPage() {
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }));
   }, [formData, isPhysical])
 
+  // Auto-generate Item Code from Item Name
+  useEffect(() => {
+    if (formData.item_name && view !== 'view') {
+      const words = formData.item_name
+        .toUpperCase()
+        .replace(/[^A-Z0-9 ]/g, "")
+        .split(/\s+/)
+        .filter(Boolean);
+
+      if (words.length > 0) {
+        const firstPart = words[0].substring(0, 3);
+        const lastPart = words.length > 1 ? words[words.length - 1] : "";
+        let code = lastPart ? `${firstPart}-${lastPart}` : firstPart;
+        
+        // Final cleaning and truncation
+        code = code.substring(0, 10).replace(/-$/, "");
+        
+        setFormData(prev => ({ ...prev, item_code: code }));
+      } else {
+        setFormData(prev => ({ ...prev, item_code: "" }));
+      }
+    } else if (!formData.item_name && view !== 'view') {
+        setFormData(prev => ({ ...prev, item_code: "" }));
+    }
+  }, [formData.item_name, view]);
+
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }))
     if (errors[k]) setErrors(p => ({ ...p, [k]: null }))
@@ -116,9 +144,10 @@ export default function ItemMasterPage() {
   const handleItemTypeChange = useCallback((typeId) => {
     const type = dropdowns.itemType?.find(t => String(t.item_type_id) === String(typeId))
     const phys = type ? (type.is_physical === 'Y' || type.is_physical === true) : null
+    const itemTypeString = phys === true ? 'PHYSICAL' : phys === false ? 'SOFTWARE' : ''
 
     setFormData(prev => {
-      const next = { ...prev, item_type_id: typeId }
+      const next = { ...prev, item_type_id: typeId, item_type: itemTypeString }
       if (phys === true) {
         // Physical: reset software fields
         SOFTWARE_ONLY_FIELDS.forEach(f => { next[f] = '' })
@@ -167,6 +196,7 @@ export default function ItemMasterPage() {
 
   const handleBlur = useCallback((k, v) => {
     validateField(k, v !== undefined ? v : formData[k]);
+    setTouched(p => ({ ...p, [k]: true }))
   }, [validateField, formData])
 
   const handleCreate = () => {
@@ -187,12 +217,43 @@ export default function ItemMasterPage() {
     const { errors: valErrors, isValid } = validate('item_master', trimmedData, { isPhysical });
     
     setErrors(valErrors);
-    if (!isValid) return toast.error('Please fix the highlighted errors');
+    if (!isValid) {
+      toast.error('Please fix the highlighted errors');
+      // Auto-scroll to first error field
+      setTimeout(() => {
+        const firstError = document.querySelector('.border-red-500, .text-red-500, [class*="border-red"]');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return;
+    }
     try {
       if (view === 'edit') await table.update(selected['item_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch (err) {
+      console.error("Submit Error:", err);
+      // Capture backend validation errors
+      if (err.response?.data?.errors) {
+        const errorData = err.response.data.errors;
+        setErrors(errorData);
+        
+        // Show the first error in a toast for immediate feedback
+        const firstErrorMsg = Object.values(errorData)[0];
+        toast.error(firstErrorMsg || 'Please fix the highlighted errors');
+        
+        // Auto-scroll to first error field
+        setTimeout(() => {
+          const firstError = document.querySelector('.border-red-500, .text-red-500, [class*="border-red"]');
+          if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed');
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -218,7 +279,14 @@ export default function ItemMasterPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Item Id (Auto-gen)"><Input value={formData.item_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={handleBlur} />
-            <Field label="Item Code"><Input value={formData.item_code} onChange={e => setField('item_code',e.target.value)} onBlur={() => handleBlur('item_code')} /></Field>
+            <Field label="Item Code" required error={errors.item_code}>
+              <Input 
+                value={formData.item_code} 
+                disabled
+                error={errors.item_code} 
+                placeholder="Auto-generated from name"
+              />
+            </Field>
             <Field label="Item Name" required error={errors.item_name}>
               <Input value={formData.item_name} onChange={e => setField('item_name',e.target.value)} onBlur={() => handleBlur('item_name')} error={errors.item_name} />
             </Field>
@@ -233,21 +301,22 @@ export default function ItemMasterPage() {
                 </span>
               )}
             </Field>
-            <Field label="Brand">
-              <Select value={formData.brand_id} onChange={v => setField('brand_id',v)}
+            <Field label="Brand" required error={errors.brand_id}>
+              <Select value={formData.brand_id} onChange={v => setField('brand_id',v)} error={errors.brand_id} onBlur={() => handleBlur('brand_id')}
                 options={dropdowns.brand?.map(r=>({value:r.brand_id,label:r.brand_name||r.brand_id}))} />
             </Field>
-            <Field label="Category">
-              <Select value={formData.category_id} onChange={v => setField('category_id',v)}
+            <Field label="Category" required error={errors.category_id}>
+              <Select value={formData.category_id} onChange={v => setField('category_id',v)} error={errors.category_id} onBlur={() => handleBlur('category_id')}
                 options={dropdowns.itemCategory?.map(r=>({value:r.category_id,label:r.category_name||r.category_id}))} />
             </Field>
-            <Field label="Sub Category">
-              <Select value={formData.sub_category_id} onChange={v => setField('sub_category_id',v)}
+            <Field label="Sub Category" required error={errors.sub_category_id}>
+              <Select value={formData.sub_category_id} onChange={v => setField('sub_category_id',v)} error={errors.sub_category_id} onBlur={() => handleBlur('sub_category_id')}
                 options={dropdowns.itemSubCategory?.map(r=>({value:r.sub_category_id,label:r.sub_category_name||r.sub_category_id}))} />
             </Field>
-            <Field label="Description" >
-              <textarea className="input" disabled={readOnly} rows={2}
-                value={formData.description||''} onChange={e => setField('description',e.target.value)} />
+            <Field label="Description" error={errors.description}>
+              <textarea className={`input ${errors.description ? 'border-red-500' : ''}`} disabled={readOnly} rows={2}
+                value={formData.description||''} onChange={e => setField('description',e.target.value)} onBlur={() => handleBlur('description')} />
+              {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
             </Field>
           </div>
         </div>
@@ -257,7 +326,9 @@ export default function ItemMasterPage() {
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={Box} title="Inventory & Tracking" subtitle="Stock control settings for physical items" color="emerald" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Is Stock Item"><Toggle value={formData.is_stock_item} onChange={v => setField('is_stock_item',v)} /></Field>
+              <Field label="Is Stock Item" required error={errors.is_stock_item}>
+                <Toggle value={formData.is_stock_item} onChange={v => setField('is_stock_item',v)} />
+              </Field>
               <Field label="Is Serial Controlled" error={errors.is_serial_controlled}>
                 <Toggle value={formData.is_serial_controlled} onChange={handleSerialChange} />
                 {formData.is_serial_controlled === 'Y' && (
@@ -275,7 +346,7 @@ export default function ItemMasterPage() {
               {isExp && (
                 <Field label="Shelf Life Days" required error={errors.shelf_life_days}>
                   <Input type="number" value={formData.shelf_life_days} error={errors.shelf_life_days}
-                    onChange={e => setField('shelf_life_days',e.target.value)} placeholder="e.g. 365" />
+                    onChange={e => setField('shelf_life_days',e.target.value)} onBlur={() => handleBlur('shelf_life_days')} placeholder="e.g. 365" />
                 </Field>
               )}
             </div>
@@ -289,18 +360,18 @@ export default function ItemMasterPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Primary UOM" required error={errors.primary_uom_id}>
                 <Select value={formData.primary_uom_id} onChange={v => setField('primary_uom_id',v)}
-                  error={errors.primary_uom_id}
+                  error={errors.primary_uom_id} onBlur={() => handleBlur('primary_uom_id')}
                   options={dropdowns.uom?.map(r=>({value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}))} />
               </Field>
               <Field label="Secondary UOM">
-                <Select value={formData.secondary_uom_id} onChange={v => setField('secondary_uom_id',v)}
+                <Select value={formData.secondary_uom_id} onChange={v => setField('secondary_uom_id',v)} onBlur={() => handleBlur('secondary_uom_id')}
                   options={dropdowns.uom?.map(r=>({value:r.uom_id,label:`${r.uom_code||''} - ${r.uom_name||r.uom_id}`}))} />
               </Field>
-              <Field label="Weight (Kg)">
-                <Input type="number" step="any" value={formData.weight_kg} onChange={e => setField('weight_kg',e.target.value)} />
+              <Field label="Weight (Kg)" error={errors.weight_kg}>
+                <Input type="number" step="any" value={formData.weight_kg} onChange={e => setField('weight_kg',e.target.value)} onBlur={() => handleBlur('weight_kg')} error={errors.weight_kg} />
               </Field>
-              <Field label="Volume (Cbm)">
-                <Input type="number" step="any" value={formData.volume_cbm} onChange={e => setField('volume_cbm',e.target.value)} />
+              <Field label="Volume (Cbm)" error={errors.volume_cbm}>
+                <Input type="number" step="any" value={formData.volume_cbm} onChange={e => setField('volume_cbm',e.target.value)} onBlur={() => handleBlur('volume_cbm')} error={errors.volume_cbm} />
               </Field>
             </div>
           </div>
@@ -311,10 +382,10 @@ export default function ItemMasterPage() {
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={BarChart3} title="Stock Planning" subtitle="Reorder and lead time configuration" color="amber" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Lead Time Days"><Input type="number" value={formData.lead_time_days} onChange={e => setField('lead_time_days',e.target.value)} /></Field>
-              <Field label="Reorder Point"><Input type="number" value={formData.reorder_point} onChange={e => setField('reorder_point',e.target.value)} /></Field>
-              <Field label="Min Order Qty"><Input type="number" value={formData.min_order_qty} onChange={e => setField('min_order_qty',e.target.value)} /></Field>
-              <Field label="Max Order Qty"><Input type="number" value={formData.max_order_qty} onChange={e => setField('max_order_qty',e.target.value)} /></Field>
+              <Field label="Lead Time Days" error={errors.lead_time_days}><Input type="number" value={formData.lead_time_days} onChange={e => setField('lead_time_days',e.target.value)} onBlur={() => handleBlur('lead_time_days')} error={errors.lead_time_days} /></Field>
+              <Field label="Reorder Point" error={errors.reorder_point}><Input type="number" value={formData.reorder_point} onChange={e => setField('reorder_point',e.target.value)} onBlur={() => handleBlur('reorder_point')} error={errors.reorder_point} /></Field>
+              <Field label="Min Order Qty" error={errors.min_order_qty}><Input type="number" value={formData.min_order_qty} onChange={e => setField('min_order_qty',e.target.value)} onBlur={() => handleBlur('min_order_qty')} error={errors.min_order_qty} /></Field>
+              <Field label="Max Order Qty" error={errors.max_order_qty}><Input type="number" value={formData.max_order_qty} onChange={e => setField('max_order_qty',e.target.value)} onBlur={() => handleBlur('max_order_qty')} error={errors.max_order_qty} /></Field>
             </div>
           </div>
         )}
@@ -324,10 +395,10 @@ export default function ItemMasterPage() {
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={DollarSign} title="Costing & Pricing" subtitle="Cost, price and tax configuration" color="rose" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Standard Cost"><Input type="number" step="any" value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} /></Field>
-              <Field label="List Price"><Input type="number" step="any" value={formData.list_price} onChange={e => setField('list_price',e.target.value)} /></Field>
-              <Field label="Tax Category"><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} /></Field>
-              <Field label="HSN Code"><Input value={formData.hsn_code} onChange={e => setField('hsn_code',e.target.value)} /></Field>
+              <Field label="Standard Cost" error={errors.standard_cost}><Input type="number" step="any" value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} onBlur={() => handleBlur('standard_cost')} error={errors.standard_cost} /></Field>
+              <Field label="List Price" required error={errors.list_price}><Input type="number" step="any" value={formData.list_price} onChange={e => setField('list_price',e.target.value)} onBlur={() => handleBlur('list_price')} error={errors.list_price} /></Field>
+              <Field label="Tax Category" required error={errors.tax_category}><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} onBlur={() => handleBlur('tax_category')} error={errors.tax_category} /></Field>
+              <Field label="HSN Code" error={errors.hsn_code}><Input value={formData.hsn_code} onChange={e => setField('hsn_code',e.target.value)} onBlur={() => handleBlur('hsn_code')} error={errors.hsn_code} /></Field>
             </div>
           </div>
         )}
@@ -337,16 +408,18 @@ export default function ItemMasterPage() {
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={Shield} title="License & Usage" subtitle="Software licensing configuration" color="purple" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Is License Required"><Toggle value={formData.is_license_required} onChange={v => setField('is_license_required',v)} /></Field>
+              <Field label="Is License Required" requiredIf={!isPhysical} error={errors.is_license_required}>
+                <Toggle value={formData.is_license_required} onChange={v => setField('is_license_required',v)} />
+              </Field>
               {isLicReq && (
                 <>
                   <Field label="License Type" required error={errors.license_type}>
                     <Select value={formData.license_type} onChange={v => setField('license_type',v)}
-                      error={errors.license_type}
+                      error={errors.license_type} onBlur={() => handleBlur('license_type')}
                       options={["SUBSCRIPTION","PERPETUAL","TRIAL","NONE"].map(o => ({ value: o, label: o }))} />
                   </Field>
                   <Field label="Max Users" required error={errors.max_users}>
-                    <Input type="number" value={formData.max_users} error={errors.max_users}
+                    <Input type="number" value={formData.max_users} error={errors.max_users} onBlur={() => handleBlur('max_users')}
                       onChange={e => setField('max_users',e.target.value)} placeholder="e.g. 100" />
                   </Field>
                 </>
@@ -360,10 +433,10 @@ export default function ItemMasterPage() {
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={DollarSign} title="Pricing" subtitle="Software pricing and tax" color="rose" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="List Price"><Input type="number" step="any" value={formData.list_price} onChange={e => setField('list_price',e.target.value)} /></Field>
-              <Field label="Tax Category"><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} /></Field>
-              <Field label="Standard Cost">
-                <Input type="number" step="any" value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} placeholder="For internal tracking" />
+              <Field label="List Price" required error={errors.list_price}><Input type="number" step="any" value={formData.list_price} onChange={e => setField('list_price',e.target.value)} onBlur={() => handleBlur('list_price')} error={errors.list_price} /></Field>
+              <Field label="Tax Category" required error={errors.tax_category}><Input value={formData.tax_category} onChange={e => setField('tax_category',e.target.value)} onBlur={() => handleBlur('tax_category')} error={errors.tax_category} /></Field>
+              <Field label="Standard Cost" error={errors.standard_cost}>
+                <Input type="number" step="any" value={formData.standard_cost} onChange={e => setField('standard_cost',e.target.value)} onBlur={() => handleBlur('standard_cost')} error={errors.standard_cost} placeholder="For internal tracking" />
               </Field>
             </div>
           </div>
@@ -373,13 +446,9 @@ export default function ItemMasterPage() {
         <div className="card p-6 mb-5">
           <SectionHeader icon={FileText} title="Status & Dates" subtitle="Module assignment and effectivity" color="brand" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Field label="Module">
-              <Select value={formData.module_id} onChange={v => setField('module_id',v)}
-                options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
-            </Field>
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-            <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-            <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
+            <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} error={errors.effective_from} /></Field>
+            <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} error={errors.effective_to} /></Field>
             <AuditFields formData={formData} setField={setField} />
           </div>
         </div>

@@ -1,5 +1,6 @@
 const db = require('../data/db');
 const { generateId } = require('../utils/idGenerator');
+const { itemMasterValidation, validateItemMaster, itemMasterDynamicValidation } = require('../utils/itemMaster.validation');
 const MOCK_USER = 'admin';
 
 const TABLE = 'item_master';
@@ -46,6 +47,25 @@ exports.getById = (req, res) => {
 exports.create = (req, res) => {
   try {
     const body = { ...req.body };
+
+    // Auto-adjust Item Code if duplicate
+    if (body.item_code) {
+      let originalCode = body.item_code;
+      let suffix = 0;
+      while ((db[TABLE]||[]).find(r => r.item_code === body.item_code && r.item_id !== body.item_id)) {
+        suffix++;
+        body.item_code = `${originalCode}-${String(suffix).padStart(2, '0')}`;
+      }
+    }
+    
+    // Server-side validation
+    let errors = validateItemMaster(body, itemMasterValidation);
+    errors = { ...errors, ...itemMasterDynamicValidation(body) };
+    
+    if (Object.keys(errors).length > 0) {
+      return res.status(400).json({ success: false, message: 'Please fix the highlighted errors', errors });
+    }
+
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
@@ -61,9 +81,29 @@ exports.create = (req, res) => {
 
 exports.update = (req, res) => {
   try {
+    const body = { ...req.body, [PK]: req.params.id };
+
+    // Auto-adjust Item Code if duplicate
+    if (body.item_code) {
+      let originalCode = body.item_code;
+      let suffix = 0;
+      while ((db[TABLE]||[]).find(r => r.item_code === body.item_code && r.item_id !== body.item_id)) {
+        suffix++;
+        body.item_code = `${originalCode}-${String(suffix).padStart(2, '0')}`;
+      }
+    }
+    
+    // Server-side validation
+    let errors = validateItemMaster(body, itemMasterValidation);
+    errors = { ...errors, ...itemMasterDynamicValidation(body) };
+    
+    if (Object.keys(errors).length > 0) {
+      return res.status(400).json({ success: false, message: 'Please fix the highlighted errors', errors });
+    }
+
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
-    db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
+    db[TABLE][idx] = { ...db[TABLE][idx], ...body, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
     res.json({ success:true, data:db[TABLE][idx], message:'Updated' });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };

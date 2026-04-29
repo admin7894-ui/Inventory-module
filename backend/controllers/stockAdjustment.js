@@ -91,91 +91,103 @@ exports.create = async (req, res) => {
     if (!body[PK]) body[PK] = generateId(TABLE);
     body.COMPANY_id = body.COMPANY_id || body.company_id;
 
-    const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
+    // ── 1. Basic Field Validation ───────────────────────────────
+    const requiredFields = ['bg_id', 'COMPANY_id', 'business_type_id', 'item_id', 'txn_type_id', 'inv_org_id', 'subinventory_id', 'uom_id', 'adjustment_date'];
+    for (const f of requiredFields) {
+      if (!body[f]) return res.status(400).json({ success: false, message: `${f.replace('_id', '').replace('COMPANY', 'Company')} is required` });
+    }
+
     const item = (db.item_master || []).find(i => i.item_id === body.item_id);
-    const isSerialControlled = item && (item.is_serial_controlled === 'Y' || item.is_serial_controlled === true);
+    if (!item) return res.status(400).json({ success: false, message: 'Invalid Item' });
+
+    const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
+    const isLotControlled = isYes(item.is_lot_controlled);
+    const isSerialControlled = isYes(item.is_serial_controlled);
+    const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
+
+    // ── 2. Lot/Serial Validation ────────────────────────────────
+    if (isLotControlled && !body.lot_id) {
+      return res.status(400).json({ success: false, message: 'Lot is required for this item' });
+    }
+    if (isSerialControlled) {
+      const serials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
+      if (serials.length === 0) return res.status(400).json({ success: false, message: 'Serials are required for this item' });
+      body.serial_ids = serials;
+    }
+
+    // ── 3. Stock Sufficiency Check ──────────────────────────────
+    // Get current stock info
+    const stocks = (db.item_stock_onhand || []).filter(s =>
+      String(s.item_id) === String(body.item_id) &&
+      String(s.inv_org_id) === String(body.inv_org_id) &&
+      String(s.subinventory_id) === String(body.subinventory_id) &&
+      (String(s.locator_id || '')) === (String(body.locator_id || '')) &&
+      (isLotControlled ? String(s.lot_id) === String(body.lot_id) : true)
+    );
+
+    let onhandQty = 0, availableQty = 0;
+    if (isSerialControlled) {
+      const validStock = stocks.filter(s => body.serial_ids.includes(s.serial_id));
+      onhandQty = validStock.length;
+      availableQty = validStock.filter(s => parseFloat(s.available_qty) > 0).length;
+    } else {
+      const s = stocks[0]; // Lot filtered above
+      onhandQty = s ? parseFloat(s.onhand_qty || 0) : 0;
+      availableQty = s ? parseFloat(s.available_qty || 0) : 0;
+    }
 
     if (isTransfer) {
-      // ── 1. Require destination org + subinventory ──
+      // Transfer Logic
       if (!body.to_inv_org_id || !body.to_subinventory_id) {
-        return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required for transfers' });
+        return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required' });
       }
 
-      // ── 2. Block source = destination ──
-      const sameOrg  = body.inv_org_id === body.to_inv_org_id;
-      const sameSub  = body.subinventory_id === body.to_subinventory_id;
-      const sameLoc  = (body.locator_id || '') === (body.to_locator_id || '');
-      if (sameOrg && sameSub && sameLoc) {
-        return res.status(400).json({ success: false, message: 'Source and Destination cannot be the same location' });
+      const requested = parseFloat(body.physical_qty || body.adjustment_qty || 0);
+      if (requested <= 0) return res.status(400).json({ success: false, message: 'Transfer quantity must be greater than 0' });
+      if (requested > availableQty) {
+        return res.status(400).json({ success: false, message: `Insufficient available stock (Available: ${availableQty})` });
       }
 
-      // ── 3. Ship Network check (only for inter-org transfers) ──
-      if (!sameOrg) {
-        const network = (db.ship_network || []).find(n =>
-          (n.from_inv_org_id === body.inv_org_id || n['Dropdown from_inv_org_id'] === body.inv_org_id) &&
-          n.to_inv_org_id === body.to_inv_org_id &&
-          (n.active_flag === 'Y' || n.active_flag === 'True' || n.active_flag === true)
-        );
-        if (!network) {
-          return res.status(400).json({ success: false, message: `No active Ship Network between ${body.inv_org_id} and ${body.to_inv_org_id}` });
-        }
+      // Block same loc
+      if (body.inv_org_id === body.to_inv_org_id && body.subinventory_id === body.to_subinventory_id && (body.locator_id || '') === (body.to_locator_id || '')) {
+        return res.status(400).json({ success: false, message: 'Source and Destination cannot be the same' });
       }
 
-      // ── 4. Validate Destination is mapped in Item Subinv Restriction ──
+      // Restriction check
       const destRestriction = (db.item_subinventory_restriction || []).find(r =>
-        String(r.item_id) === String(body.item_id) &&
+        isYes(r.active_flag) && String(r.item_id) === String(body.item_id) &&
         String(r.inv_org_id) === String(body.to_inv_org_id) &&
         String(r.subinventory_id) === String(body.to_subinventory_id) &&
         (!r.locator_id || !body.to_locator_id || String(r.locator_id) === String(body.to_locator_id))
       );
       if (!destRestriction) {
-        return res.status(400).json({ success: false, message: `Destination location is not mapped for this item in Item-Subinventory Restrictions` });
+        return res.status(400).json({ success: false, message: 'Destination location is not mapped/active for this item' });
       }
 
-      // ── 5. Stock Validation at Source ──
-      const stocks = (db.item_stock_onhand || []).filter(s =>
-        String(s.item_id) === String(body.item_id) &&
-        String(s.inv_org_id) === String(body.inv_org_id) &&
-        String(s.subinventory_id) === String(body.subinventory_id) &&
-        (String(s.locator_id || '')) === (String(body.locator_id || ''))
-      );
-
-      let availableQty = 0;
-      if (isSerialControlled) {
-        const selectedSerials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
-        body.serial_ids = selectedSerials;
-        body.adjustment_qty = selectedSerials.length;
-        const validSerials = stocks.filter(s => selectedSerials.includes(s.serial_id) && parseFloat(s.available_qty) > 0);
-        if (validSerials.length !== selectedSerials.length) {
-          return res.status(400).json({ success: false, message: 'One or more selected serials are not available in this location' });
-        }
-        availableQty = validSerials.length;
-      } else {
-        const lotStock = stocks.find(s => (s.lot_id || '') === (body.lot_id || ''));
-        availableQty = lotStock ? parseFloat(lotStock.available_qty || 0) : 0;
-        if (availableQty <= 0) {
-          return res.status(400).json({ success: false, message: `No stock available at selected source location` });
-        }
-        body.adjustment_qty = Math.abs(parseFloat(body.adjustment_qty || body.physical_qty || 0));
-      }
-
-      const requestedQty = body.adjustment_qty;
-      if (availableQty < requestedQty) {
-        return res.status(400).json({ success: false, message: `Insufficient stock (Requested: ${requestedQty}, Available: ${availableQty})` });
-      }
-
+      body.adjustment_qty = requested;
       body.transfer_flag = 'Y';
-      body.approval_status = 'APPROVED';
+      body.approval_status = 'APPROVED'; // Transfers are usually auto-approved or require different flow, keeping auto for now
       body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
     } else {
-      const adjQty = parseFloat(body.physical_qty || 0) - parseFloat(body.system_qty || 0);
-      body.adjustment_qty = adjQty;
+      // Adjustment Logic (IN / OUT / etc)
+      const physical = parseFloat(body.physical_qty || 0);
+      const system = parseFloat(body.system_qty || 0);
+      const netAdj = physical - system;
+      
+      if (netAdj < 0) {
+        // Reduction: ensure we have enough available
+        const reduction = Math.abs(netAdj);
+        if (reduction > availableQty) {
+          return res.status(400).json({ success: false, message: `Insufficient available stock for reduction (Avail: ${availableQty})` });
+        }
+      }
+
+      body.adjustment_qty = netAdj;
       body.approval_status = body.approval_status || 'PENDING';
       if (body.approval_status === 'APPROVED') body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
     }
 
     body.adjustment_value = (body.adjustment_qty * parseFloat(body.unit_cost || 0)).toFixed(4);
-    body.adjustment_date = body.adjustment_date || new Date().toISOString().split('T')[0];
     body.active_flag = 'Y';
     body.created_by = req.user?.username || MOCK_USER;
     body.updated_by = req.user?.username || MOCK_USER;

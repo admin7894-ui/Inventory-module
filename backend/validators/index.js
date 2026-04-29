@@ -38,7 +38,7 @@ const validate = (validator) => (req, res, next) => {
   if (!isValid) {
     return res.status(400).json({
       success: false,
-      message: 'Validation failed',
+      message: 'Please fix the highlighted errors',
       errors
     });
   }

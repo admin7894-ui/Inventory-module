@@ -1,4 +1,6 @@
-export const itemMasterValidation = {
+const db = require('../data/db');
+
+const itemMasterValidation = {
   bg_id: {
     required: true,
     message: "Business Group is required"
@@ -20,7 +22,7 @@ export const itemMasterValidation = {
 
   item_code: {
     required: true,
-    regex: /^[A-Z0-9][A-Z0-9-_]{0,18}[A-Z0-9]?$/, // Allow shorter codes
+    regex: /^[A-Z0-9][A-Z0-9-_]{0,18}[A-Z0-9]?$/,
     message: "Item Code must be valid"
   },
 
@@ -63,8 +65,51 @@ export const itemMasterValidation = {
   }
 };
 
-export const itemMasterDynamicValidation = (data) => {
+const validateItemMaster = (data, schema) => {
   const errors = {};
+
+  Object.keys(schema).forEach((field) => {
+    const rules = schema[field];
+    if (!rules) return;
+
+    const value = data[field];
+    const isValueEmpty = value === undefined || value === null || value === "";
+
+    if (rules.required && isValueEmpty) {
+      errors[field] = rules.message || `${field} is required`;
+      return;
+    }
+
+    if (isValueEmpty) return;
+
+    if (rules.minLength && String(value).length < rules.minLength) {
+      errors[field] = rules.message || `Min ${rules.minLength} characters required`;
+      return;
+    }
+
+    if (rules.regex && !rules.regex.test(String(value))) {
+      errors[field] = rules.message || `${field} format is invalid`;
+      return;
+    }
+
+    if (rules.min !== undefined && Number(value) < rules.min) {
+      errors[field] = rules.message || `${field} must be at least ${rules.min}`;
+      return;
+    }
+
+    if (rules.maxLength && String(value).length > rules.maxLength) {
+      errors[field] = rules.message || `${field} exceeds max length`;
+      return;
+    }
+  });
+
+  return errors;
+};
+
+const itemMasterDynamicValidation = (data) => {
+  const errors = {};
+
+  // Unique item_code check - Removed as we now auto-adjust in controller
 
   // PHYSICAL Items
   if (data.item_type === "PHYSICAL") {
@@ -111,43 +156,8 @@ export const itemMasterDynamicValidation = (data) => {
   return errors;
 };
 
-export const validateItemMaster = (data, schema) => {
-  const errors = {};
-
-  Object.keys(schema).forEach((field) => {
-    const rules = schema[field];
-    if (!rules) return;
-
-    const value = data[field];
-    const isValueEmpty = value === undefined || value === null || value === "";
-
-    if (rules.required && isValueEmpty) {
-      errors[field] = rules.message || `${field} is required`;
-      return;
-    }
-
-    if (isValueEmpty) return;
-
-    if (rules.minLength && String(value).length < rules.minLength) {
-      errors[field] = rules.message || `Min ${rules.minLength} characters required`;
-      return;
-    }
-
-    if (rules.regex && !rules.regex.test(String(value))) {
-      errors[field] = rules.message || `${field} format is invalid`;
-      return;
-    }
-
-    if (rules.min !== undefined && Number(value) < rules.min) {
-      errors[field] = rules.message || `${field} must be at least ${rules.min}`;
-      return;
-    }
-
-    if (rules.maxLength && String(value).length > rules.maxLength) {
-      errors[field] = rules.message || `${field} exceeds max length`;
-      return;
-    }
-  });
-
-  return errors;
+module.exports = {
+  itemMasterValidation,
+  validateItemMaster,
+  itemMasterDynamicValidation
 };

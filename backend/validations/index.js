@@ -109,7 +109,7 @@ const validateMiddleware = (table) => (req, res, next) => {
   if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
     const errors = validateRequest(table, req.body);
     if (Object.keys(errors).length > 0) {
-      return res.status(400).json({ success: false, errors, message: 'Validation failed' });
+      return res.status(400).json({ success: false, errors, message: 'Please fix the highlighted errors' });
     }
   }
   next();
