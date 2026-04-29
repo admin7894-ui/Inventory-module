@@ -8,14 +8,8 @@ export const stockAdjustmentValidation = {
   item_id: { required: true, message: "Item is required" },
   txn_type_id: { required: true, message: "Adjustment Type is required" },
   inv_org_id: { required: true, message: "Organization is required" },
-  subinventory_id: { 
-    requiredIf: (data) => data.txn_action === "TRANSFER", 
-    message: "Subinventory is required" 
-  },
-  locator_id: { 
-    requiredIf: (data) => data.txn_action === "TRANSFER", 
-    message: "Locator is required" 
-  },
+  subinventory_id: { required: true, message: "Subinventory is required" },
+  locator_id: { required: true, message: "Locator is required" },
   to_inv_org_id: {
     requiredIf: (data) => data.txn_action === "TRANSFER",
     message: "Destination Org is required"

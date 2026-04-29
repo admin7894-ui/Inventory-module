@@ -90,6 +90,7 @@ exports.create = async (req, res) => {
     const body = { ...req.body };
     if (!body[PK]) body[PK] = generateId(TABLE);
     body.COMPANY_id = body.COMPANY_id || body.company_id;
+    const fieldErrors = {};
 
     // ── 1. Basic Field Validation ───────────────────────────────
     const requiredFields = ['bg_id', 'COMPANY_id', 'business_type_id', 'item_id', 'txn_type_id', 'inv_org_id', 'subinventory_id', 'uom_id', 'adjustment_date'];
@@ -98,20 +99,20 @@ exports.create = async (req, res) => {
     }
 
     const item = (db.item_master || []).find(i => i.item_id === body.item_id);
-    if (!item) return res.status(400).json({ success: false, message: 'Invalid Item' });
+    if (!item && body.item_id) fieldErrors.item_id = 'Invalid Item';
 
     const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
-    const isLotControlled = isYes(item.is_lot_controlled);
-    const isSerialControlled = isYes(item.is_serial_controlled);
+    const isLotControlled = isYes(item?.is_lot_controlled);
+    const isSerialControlled = isYes(item?.is_serial_controlled);
     const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
 
     // ── 2. Lot/Serial Validation ────────────────────────────────
     if (isLotControlled && !body.lot_id) {
-      return res.status(400).json({ success: false, message: 'Lot is required for this item' });
+      fieldErrors.lot_id = 'Lot is required for this item';
     }
     if (isSerialControlled) {
       const serials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
-      if (serials.length === 0) return res.status(400).json({ success: false, message: 'Serials are required for this item' });
+      if (serials.length === 0) fieldErrors.serial_ids = 'Serials are required for this item';
       body.serial_ids = serials;
     }
 
@@ -138,19 +139,22 @@ exports.create = async (req, res) => {
 
     if (isTransfer) {
       // Transfer Logic
-      if (!body.to_inv_org_id || !body.to_subinventory_id) {
-        return res.status(400).json({ success: false, message: 'Destination Org and Subinventory are required' });
-      }
+      if (!body.to_inv_org_id) fieldErrors.to_inv_org_id = 'Destination Org is required';
+      if (!body.to_subinventory_id) fieldErrors.to_subinventory_id = 'Destination Subinventory is required';
+      if (!body.to_locator_id) fieldErrors.to_locator_id = 'Destination Locator is required';
+      if (!body.subinventory_id) fieldErrors.subinventory_id = 'Subinventory is required';
+      if (!body.locator_id) fieldErrors.locator_id = 'Locator is required';
 
       const requested = parseFloat(body.physical_qty || body.adjustment_qty || 0);
-      if (requested <= 0) return res.status(400).json({ success: false, message: 'Transfer quantity must be greater than 0' });
+      if (requested <= 0) fieldErrors.physical_qty = 'Transfer quantity must be > 0';
       if (requested > availableQty) {
-        return res.status(400).json({ success: false, message: `Insufficient available stock (Available: ${availableQty})` });
+        fieldErrors.physical_qty = 'Insufficient stock';
       }
 
       // Block same loc
-      if (body.inv_org_id === body.to_inv_org_id && body.subinventory_id === body.to_subinventory_id && (body.locator_id || '') === (body.to_locator_id || '')) {
-        return res.status(400).json({ success: false, message: 'Source and Destination cannot be the same' });
+      if (body.inv_org_id === body.to_inv_org_id && body.subinventory_id === body.to_subinventory_id && (body.locator_id || '') === (body.to_locator_id || '') && body.subinventory_id) {
+        fieldErrors.to_subinventory_id = 'Source and destination cannot be same';
+        fieldErrors.to_locator_id = 'Source and destination cannot be same';
       }
 
       // Restriction check
@@ -161,7 +165,7 @@ exports.create = async (req, res) => {
         (!r.locator_id || !body.to_locator_id || String(r.locator_id) === String(body.to_locator_id))
       );
       if (!destRestriction) {
-        return res.status(400).json({ success: false, message: 'Destination location is not mapped/active for this item' });
+        fieldErrors.to_subinventory_id = 'Destination location is not mapped/active for this item';
       }
 
       body.adjustment_qty = requested;
@@ -178,13 +182,17 @@ exports.create = async (req, res) => {
         // Reduction: ensure we have enough available
         const reduction = Math.abs(netAdj);
         if (reduction > availableQty) {
-          return res.status(400).json({ success: false, message: `Insufficient available stock for reduction (Avail: ${availableQty})` });
+          fieldErrors.physical_qty = 'Insufficient stock';
         }
       }
 
       body.adjustment_qty = netAdj;
       body.approval_status = body.approval_status || 'PENDING';
       if (body.approval_status === 'APPROVED') body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      return res.status(400).json({ success: false, errors: fieldErrors });
     }
 
     body.adjustment_value = (body.adjustment_qty * parseFloat(body.unit_cost || 0)).toFixed(4);
@@ -234,3 +242,6 @@ exports.remove = (req, res) => {
     res.json({ success: true, data: del });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
+
+
+

@@ -42,17 +42,7 @@ export default function StockAdjustmentPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
-
-  // Sync System Qty whenever currentStockInfo changes
-  useEffect(() => {
-    if (currentStockInfo) {
-      if (formData.system_qty !== currentStockInfo.onhand_qty) {
-        setFormData(p => ({ ...p, system_qty: currentStockInfo.onhand_qty || 0 }));
-      }
-    } else if (formData.system_qty !== '') {
-      setFormData(p => ({ ...p, system_qty: '' }));
-    }
-  }, [currentStockInfo]);
+  const [stockSnapshot, setStockSnapshot] = useState(null)
 
   // Dropdowns
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -106,15 +96,83 @@ export default function StockAdjustmentPage() {
   }, [formData.item_id, allStock])
 
   const currentStockInfo = useMemo(() => {
-    if (!formData.item_id || !formData.inv_org_id || !formData.subinventory_id) return null
-    return itemStock.find(s =>
-      String(s.inv_org_id) === String(formData.inv_org_id) &&
-      String(s.subinventory_id) === String(formData.subinventory_id) &&
-      (String(s.locator_id || '')) === (String(formData.locator_id || '')) &&
-      (isLotControlled ? String(s.lot_id) === String(formData.lot_id) : true) &&
-      (isSerialControlled ? (formData.serial_ids?.includes(s.serial_id) || s.serial_id === formData.serial_id) : true)
-    )
-  }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, formData.locator_id, formData.lot_id, formData.serial_id, formData.serial_ids, itemStock, isLotControlled, isSerialControlled])
+    return stockSnapshot
+  }, [stockSnapshot])
+
+  useEffect(() => {
+    let active = true
+
+    const fetchSystemQty = async () => {
+      const hasBaseSelection =
+        formData.item_id &&
+        formData.inv_org_id &&
+        formData.subinventory_id &&
+        formData.locator_id
+
+      if (!hasBaseSelection) {
+        if (!active) return
+        setStockSnapshot(null)
+        setFormData(prev => {
+          if (String(prev.system_qty ?? '') === '0') return prev
+          return { ...prev, system_qty: 0 }
+        })
+        return
+      }
+
+      try {
+        const params = {
+          limit: 1000,
+          item_id: formData.item_id,
+          inv_org_id: formData.inv_org_id,
+          subinventory_id: formData.subinventory_id,
+          locator_id: formData.locator_id
+        }
+
+        if (isLotControlled && formData.lot_id) params.lot_id = formData.lot_id
+        const resp = await itemStockApi.getAll(params)
+        if (!active) return
+
+        let rows = resp?.data || []
+        if (isSerialControlled) {
+          const selectedSerials = formData.serial_ids?.length ? formData.serial_ids : (formData.serial_id ? [formData.serial_id] : [])
+          if (selectedSerials.length) {
+            rows = rows.filter(r => selectedSerials.includes(r.serial_id))
+          }
+        }
+
+        const onhand_qty = rows.reduce((sum, r) => sum + parseFloat(r.onhand_qty || 0), 0)
+        const reserved_qty = rows.reduce((sum, r) => sum + parseFloat(r.reserved_qty || 0), 0)
+        const available_qty = rows.reduce((sum, r) => sum + parseFloat(r.available_qty || 0), 0)
+
+        const nextSnapshot = { onhand_qty, reserved_qty, available_qty }
+        setStockSnapshot(nextSnapshot)
+        setFormData(prev => {
+          if (String(prev.system_qty ?? '') === String(onhand_qty)) return prev
+          return { ...prev, system_qty: onhand_qty }
+        })
+      } catch {
+        if (!active) return
+        setStockSnapshot(null)
+        setFormData(prev => {
+          if (String(prev.system_qty ?? '') === '0') return prev
+          return { ...prev, system_qty: 0 }
+        })
+      }
+    }
+
+    fetchSystemQty()
+    return () => { active = false }
+  }, [
+    formData.item_id,
+    formData.inv_org_id,
+    formData.subinventory_id,
+    formData.locator_id,
+    formData.lot_id,
+    formData.serial_id,
+    formData.serial_ids,
+    isLotControlled,
+    isSerialControlled
+  ])
 
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
@@ -391,11 +449,11 @@ export default function StockAdjustmentPage() {
                     <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} disabled={view === 'view'}
                       options={filteredOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
                   </Field>
-                  <Field label="Subinventory" required={isTransfer} error={errors.subinventory_id}>
+                  <Field label="Subinventory" required error={errors.subinventory_id}>
                     <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} disabled={view === 'view'}
                       options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                   </Field>
-                  <Field label="Locator (Bin)" required={isTransfer} error={errors.locator_id}>
+                  <Field label="Locator (Bin)" required error={errors.locator_id}>
                     <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view' || !formData.subinventory_id}
                       options={filteredSourceLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
                   </Field>
@@ -443,7 +501,7 @@ export default function StockAdjustmentPage() {
                   </div>
                   {!isTransfer && (
                     <Field label="System Qty">
-                      <Input type="number" value={formData.system_qty} readOnly className="bg-gray-100" />
+                      <Input type="number" value={formData.system_qty ?? 0} readOnly disabled />
                     </Field>
                   )}
                   <Field label={isTransfer ? "Transfer Qty" : "Physical Qty"} required error={errors.physical_qty}>
