@@ -19,15 +19,16 @@ const COLUMNS = [
   { key: 'opening_qty', label: 'Qty' },
   { key: 'unit_cost', label: 'Unit Cost' },
   { key: 'total_value', label: 'Total Value' },
-  { key: 'active_flag', label: 'Status', render: (v) => (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-      v === 'Y' || v === 'True' || v === true 
-      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-      : 'bg-rose-100 text-rose-700 border border-rose-200'
-    }`}>
-      {v === 'Y' || v === 'True' || v === true ? 'Active' : 'Inactive'}
-    </span>
-  )},
+  {
+    key: 'active_flag', label: 'Status', render: (v) => (
+      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${v === 'Y' || v === 'True' || v === true
+          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+          : 'bg-rose-100 text-rose-700 border border-rose-200'
+        }`}>
+        {v === 'Y' || v === 'True' || v === true ? 'Active' : 'Inactive'}
+      </span>
+    )
+  },
 ]
 
 
@@ -43,21 +44,21 @@ export default function OpeningStockPage() {
   const [serialMode, setSerialMode] = useState('auto') // 'auto' | 'manual'
 
   // Dropdowns
-  const { options: modules }       = useDropdownData(moduleApi, 'mod_dd')
+  const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
-  const { options: subinventories }= useDropdownData(subinventoryApi, 'sub_dd')
-  const { options: locators }      = useDropdownData(locatorApi, 'loc2_dd')
-  const { options: allItems }      = useDropdownData(itemMasterApi, 'item_dd')
-  const { options: uoms }          = useDropdownData(uomApi, 'uom_dd')
-  const { options: itemTypes }     = useDropdownData(itemTypeApi, 'itype_dd')
-  const { options: txnReasons }    = useDropdownData(transactionReasonApi, 'txnr_dd')
-  const { options: assignments }   = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
-  const { options: restrictions }  = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
+  const { options: subinventories } = useDropdownData(subinventoryApi, 'sub_dd')
+  const { options: locators } = useDropdownData(locatorApi, 'loc2_dd')
+  const { options: allItems } = useDropdownData(itemMasterApi, 'item_dd')
+  const { options: uoms } = useDropdownData(uomApi, 'uom_dd')
+  const { options: itemTypes } = useDropdownData(itemTypeApi, 'itype_dd')
+  const { options: txnReasons } = useDropdownData(transactionReasonApi, 'txnr_dd')
+  const { options: assignments } = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
+  const { options: restrictions } = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
 
   // Filter reasons: active + category = 'OPENING'
   const filteredReasons = useMemo(() => {
-    return (txnReasons || []).filter(r => 
-      (r.active_flag === 'Y' || r.active_flag === 'True' || r.active_flag === true) && 
+    return (txnReasons || []).filter(r =>
+      (r.active_flag === 'Y' || r.active_flag === 'True' || r.active_flag === true) &&
       r.category === 'OPENING'
     )
   }, [txnReasons])
@@ -75,7 +76,7 @@ export default function OpeningStockPage() {
       const isAssigned = assignments.some(a => String(a.item_id) === String(item.item_id))
       // Check if item has at least one Subinventory restriction
       const hasRestrictions = restrictions.some(r => String(r.item_id) === String(item.item_id))
-      
+
       return isAssigned && hasRestrictions
     })
   }, [allItems, itemTypes, assignments, restrictions])
@@ -122,8 +123,8 @@ export default function OpeningStockPage() {
 
   const filteredSubinventories = useMemo(() => {
     if (!formData.item_id || !formData.inv_org_id || !subinventories?.length || !restrictions?.length) return []
-    const itemRestrictions = restrictions.filter(r => 
-      String(r.item_id) === String(formData.item_id) && 
+    const itemRestrictions = restrictions.filter(r =>
+      String(r.item_id) === String(formData.item_id) &&
       String(r.inv_org_id) === String(formData.inv_org_id)
     )
     return subinventories.filter(s => itemRestrictions.some(r => String(r.subinventory_id) === String(s.subinventory_id)))
@@ -131,8 +132,8 @@ export default function OpeningStockPage() {
 
   const filteredLocators = useMemo(() => {
     if (!formData.item_id || !formData.inv_org_id || !formData.subinventory_id || !locators?.length || !restrictions?.length) return []
-    const itemRestrictions = restrictions.filter(r => 
-      String(r.item_id) === String(formData.item_id) && 
+    const itemRestrictions = restrictions.filter(r =>
+      String(r.item_id) === String(formData.item_id) &&
       String(r.inv_org_id) === String(formData.inv_org_id) &&
       String(r.subinventory_id) === String(formData.subinventory_id)
     )
@@ -203,10 +204,10 @@ export default function OpeningStockPage() {
   }, [isSerialControlled, serialMode, setField])
 
   const handleCreate = () => {
-    setFormData({ 
-      active_flag: 'Y', 
-      effective_from: new Date().toISOString().split('T')[0], 
-      opening_date: new Date().toISOString().split('T')[0] 
+    setFormData({
+      active_flag: 'Y',
+      effective_from: new Date().toISOString().split('T')[0],
+      opening_date: new Date().toISOString().split('T')[0]
     })
     setSerialInputs([])
     setSerialMode('auto')
@@ -219,14 +220,14 @@ export default function OpeningStockPage() {
 
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    
+
     const trimmedData = Object.fromEntries(
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     );
     const { errors: valErrors, isValid } = validate('opening_stock', trimmedData, {
       isLotControlled, isSerialControlled, serialMode, serialInputs
     })
-    
+
     setErrors(valErrors)
 
     if (!isValid) {
@@ -244,7 +245,7 @@ export default function OpeningStockPage() {
       if (view === 'edit') await table.update(selected['opening_stock_id'], payload)
       else await table.create(payload)
       handleBack()
-    } catch {}
+    } catch { }
   }
 
   const handleDelete = async () => {
@@ -359,7 +360,7 @@ export default function OpeningStockPage() {
                 </label>
               </div>
             )}
-            
+
             {serialMode === 'manual' && view === 'create' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {serialInputs.map((val, idx) => (
@@ -368,7 +369,7 @@ export default function OpeningStockPage() {
                 ))}
               </div>
             )}
-            
+
             {view !== 'create' && (
               <div className="bg-amber-50 p-3 rounded text-sm text-amber-800 border border-amber-200">
                 Serial numbers are generated and tracked in Serial Master.

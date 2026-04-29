@@ -12,11 +12,11 @@ export {
 // Module validators
 export { validateLegalEntity } from './legalEntityValidation';
 export { validateOperatingUnit, generateOUShortCode } from './operatingUnitValidation';
-export { validateItemMaster } from './itemMasterValidation';
+export { validateItemMaster } from './itemMaster.validation';
 export { validateInventoryTransaction } from './inventoryTransactionValidation';
 export { validateItemStock } from './itemStockValidation';
-export { validateOpeningStock } from './openingStockValidation';
-export { validateStockAdjustment } from './stockAdjustmentValidation';
+export { validateOpeningStock } from './openingStock.validation';
+export { validateStockAdjustment } from './stockAdjustment.validation';
 
 // ── Legacy Schema-Based Validation (used by TransactionTypePage, etc.) ──
 export const validators = {

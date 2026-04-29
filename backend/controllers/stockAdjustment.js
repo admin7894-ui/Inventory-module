@@ -4,7 +4,7 @@ const inventoryEngine = require('../services/inventoryEngine');
 const MOCK_USER = 'admin';
 
 const TABLE = 'stock_adjustment';
-const PK    = 'adjustment_id';
+const PK = 'adjustment_id';
 
 function applyRLS(data, user) {
   if (!user || !user.company_id) return data;
@@ -45,15 +45,15 @@ exports.getAll = (req, res) => {
     });
     const { search, page = 1, limit = 50 } = req.query;
     let filtered = data;
-    if (search) { const q = search.toLowerCase(); filtered = filtered.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q))); }
+    if (search) { const q = search.toLowerCase(); filtered = filtered.filter(r => Object.values(r).some(v => String(v || '').toLowerCase().includes(q))); }
     const total = filtered.length, p = parseInt(page), l = parseInt(limit);
-    res.json({ success:true, data:filtered.slice((p-1)*l,p*l), total, page:p, pages:Math.ceil(total/l) });
-  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+    res.json({ success: true, data: filtered.slice((p - 1) * l, p * l), total, page: p, pages: Math.ceil(total / l) });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
 exports.getById = (req, res) => {
-  const row = (db[TABLE]||[]).find(r => r[PK] === req.params.id);
-  if (!row) return res.status(404).json({ success:false, message:'Not found' });
+  const row = (db[TABLE] || []).find(r => r[PK] === req.params.id);
+  if (!row) return res.status(404).json({ success: false, message: 'Not found' });
   const item = (db.item_master || []).find(i => i.item_id === row.item_id);
   const company = (db.company || []).find(c => c.company_id === row.COMPANY_id || c.company_id === row.company_id);
   const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
@@ -74,7 +74,7 @@ exports.getById = (req, res) => {
     subinventory_name: subinv ? subinv.subinventory_name : '',
     locator_name: locator ? locator.locator_name : ''
   };
-  res.json({ success:true, data });
+  res.json({ success: true, data });
 };
 
 async function autoCreateTransaction(adj, user) {
@@ -173,7 +173,7 @@ exports.create = async (req, res) => {
       const physical = parseFloat(body.physical_qty || 0);
       const system = parseFloat(body.system_qty || 0);
       const netAdj = physical - system;
-      
+
       if (netAdj < 0) {
         // Reduction: ensure we have enough available
         const reduction = Math.abs(netAdj);
@@ -228,9 +228,9 @@ exports.update = async (req, res) => {
 
 exports.remove = (req, res) => {
   try {
-    const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
-    if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
-    const [del] = db[TABLE].splice(idx,1);
-    res.json({ success:true, data:del });
-  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+    const idx = (db[TABLE] || []).findIndex(r => r[PK] === req.params.id);
+    if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
+    const [del] = db[TABLE].splice(idx, 1);
+    res.json({ success: true, data: del });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };

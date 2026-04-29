@@ -3,11 +3,7 @@ import toast from 'react-hot-toast'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import {
-  stockAdjustmentValidation,
-  validateStockAdjustment,
-  stockAdjustmentDynamicValidation
-} from '../validations/stockAdjustmentValidation'
+import { validateStockAdjustment } from '../validations/stockAdjustment.validation'
 import {
   DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog,
   Input, AuditFields, MultiSelect, SectionHeader
@@ -30,8 +26,8 @@ const COLUMNS = [
   {
     key: 'approval_status', label: 'Status', render: (v) => (
       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${v === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-          v === 'REJECTED' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
-            'bg-amber-100 text-amber-700 border border-amber-200'
+        v === 'REJECTED' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+          'bg-amber-100 text-amber-700 border border-amber-200'
         }`}>
         {v || 'PENDING'}
       </span>
@@ -75,8 +71,8 @@ export default function StockAdjustmentPage() {
 
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }));
-    setErrors(p => { const n = { ...p }; delete n[k]; return n; });
-  }, [])
+    if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
+  }, [errors])
 
   const filteredItems = useMemo(() => {
     if (!items?.length || !assignments?.length || !restrictions?.length || !formData.COMPANY_id) return []
@@ -108,6 +104,14 @@ export default function StockAdjustmentPage() {
       (isSerialControlled ? (formData.serial_ids?.includes(s.serial_id) || s.serial_id === formData.serial_id) : true)
     )
   }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, formData.locator_id, formData.lot_id, formData.serial_id, formData.serial_ids, itemStock, isLotControlled, isSerialControlled])
+
+  const validateField = useCallback((k, v) => {
+    const val = typeof v === 'string' ? v.trim() : v;
+    const { errors: newErrors } = validateStockAdjustment({ ...formData, [k]: val }, {
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled
+    })
+    setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
+  }, [formData, currentStockInfo, isLotControlled, isSerialControlled])
 
   const handleTxnTypeChange = (tid) => {
     const type = (txnTypes || []).find(t => String(t.txn_type_id) === String(tid));
@@ -297,23 +301,24 @@ export default function StockAdjustmentPage() {
 
   const handleSubmit = async (ev) => {
     ev.preventDefault()
-    
-    // 1. Static validation based on schema
-    let valErrors = validateStockAdjustment(formData, stockAdjustmentValidation)
 
-    // 2. Dynamic validation for Stock/Lot/Serial
-    const dynamicErrors = stockAdjustmentDynamicValidation(
-      formData, 
-      currentStockInfo, 
-      isLotControlled, 
-      isSerialControlled
+    const trimmedData = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     )
+    const { errors: valErrors, isValid } = validateStockAdjustment(trimmedData, {
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled
+    })
 
-    const finalErrors = { ...valErrors, ...dynamicErrors }
+    setErrors(valErrors)
 
-    if (Object.keys(finalErrors).length) { 
-      setErrors(finalErrors); 
-      return toast.error('Please fix validation errors') 
+    if (!isValid) {
+      const errorList = Object.values(valErrors).join('\n• ')
+      toast.error(`Please fix the following errors:\n• ${errorList}`, { duration: 4000 })
+      setTimeout(() => {
+        const firstError = document.querySelector('[data-error="true"], .border-red-500')
+        if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+      return
     }
 
     try {
@@ -327,7 +332,14 @@ export default function StockAdjustmentPage() {
       if (view === 'edit') await table.update(selected['adjustment_id'], payload)
       else await table.create(payload)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors)
+        toast.error(Object.values(err.response.data.errors)[0] || 'Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   if (view !== 'list') {
