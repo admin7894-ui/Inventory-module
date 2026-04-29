@@ -18,7 +18,15 @@ export default function LoginPage() {
       const res = await login(form.username, form.password)
       if (res.success) { toast.success('Welcome back!'); navigate('/') }
       else toast.error(res.message || 'Login failed')
-    } catch (err) { toast.error(err.response?.data?.message || 'Login failed') }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
+    }
     finally { setLoading(false) }
   }
 
@@ -81,3 +89,4 @@ export default function LoginPage() {
     </div>
   )
 }
+

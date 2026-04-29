@@ -83,7 +83,11 @@ export default function BrandPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    if (typeof v !== 'undefined' && v.clearError) v.clearError(k)
+    if (typeof setErrors === 'function') setErrors(p => { const n = {...p}; delete n[k]; return n })
+  }
 
   const handleCreate = () => {
     setFormData({ 
@@ -109,7 +113,13 @@ export default function BrandPage() {
       }
       handleBack()
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
     }
   }
 
@@ -128,7 +138,7 @@ export default function BrandPage() {
             <Field label="Brand Id (Auto-gen)"><Input value={formData.brand_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Brand Name" required error={v.fieldError('brand_name')}>
+            <Field label="Brand Name" required error={v.errors.brand_name}>
               <Input value={formData.brand_name} 
                 onChange={e => {
                   const val = e.target.value;
@@ -139,42 +149,42 @@ export default function BrandPage() {
                   }))
                 }}
                 onBlur={() => v.handleBlur('brand_name', formData)}
-                error={v.fieldError('brand_name')}
+                error={v.errors.brand_name}
               />
             </Field>
 
-            <Field label="Brand Code" required error={v.fieldError('brand_code')}>
+            <Field label="Brand Code" required error={v.errors.brand_code}>
               <Input value={formData.brand_code} 
                 onChange={e => setField('brand_code', e.target.value)} 
                 onBlur={() => v.handleBlur('brand_code', formData)}
-                error={v.fieldError('brand_code')}
+                error={v.errors.brand_code}
               />
             </Field>
 
-            <Field label="Description" error={v.fieldError('description')}>
-              <textarea className={`input ${v.fieldError('description') ? 'border-red-500' : ''}`}
+            <Field label="Description" error={v.errors.description}>
+              <textarea className={`input ${v.errors.description ? 'border-red-500' : ''}`}
                 rows={3} value={formData.description||''} 
                 onChange={e => setField('description',e.target.value)} 
                 onBlur={() => v.handleBlur('description', formData)}
                 disabled={view==='view'} />
-              {v.fieldError('description') && <p className="text-red-500 text-xs mt-1">{v.fieldError('description')}</p>}
+              {v.errors.description && <p className="text-red-500 text-xs mt-1">{v.errors.description}</p>}
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v_val => setField('effective_from', v_val)} 
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')}
+                error={v.errors.effective_from}
               />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v_val => setField('effective_to', v_val)} 
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')}
+                error={v.errors.effective_to}
               />
             </Field>
 
@@ -215,3 +225,6 @@ export default function BrandPage() {
     </>
   )
 }
+
+
+

@@ -114,7 +114,13 @@ export default function SubinventoryPage() {
       }
       handleBack()
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
     }
   }
 
@@ -133,7 +139,7 @@ export default function SubinventoryPage() {
             <Field label="Subinventory Id (Auto-gen)"><Input value={formData.subinventory_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Inv Org Id" required error={v.fieldError('inv_org_id')}>
+            <Field label="Inv Org Id" required error={v.errors.inv_org_id}>
               <Select value={formData.inv_org_id} 
                 onChange={v_val => setField('inv_org_id', v_val)} 
                 onBlur={() => v.handleBlur('inv_org_id', formData)}
@@ -143,7 +149,7 @@ export default function SubinventoryPage() {
               />
             </Field>
 
-            <Field label="Subinventory Name" required error={v.fieldError('subinventory_name')}>
+            <Field label="Subinventory Name" required error={v.errors.subinventory_name}>
               <Input value={formData.subinventory_name} 
                 onChange={e => {
                   const val = e.target.value;
@@ -154,21 +160,21 @@ export default function SubinventoryPage() {
                   }))
                 }}
                 onBlur={() => v.handleBlur('subinventory_name', formData)}
-                error={v.fieldError('subinventory_name')}
+                error={v.errors.subinventory_name}
                 disabled={!formData.inv_org_id || view === 'view'}
               />
             </Field>
 
-            <Field label="Subinventory Code" required error={v.fieldError('subinventory_code')}>
+            <Field label="Subinventory Code" required error={v.errors.subinventory_code}>
               <Input value={formData.subinventory_code} 
                 onChange={e => setField('subinventory_code', e.target.value)} 
                 onBlur={() => v.handleBlur('subinventory_code', formData)}
-                error={v.fieldError('subinventory_code')}
+                error={v.errors.subinventory_code}
                 disabled={!formData.inv_org_id || view === 'view'}
               />
             </Field>
 
-            <Field label="Zone" required error={v.fieldError('zone_id')}>
+            <Field label="Zone" required error={v.errors.zone_id}>
               <Select value={formData.zone_id} 
                 onChange={v_val => setField('zone_id', v_val)} 
                 onBlur={() => v.handleBlur('zone_id', formData)}
@@ -177,7 +183,7 @@ export default function SubinventoryPage() {
               />
             </Field>
 
-            <Field label="Material Status" required error={v.fieldError('material_status')}>
+            <Field label="Material Status" required error={v.errors.material_status}>
               <Select value={formData.material_status} 
                 onChange={v_val => setField('material_status', v_val)} 
                 options={[
@@ -191,19 +197,19 @@ export default function SubinventoryPage() {
               />
             </Field>
 
-            <Field label="Max Capacity Kg" required error={v.fieldError('max_capacity_kg')}>
+            <Field label="Max Capacity Kg" required error={v.errors.max_capacity_kg}>
               <Input type="number" value={formData.max_capacity_kg} 
                 onChange={e => setField('max_capacity_kg', e.target.value)} 
                 onBlur={() => v.handleBlur('max_capacity_kg', formData)}
-                error={v.fieldError('max_capacity_kg')}
+                error={v.errors.max_capacity_kg}
               />
             </Field>
 
-            <Field label="Current Utilization Pct" error={v.fieldError('current_utilization_pct')}>
+            <Field label="Current Utilization Pct" error={v.errors.current_utilization_pct}>
               <Input type="number" value={formData.current_utilization_pct} 
                 onChange={e => setField('current_utilization_pct', e.target.value)} 
                 onBlur={() => v.handleBlur('current_utilization_pct', formData)}
-                error={v.fieldError('current_utilization_pct')}
+                error={v.errors.current_utilization_pct}
               />
             </Field>
 
@@ -211,19 +217,19 @@ export default function SubinventoryPage() {
             
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v_val => setField('effective_from', v_val)} 
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')}
+                error={v.errors.effective_from}
               />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v_val => setField('effective_to', v_val)} 
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')}
+                error={v.errors.effective_to}
               />
             </Field>
 
@@ -264,3 +270,5 @@ export default function SubinventoryPage() {
     </>
   )
 }
+
+

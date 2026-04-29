@@ -106,7 +106,15 @@ export default function IntercompanyPage() {
       if (view === 'edit') await table.update(selected['interco_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -129,66 +137,66 @@ export default function IntercompanyPage() {
             <Field label="Interco Id (Auto-gen)"><Input value={formData.interco_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
             
-            <Field label="Ship OU" required error={v.fieldError('ship_ou_id')}>
+            <Field label="Ship OU" required error={v.errors.ship_ou_id}>
               <Select value={formData.ship_ou_id} 
                 onChange={v => setField('ship_ou_id', v)} 
                 onBlur={() => v.handleBlur('ship_ou_id', formData)}
-                error={v.fieldError('ship_ou_id')}
+                error={v.errors.ship_ou_id}
                 options={dropdowns.operatingUnit?.map(r => ({ value: r.op_id, label: r.ou_name || r.op_id }))} />
             </Field>
 
-            <Field label="Sell OU" required error={v.fieldError('sell_ou_id')}>
+            <Field label="Sell OU" required error={v.errors.sell_ou_id}>
               <Select value={formData.sell_ou_id} 
                 onChange={v => setField('sell_ou_id', v)} 
                 onBlur={() => v.handleBlur('sell_ou_id', formData)}
-                error={v.fieldError('sell_ou_id')}
+                error={v.errors.sell_ou_id}
                 options={dropdowns.operatingUnit?.map(r => ({ value: r.op_id, label: r.ou_name || r.op_id }))} />
             </Field>
 
-            <Field label="Relation Type" required error={v.fieldError('relation_type')}>
+            <Field label="Relation Type" required error={v.errors.relation_type}>
               <Select value={formData.relation_type} 
                 onChange={v => setField('relation_type', v)} 
                 onBlur={() => v.handleBlur('relation_type', formData)}
-                error={v.fieldError('relation_type')}
+                error={v.errors.relation_type}
                 options={["Internal", "External"].map(o => ({ value: o, label: o }))} />
             </Field>
 
-            <Field label="Description" error={v.fieldError('description')}>
-              <textarea className={`input ${v.fieldError('description') ? 'border-red-500' : ''}`} 
+            <Field label="Description" error={v.errors.description}>
+              <textarea className={`input ${v.errors.description ? 'border-red-500' : ''}`} 
                 disabled={view === 'view'} rows={3} 
                 value={formData.description || ''} 
                 onChange={e => setField('description', e.target.value)}
                 onBlur={() => v.handleBlur('description', formData)} />
             </Field>
 
-            <Field label="AR Inv Method" required error={v.fieldError('ar_inv_method_id')}>
+            <Field label="AR Inv Method" required error={v.errors.ar_inv_method_id}>
               <Input value={formData.ar_inv_method_id} 
                 onChange={e => setField('ar_inv_method_id', e.target.value)}
                 onBlur={() => v.handleBlur('ar_inv_method_id', formData)}
-                error={v.fieldError('ar_inv_method_id')} />
+                error={v.errors.ar_inv_method_id} />
             </Field>
 
-            <Field label="AP Inv Method" required error={v.fieldError('ap_inv_method_id')}>
+            <Field label="AP Inv Method" required error={v.errors.ap_inv_method_id}>
               <Input value={formData.ap_inv_method_id} 
                 onChange={e => setField('ap_inv_method_id', e.target.value)}
                 onBlur={() => v.handleBlur('ap_inv_method_id', formData)}
-                error={v.fieldError('ap_inv_method_id')} />
+                error={v.errors.ap_inv_method_id} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v => setField('effective_from', v)}
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')} />
+                error={v.errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v => setField('effective_to', v)}
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')} />
+                error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -228,3 +236,5 @@ export default function IntercompanyPage() {
     </>
   )
 }
+
+

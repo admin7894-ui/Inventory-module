@@ -8,7 +8,14 @@ export const stockAdjustmentValidation = {
   item_id: { required: true, message: "Item is required" },
   txn_type_id: { required: true, message: "Adjustment Type is required" },
   inv_org_id: { required: true, message: "Organization is required" },
-  subinventory_id: { required: true, message: "Subinventory is required" },
+  subinventory_id: { 
+    requiredIf: (data) => data.txn_action === "TRANSFER", 
+    message: "Subinventory is required" 
+  },
+  locator_id: { 
+    requiredIf: (data) => data.txn_action === "TRANSFER", 
+    message: "Locator is required" 
+  },
   to_inv_org_id: {
     requiredIf: (data) => data.txn_action === "TRANSFER",
     message: "Destination Org is required"
@@ -17,9 +24,14 @@ export const stockAdjustmentValidation = {
     requiredIf: (data) => data.txn_action === "TRANSFER",
     message: "Destination Subinventory is required"
   },
+  to_locator_id: {
+    requiredIf: (data) => data.txn_action === "TRANSFER",
+    message: "Destination Locator is required"
+  },
+  txn_reason_id: { required: true, message: "Reason is required" },
   physical_qty: {
     required: true,
-    min: 0,
+    min: 0.001,
     regex: /^[0-9]+(\.[0-9]{1,3})?$/,
     message: "Invalid quantity"
   },
@@ -80,13 +92,16 @@ const runDynamicValidation = (data, options) => {
   const physical = parseFloat(data.physical_qty || 0);
 
   if (isTransfer) {
-    if (physical > availableQty) {
-      errors.physical_qty = `Insufficient stock (Available: ${availableQty})`;
+    if (physical <= 0) {
+      errors.physical_qty = "Transfer quantity must be > 0";
+    } else if (physical > availableQty) {
+      errors.physical_qty = "Insufficient stock";
     }
     const src = `${data.inv_org_id}-${data.subinventory_id}-${data.locator_id || ''}`;
     const dest = `${data.to_inv_org_id}-${data.to_subinventory_id}-${data.to_locator_id || ''}`;
-    if (src === dest) {
-      errors.to_subinventory_id = "Source and destination cannot be the same";
+    if (src === dest && src !== '--') {
+      errors.to_subinventory_id = "Source and destination cannot be same";
+      errors.to_locator_id = "Source and destination cannot be same";
     }
   } else {
     if (physical < systemQty) {

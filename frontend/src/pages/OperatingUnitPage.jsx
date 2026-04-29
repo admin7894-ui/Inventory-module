@@ -50,7 +50,7 @@ export default function OperatingUnitPage() {
 
   const handleBlur = (k) => {
     setTouched(p => ({ ...p, [k]: true }))
-    const { errors: valErrors } = validateOperatingUnit(formData)
+    const { errors: valErrors } = validate('operating_unit', formData)
     setErrors(valErrors)
   }
 
@@ -66,24 +66,22 @@ export default function OperatingUnitPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
     const { errors: valErrors, isValid } = validate('operating_unit', formData)
     setErrors(valErrors)
-    // Mark all fields as touched
-    setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}))
-
+    // Touch ALL formData keys + ALL error keys so every invalid field shows
+    setTouched(Object.keys({ ...formData, ...valErrors }).reduce((acc, k) => ({ ...acc, [k]: true }), {}))
     if (!isValid) {
+      setTimeout(() => { document.querySelector('.input-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 80)
       return toast.error('Please fix the highlighted errors')
     }
-
     try {
-      if (view === 'edit') {
-        await table.update(selected['op_id'], formData)
-      } else {
-        await table.create(formData)
-      }
+      if (view === 'edit') await table.update(selected['op_id'], formData)
+      else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) setErrors(err.response.data.errors)
+      else toast.error(err.response?.data?.message || 'Save failed')
+    }
   }
 
   const handleDelete = async () => {
@@ -109,67 +107,67 @@ export default function OperatingUnitPage() {
 
             <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={handleBlur} />
 
-            <Field label="Legal Entity" required error={touched.le_id && errors.le_id}>
+            <Field label="Legal Entity" required error={errors.le_id}>
               <Select value={formData.le_id} onChange={v => setField('le_id', v)}
                 onBlur={() => handleBlur('le_id')}
-                error={touched.le_id && errors.le_id}
+                error={errors.le_id}
                 options={legalEntities?.map(r => ({ value: r.le_id, label: r.le_name || r.le_id }))} />
             </Field>
 
-            <Field label="OU Name" required error={touched.ou_name && errors.ou_name}>
+            <Field label="OU Name" required error={errors.ou_name}>
               <Input value={formData.ou_name}
                 onChange={e => setField('ou_name', e.target.value)}
                 onBlur={() => handleBlur('ou_name')}
-                error={touched.ou_name && errors.ou_name} />
+                error={errors.ou_name} />
             </Field>
 
-            <Field label="OU Short Code" required error={touched.ou_short_code && errors.ou_short_code}>
+            <Field label="OU Short Code" required error={errors.ou_short_code}>
               <Input value={formData.ou_short_code}
                 onChange={e => setField('ou_short_code', e.target.value)}
                 onBlur={() => handleBlur('ou_short_code')}
-                error={touched.ou_short_code && errors.ou_short_code}
+                error={errors.ou_short_code}
                 className="bg-gray-50 dark:bg-gray-700 font-mono" />
               <span className="text-xs text-gray-400 mt-1 block">Auto-generated from OU Name (editable)</span>
             </Field>
 
-            <Field label="Location" required error={touched.location_id && errors.location_id}>
+            <Field label="Location" required error={errors.location_id}>
               <Select value={formData.location_id} onChange={v => setField('location_id', v)}
                 onBlur={() => handleBlur('location_id')}
-                error={touched.location_id && errors.location_id}
+                error={errors.location_id}
                 options={locations?.map(r => ({ value: r.location_id, label: r.location_name || r.location_id }))} />
             </Field>
 
-            <Field label="Currency Code" required error={touched.currency_code && errors.currency_code}>
+            <Field label="Currency Code" required error={errors.currency_code}>
               <Input value={formData.currency_code}
                 onChange={e => setField('currency_code', e.target.value.toUpperCase())}
                 onBlur={() => handleBlur('currency_code')}
-                error={touched.currency_code && errors.currency_code}
+                error={errors.currency_code}
                 placeholder="e.g. INR" maxLength={3} />
             </Field>
 
-            <Field label="Module" required error={touched.module_id && errors.module_id}>
+            <Field label="Module" required error={errors.module_id}>
               <Select value={formData.module_id} onChange={v => setField('module_id', v)}
                 onBlur={() => handleBlur('module_id')}
-                error={touched.module_id && errors.module_id}
+                error={errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
             </Field>
 
-            <Field label="Active" required error={touched.active_flag && errors.active_flag}>
+            <Field label="Active" required error={errors.active_flag}>
               <Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} />
             </Field>
 
-            <Field label="Effective From" required error={touched.effective_from && errors.effective_from}>
+            <Field label="Effective From" required error={errors.effective_from}>
               <DateInput value={formData.effective_from}
                 onChange={v => setField('effective_from', v)}
                 onBlur={() => handleBlur('effective_from')}
-                error={touched.effective_from && errors.effective_from} />
+                error={errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={touched.effective_to && errors.effective_to}>
+            <Field label="Effective To" error={errors.effective_to}>
               <DateInput value={formData.effective_to}
                 onChange={v => setField('effective_to', v)}
                 onBlur={() => handleBlur('effective_to')}
-                error={touched.effective_to && errors.effective_to} />
+                error={errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />

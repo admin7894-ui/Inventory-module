@@ -65,7 +65,13 @@ export default function WorkdayCalendarPage() {
       setErrors({})
       setView('edit')
     } catch (e) {
-      toast.error("Failed to fetch details")
+      if (e.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(e.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(e.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(e.response?.data?.message || e.message || 'Action failed')
+      }
     }
   }
 
@@ -76,7 +82,13 @@ export default function WorkdayCalendarPage() {
       setFormData({ ...res.data, holidays: res.data.holidays || [] })
       setView('view')
     } catch (e) {
-      toast.error("Failed to fetch details")
+      if (e.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(e.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(e.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(e.response?.data?.message || e.message || 'Action failed')
+      }
     }
   }
 
@@ -118,10 +130,11 @@ export default function WorkdayCalendarPage() {
     e.preventDefault()
     const { errors: valErrors, isValid } = validate('workday_calendar', formData)
     if (!isValid) {
-      setErrors(valErrors)
-      toast.error('Please fix the highlighted errors')
-      return
-    }
+        setErrors(valErrors);
+        setTimeout(() => { document.querySelector('.input-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 80);
+        toast.error('Please fix the highlighted errors');
+        return;
+      }
 
     try {
       if (view === 'edit') {
@@ -131,7 +144,13 @@ export default function WorkdayCalendarPage() {
       }
       handleBack()
     } catch (err) {
-      // Errors are handled by useTableData toast
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
     }
   }
 
@@ -141,7 +160,13 @@ export default function WorkdayCalendarPage() {
       toast.success("Deleted successfully")
       setConfirmDelete(null)
     } catch (e) {
-      toast.error("Delete failed")
+      if (e.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(e.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(e.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(e.response?.data?.message || e.message || 'Action failed')
+      }
     }
   }
 
@@ -309,3 +334,5 @@ export default function WorkdayCalendarPage() {
     </>
   )
 }
+
+

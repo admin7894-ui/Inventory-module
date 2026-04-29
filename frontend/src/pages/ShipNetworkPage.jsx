@@ -106,7 +106,15 @@ export default function ShipNetworkPage() {
       if (view === 'edit') await table.update(selected['ship_network_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -129,58 +137,58 @@ export default function ShipNetworkPage() {
             <Field label="Ship Network Id (Auto-gen)"><Input value={formData.ship_network_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
             
-            <Field label="From Inv Org" required error={v.fieldError('from_inv_org_id')}>
+            <Field label="From Inv Org" required error={v.errors.from_inv_org_id}>
               <Select value={formData.from_inv_org_id} 
                 onChange={v => setField('from_inv_org_id', v)} 
                 onBlur={() => v.handleBlur('from_inv_org_id', formData)}
-                error={v.fieldError('from_inv_org_id')}
+                error={v.errors.from_inv_org_id}
                 options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
             </Field>
 
-            <Field label="To Inv Org" required error={v.fieldError('to_inv_org_id')}>
+            <Field label="To Inv Org" required error={v.errors.to_inv_org_id}>
               <Select value={formData.to_inv_org_id} 
                 onChange={v => setField('to_inv_org_id', v)} 
                 onBlur={() => v.handleBlur('to_inv_org_id', formData)}
-                error={v.fieldError('to_inv_org_id')}
+                error={v.errors.to_inv_org_id}
                 options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
             </Field>
 
-            <Field label="Transfer Type" required error={v.fieldError('transfer_type')}>
+            <Field label="Transfer Type" required error={v.errors.transfer_type}>
               <Input value={formData.transfer_type} 
                 onChange={e => setField('transfer_type', e.target.value)}
                 onBlur={() => v.handleBlur('transfer_type', formData)}
-                error={v.fieldError('transfer_type')} />
+                error={v.errors.transfer_type} />
             </Field>
 
-            <Field label="Default Ship Method" required error={v.fieldError('default_ship_method_id')}>
+            <Field label="Default Ship Method" required error={v.errors.default_ship_method_id}>
               <Select value={formData.default_ship_method_id} 
                 onChange={v => setField('default_ship_method_id', v)} 
                 onBlur={() => v.handleBlur('default_ship_method_id', formData)}
-                error={v.fieldError('default_ship_method_id')}
+                error={v.errors.default_ship_method_id}
                 options={dropdowns.shipMethod?.map(r => ({ value: r.ship_method_id, label: r.ship_method_name || r.ship_method_id }))} />
             </Field>
 
-            <Field label="Intransit Lead Time Days" required error={v.fieldError('intransit_lead_time_days')}>
+            <Field label="Intransit Lead Time Days" required error={v.errors.intransit_lead_time_days}>
               <Input type="number" value={formData.intransit_lead_time_days} 
                 onChange={e => setField('intransit_lead_time_days', e.target.value)}
                 onBlur={() => v.handleBlur('intransit_lead_time_days', formData)}
-                error={v.fieldError('intransit_lead_time_days')} />
+                error={v.errors.intransit_lead_time_days} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v => setField('effective_from', v)}
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')} />
+                error={v.errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v => setField('effective_to', v)}
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')} />
+                error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -220,3 +228,5 @@ export default function ShipNetworkPage() {
     </>
   )
 }
+
+

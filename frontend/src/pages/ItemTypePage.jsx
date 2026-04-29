@@ -82,7 +82,11 @@ export default function ItemTypePage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    if (typeof v !== 'undefined' && v.clearError) v.clearError(k)
+    if (typeof setErrors === 'function') setErrors(p => { const n = {...p}; delete n[k]; return n })
+  }
 
   const handleCreate = () => {
     setFormData({ 
@@ -110,7 +114,13 @@ export default function ItemTypePage() {
       }
       handleBack()
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
     }
   }
 
@@ -129,11 +139,11 @@ export default function ItemTypePage() {
             <Field label="Item Type Id (Auto-gen)"><Input value={formData.item_type_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Item Type Name" required error={v.fieldError('item_type_name')}>
+            <Field label="Item Type Name" required error={v.errors.item_type_name}>
               <Input value={formData.item_type_name} 
                 onChange={e => setField('item_type_name', e.target.value)} 
                 onBlur={() => v.handleBlur('item_type_name', formData)}
-                error={v.fieldError('item_type_name')}
+                error={v.errors.item_type_name}
               />
             </Field>
 
@@ -149,7 +159,7 @@ export default function ItemTypePage() {
               />
             </Field>
 
-            <Field label="Requires Inventory" error={v.fieldError('requires_inventory')}>
+            <Field label="Requires Inventory" error={v.errors.requires_inventory}>
               <Toggle value={formData.requires_inventory} 
                 onChange={val => {
                   if (formData.is_physical === 'N' && val === 'Y') {
@@ -158,24 +168,24 @@ export default function ItemTypePage() {
                   setField('requires_inventory', val)
                 }} 
               />
-              {v.fieldError('requires_inventory') && <p className="text-red-500 text-xs mt-1">{v.fieldError('requires_inventory')}</p>}
+              {v.errors.requires_inventory && <p className="text-red-500 text-xs mt-1">{v.errors.requires_inventory}</p>}
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v_val => setField('effective_from', v_val)} 
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')}
+                error={v.errors.effective_from}
               />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v_val => setField('effective_to', v_val)} 
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')}
+                error={v.errors.effective_to}
               />
             </Field>
 
@@ -216,3 +226,6 @@ export default function ItemTypePage() {
     </>
   )
 }
+
+
+

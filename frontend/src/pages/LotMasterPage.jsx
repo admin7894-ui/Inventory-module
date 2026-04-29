@@ -80,7 +80,11 @@ export default function LotMasterPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    if (typeof v !== 'undefined' && v.clearError) v.clearError(k)
+    if (typeof setErrors === 'function') setErrors(p => { const n = {...p}; delete n[k]; return n })
+  }
 
   const handleCreate = () => {
     setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
@@ -103,7 +107,15 @@ export default function LotMasterPage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -166,3 +178,5 @@ export default function LotMasterPage() {
     </>
   )
 }
+
+

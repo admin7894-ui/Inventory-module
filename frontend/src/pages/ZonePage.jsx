@@ -82,7 +82,11 @@ export default function ZonePage() {
     securityRoles: securityRolesList, departments: depts, roles: rolesList, designation: designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    if (typeof v !== 'undefined' && v.clearError) v.clearError(k)
+    if (typeof setErrors === 'function') setErrors(p => { const n = {...p}; delete n[k]; return n })
+  }
 
   const handleCreate = () => {
     setFormData({ 
@@ -108,7 +112,13 @@ export default function ZonePage() {
       }
       handleBack()
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
     }
   }
 
@@ -127,7 +137,7 @@ export default function ZonePage() {
             <Field label="Zone Id (Auto-gen)"><Input value={formData.zone_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Zone Name" required error={v.fieldError('zone_name')}>
+            <Field label="Zone Name" required error={v.errors.zone_name}>
               <Input value={formData.zone_name} 
                 onChange={e => {
                   const val = e.target.value;
@@ -138,19 +148,19 @@ export default function ZonePage() {
                   }))
                 }}
                 onBlur={() => v.handleBlur('zone_name', formData)}
-                error={v.fieldError('zone_name')}
+                error={v.errors.zone_name}
               />
             </Field>
 
-            <Field label="Zone Code" required error={v.fieldError('zone_code')}>
-              <Input value={formData.zone_code} 
+            <Field label="Zone Code" required error={v.errors.zone_code}>
+              <Input value={formData.zone_code}    
                 onChange={e => setField('zone_code', e.target.value)} 
                 onBlur={() => v.handleBlur('zone_code', formData)}
-                error={v.fieldError('zone_code')}
+                error={v.errors.zone_code}
               />
             </Field>
 
-            <Field label="Zone Type" required error={v.fieldError('zone_type')}>
+            <Field label="Zone Type" required error={v.errors.zone_type}>
               <Select value={formData.zone_type} 
                 onChange={v_val => setField('zone_type', v_val)} 
                 options={[
@@ -163,19 +173,19 @@ export default function ZonePage() {
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v_val => setField('effective_from', v_val)} 
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')}
+                error={v.errors.effective_from}
               />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v_val => setField('effective_to', v_val)} 
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')}
+                error={v.errors.effective_to}
               />
             </Field>
 
@@ -216,3 +226,6 @@ export default function ZonePage() {
     </>
   )
 }
+
+
+

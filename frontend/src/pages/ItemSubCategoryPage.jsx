@@ -114,7 +114,15 @@ export default function ItemSubCategoryPage() {
       if (view === 'edit') await table.update(selected['sub_category_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -137,26 +145,26 @@ export default function ItemSubCategoryPage() {
             <Field label="Sub Category Id (Auto-gen)"><Input value={formData.sub_category_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Category" required error={v.fieldError('category_id')}>
+            <Field label="Category" required error={v.errors.category_id}>
               <Select value={formData.category_id} 
                 onChange={v => setField('category_id', v)} 
                 onBlur={() => v.handleBlur('category_id', formData)}
-                error={v.fieldError('category_id')}
+                error={v.errors.category_id}
                 options={dropdowns.itemCategory?.map(r => ({ value: r.category_id, label: r.category_name || r.category_id }))} />
             </Field>
 
-            <Field label="Sub Category Name" required error={v.fieldError('sub_category_name')}>
+            <Field label="Sub Category Name" required error={v.errors.sub_category_name}>
               <Input value={formData.sub_category_name} 
                 onChange={e => setField('sub_category_name', e.target.value)}
                 onBlur={() => v.handleBlur('sub_category_name', formData)}
-                error={v.fieldError('sub_category_name')} />
+                error={v.errors.sub_category_name} />
             </Field>
 
-            <Field label="Sub Category Code" required error={v.fieldError('sub_category_code')}>
+            <Field label="Sub Category Code" required error={v.errors.sub_category_code}>
               <Input value={formData.sub_category_code} 
                 readOnly
                 onBlur={() => v.handleBlur('sub_category_code', formData)}
-                error={v.fieldError('sub_category_code')}
+                error={v.errors.sub_category_code}
                 placeholder="Auto-generated from name" />
             </Field>
 
@@ -171,18 +179,18 @@ export default function ItemSubCategoryPage() {
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
 
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v => setField('effective_from', v)}
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')} />
+                error={v.errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v => setField('effective_to', v)}
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')} />
+                error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -222,3 +230,5 @@ export default function ItemSubCategoryPage() {
     </>
   )
 }
+
+

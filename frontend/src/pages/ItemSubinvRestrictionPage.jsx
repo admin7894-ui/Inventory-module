@@ -118,9 +118,10 @@ export default function ItemSubinvRestrictionPage() {
     const { errors: valErrors, isValid } = validate('item_subinv_restriction', trimmedData);
     
     if (!isValid) {
-      setErrors(valErrors);
-      return toast.error('Please fix the highlighted errors');
-    }
+        setErrors(valErrors);
+        setTimeout(() => { document.querySelector('.input-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 80);
+        return toast.error('Please fix the highlighted errors');
+      }
 
     try {
       if (view === 'edit') {
@@ -210,3 +211,4 @@ export default function ItemSubinvRestrictionPage() {
     </>
   )
 }
+

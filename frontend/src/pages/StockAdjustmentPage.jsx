@@ -43,6 +43,17 @@ export default function StockAdjustmentPage() {
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
 
+  // Sync System Qty whenever currentStockInfo changes
+  useEffect(() => {
+    if (currentStockInfo) {
+      if (formData.system_qty !== currentStockInfo.onhand_qty) {
+        setFormData(p => ({ ...p, system_qty: currentStockInfo.onhand_qty || 0 }));
+      }
+    } else if (formData.system_qty !== '') {
+      setFormData(p => ({ ...p, system_qty: '' }));
+    }
+  }, [currentStockInfo]);
+
   // Dropdowns
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
   const { options: subinventories } = useDropdownData(subinventoryApi, 'sub_dd')
@@ -312,10 +323,9 @@ export default function StockAdjustmentPage() {
     setErrors(valErrors)
 
     if (!isValid) {
-      const errorList = Object.values(valErrors).join('\n• ')
-      toast.error(`Please fix the following errors:\n• ${errorList}`, { duration: 4000 })
+      toast.error('Please fix the highlighted errors')
       setTimeout(() => {
-        const firstError = document.querySelector('[data-error="true"], .border-red-500')
+        const firstError = document.querySelector('[data-error="true"], .border-red-500, .input-error')
         if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }, 100)
       return
@@ -335,7 +345,7 @@ export default function StockAdjustmentPage() {
     } catch (err) {
       if (err.response?.data?.errors) {
         setErrors(err.response.data.errors)
-        toast.error(Object.values(err.response.data.errors)[0] || 'Please fix the highlighted errors')
+        toast.error('Please fix the highlighted errors')
       } else {
         toast.error(err.response?.data?.message || 'Action failed')
       }
@@ -381,11 +391,11 @@ export default function StockAdjustmentPage() {
                     <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} disabled={view === 'view'}
                       options={filteredOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
                   </Field>
-                  <Field label="Subinventory">
+                  <Field label="Subinventory" required={isTransfer} error={errors.subinventory_id}>
                     <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} disabled={view === 'view'}
                       options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                   </Field>
-                  <Field label="Locator (Bin)">
+                  <Field label="Locator (Bin)" required={isTransfer} error={errors.locator_id}>
                     <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view' || !formData.subinventory_id}
                       options={filteredSourceLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
                   </Field>
@@ -397,15 +407,15 @@ export default function StockAdjustmentPage() {
                 <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
                   <h4 className="text-xs font-bold uppercase text-blue-600 mb-3">Destination Location</h4>
                   <div className="space-y-3">
-                    <Field label="To Org" required error={errors.to_inv_org_id}>
+                    <Field label="To Org" required={isTransfer} error={errors.to_inv_org_id}>
                       <Select value={formData.to_inv_org_id} onChange={v => { setField('to_inv_org_id', v); setField('to_subinventory_id', ''); setField('to_locator_id', ''); }} disabled={view === 'view'}
                         options={filteredToOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
                     </Field>
-                    <Field label="To Subinventory" required error={errors.to_subinventory_id}>
+                    <Field label="To Subinventory" required={isTransfer} error={errors.to_subinventory_id}>
                       <Select value={formData.to_subinventory_id} onChange={v => { setField('to_subinventory_id', v); setField('to_locator_id', ''); }} disabled={view === 'view'}
                         options={filteredToSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                     </Field>
-                    <Field label="To Locator (Bin)" error={errors.to_locator_id}>
+                    <Field label="To Locator (Bin)" required={isTransfer} error={errors.to_locator_id}>
                       <Select value={formData.to_locator_id} onChange={v => setField('to_locator_id', v)} disabled={view === 'view' || !formData.to_subinventory_id}
                         options={filteredDestLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
                     </Field>
@@ -433,10 +443,10 @@ export default function StockAdjustmentPage() {
                   </div>
                   {!isTransfer && (
                     <Field label="System Qty">
-                      <Input type="number" value={formData.system_qty} onChange={e => setField('system_qty', e.target.value)} disabled={view === 'view'} />
+                      <Input type="number" value={formData.system_qty} readOnly className="bg-gray-100" />
                     </Field>
                   )}
-                  <Field label={isTransfer ? "Transfer Qty" : "Physical Qty"}>
+                  <Field label={isTransfer ? "Transfer Qty" : "Physical Qty"} required error={errors.physical_qty}>
                     <Input type="number" value={formData.physical_qty} onChange={e => setField('physical_qty', e.target.value)} disabled={view === 'view'} />
                   </Field>
                   <Field label="Net Adjustment">
@@ -476,11 +486,11 @@ export default function StockAdjustmentPage() {
                   options={uoms?.map(r => ({ value: r.uom_id, label: r.uom_name }))} />
               </Field>
               <Field label="Unit Cost"><Input type="number" value={formData.unit_cost} onChange={e => setField('unit_cost', e.target.value)} disabled={view === 'view'} /></Field>
-              <Field label="Reason">
+              <Field label="Reason" required error={errors.txn_reason_id}>
                 <Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id', v)} disabled={view === 'view'}
                   options={txnReasons?.map(r => ({ value: r.txn_reason_id, label: r.txn_reason }))} />
               </Field>
-              <Field label="Date"><DateInput value={formData.adjustment_date} onChange={v => setField('adjustment_date', v)} disabled={view === 'view'} /></Field>
+              <Field label="Date" required error={errors.adjustment_date}><DateInput value={formData.adjustment_date} onChange={v => setField('adjustment_date', v)} disabled={view === 'view'} /></Field>
             </div>
           </div>
 

@@ -114,7 +114,15 @@ export default function CategorySetPage() {
       if (view === 'edit') await table.update(selected['category_set_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -137,24 +145,24 @@ export default function CategorySetPage() {
             <Field label="Category Set Id (Auto-gen)"><Input value={formData.category_set_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Category Set Name" required error={v.fieldError('category_set_name')}>
+            <Field label="Category Set Name" required error={v.errors.category_set_name}>
               <Input value={formData.category_set_name} 
                 onChange={e => setField('category_set_name', e.target.value)}
                 onBlur={() => v.handleBlur('category_set_name', formData)}
-                error={v.fieldError('category_set_name')} />
+                error={v.errors.category_set_name} />
             </Field>
 
-            <Field label="Category Set Code" required error={v.fieldError('category_set_code')}>
+            <Field label="Category Set Code" required error={v.errors.category_set_code}>
               <Input value={formData.category_set_code} 
                 readOnly
                 onBlur={() => v.handleBlur('category_set_code', formData)}
-                error={v.fieldError('category_set_code')}
+                error={v.errors.category_set_code}
                 placeholder="Auto-generated from name" />
             </Field>
 
-            <Field label="Description" error={v.fieldError('description')}>
+            <Field label="Description" error={v.errors.description}>
               <textarea 
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 resize-none h-24 dark:bg-slate-800 dark:border-slate-700 ${v.fieldError('description') ? 'border-red-500 bg-red-50/50' : 'border-slate-300'}`}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 resize-none h-24 dark:bg-slate-800 dark:border-slate-700 ${v.errors.description ? 'border-red-500 bg-red-50/50' : 'border-slate-300'}`}
                 disabled={view === 'view'}
                 value={formData.description || ''} 
                 onChange={e => setField('description', e.target.value)}
@@ -164,18 +172,18 @@ export default function CategorySetPage() {
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
 
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v => setField('effective_from', v)}
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')} />
+                error={v.errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v => setField('effective_to', v)}
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')} />
+                error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -215,3 +223,5 @@ export default function CategorySetPage() {
     </>
   )
 }
+
+

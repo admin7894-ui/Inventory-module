@@ -45,9 +45,17 @@ export function useFormValidation(formName) {
     const { errors: valErrors, isValid } = validate(formName, trimmedData, options);
     setErrors(valErrors);
     setSubmitFailed(!isValid);
+    // Mark ALL formData keys AND all error keys as touched so every invalid field shows
     setTouched(
-      Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {})
+      Object.keys({ ...formData, ...valErrors }).reduce((acc, key) => ({ ...acc, [key]: true }), {})
     );
+    // Auto-scroll to first invalid field
+    if (!isValid) {
+      setTimeout(() => {
+        const el = document.querySelector('.input-error, [data-error="true"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+    }
     return isValid;
   }, [formName]);
 

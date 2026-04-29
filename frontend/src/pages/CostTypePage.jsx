@@ -55,7 +55,15 @@ export default function CostTypePage() {
       if (view === 'edit') await table.update(selected['cost_type_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => { await table.remove(confirmDelete['cost_type_id']); setConfirmDelete(null) }
@@ -78,18 +86,18 @@ export default function CostTypePage() {
             <CompanyGroup formData={formData} setField={setField} errors={v.errors}
               handleBlur={(k) => v.handleBlur(k, formData)} />
 
-            <Field label="Cost Type Name" required error={v.fieldError('cost_type_name')}>
+            <Field label="Cost Type Name" required error={v.errors.cost_type_name}>
               <Input value={formData.cost_type_name}
                 onChange={e => setField('cost_type_name', e.target.value)}
                 onBlur={() => v.handleBlur('cost_type_name', formData)}
-                error={v.fieldError('cost_type_name')} />
+                error={v.errors.cost_type_name} />
             </Field>
 
-            <Field label="Cost Type Code" required error={v.fieldError('cost_type_code')}>
+            <Field label="Cost Type Code" required error={v.errors.cost_type_code}>
               <Input value={formData.cost_type_code}
                 readOnly
                 onBlur={() => v.handleBlur('cost_type_code', formData)}
-                error={v.fieldError('cost_type_code')}
+                error={v.errors.cost_type_code}
                 placeholder="Auto-generated from name" />
             </Field>
 
@@ -98,22 +106,22 @@ export default function CostTypePage() {
                 value={formData.description||''} onChange={e => setField('description', e.target.value)} />
             </Field>
 
-            <Field label="Module" required error={v.fieldError('module_id')}>
+            <Field label="Module" required error={v.errors.module_id}>
               <Select value={formData.module_id} onChange={val => setField('module_id', val)}
                 onBlur={() => v.handleBlur('module_id', formData)}
-                error={v.fieldError('module_id')}
+                error={v.errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
 
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} onChange={val => setField('effective_from', val)}
-                onBlur={() => v.handleBlur('effective_from', formData)} error={v.fieldError('effective_from')} />
+                onBlur={() => v.handleBlur('effective_from', formData)} error={v.errors.effective_from} />
             </Field>
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} onChange={val => setField('effective_to', val)}
-                onBlur={() => v.handleBlur('effective_to', formData)} error={v.fieldError('effective_to')} />
+                onBlur={() => v.handleBlur('effective_to', formData)} error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -136,3 +144,5 @@ export default function CostTypePage() {
     </>
   )
 }
+
+

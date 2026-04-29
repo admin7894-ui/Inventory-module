@@ -83,7 +83,11 @@ export default function LocatorPage() {
     securityRoles: securityRolesList, departments: depts, roles: rolesList, designation: designations,
   }
 
-  const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
+  const setField = (k, val) => {
+    setFormData(p => ({ ...p, [k]: val }))
+    if (typeof v !== 'undefined' && v.clearError) v.clearError(k)
+    if (typeof setErrors === 'function') setErrors(p => { const n = {...p}; delete n[k]; return n })
+  }
 
   const handleCreate = () => {
     setFormData({ 
@@ -109,7 +113,13 @@ export default function LocatorPage() {
       }
       handleBack()
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || err.message || 'Action failed')
+      }
     }
   }
 
@@ -128,7 +138,7 @@ export default function LocatorPage() {
             <Field label="Locator Id (Auto-gen)"><Input value={formData.locator_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Subinventory Id" required error={v.fieldError('subinventory_id')}>
+            <Field label="Subinventory Id" required error={v.errors.subinventory_id}>
               <Select value={formData.subinventory_id} 
                 onChange={v_val => setField('subinventory_id', v_val)} 
                 onBlur={() => v.handleBlur('subinventory_id', formData)}
@@ -138,7 +148,7 @@ export default function LocatorPage() {
               />
             </Field>
 
-            <Field label="Locator Name" required error={v.fieldError('locator_name')}>
+            <Field label="Locator Name" required error={v.errors.locator_name}>
               <Input value={formData.locator_name} 
                 onChange={e => {
                   const val = e.target.value;
@@ -149,16 +159,16 @@ export default function LocatorPage() {
                   }))
                 }}
                 onBlur={() => v.handleBlur('locator_name', formData)}
-                error={v.fieldError('locator_name')}
+                error={v.errors.locator_name}
                 disabled={!formData.subinventory_id || view === 'view'}
               />
             </Field>
 
-            <Field label="Locator Code" required error={v.fieldError('locator_code')}>
+            <Field label="Locator Code" required error={v.errors.locator_code}>
               <Input value={formData.locator_code} 
                 onChange={e => setField('locator_code', e.target.value)} 
                 onBlur={() => v.handleBlur('locator_code', formData)}
-                error={v.fieldError('locator_code')}
+                error={v.errors.locator_code}
                 disabled={!formData.subinventory_id || view === 'view'}
               />
             </Field>
@@ -168,7 +178,7 @@ export default function LocatorPage() {
             <Field label="Shelf No"><Input value={formData.shelf_no} onChange={e => setField('shelf_no', e.target.value)} disabled={view==='view'} /></Field>
             <Field label="Bin No"><Input value={formData.bin_no} onChange={e => setField('bin_no', e.target.value)} disabled={view==='view'} /></Field>
 
-            <Field label="Locator Type" required error={v.fieldError('locator_type')}>
+            <Field label="Locator Type" required error={v.errors.locator_type}>
               <Select value={formData.locator_type} 
                 onChange={v_val => setField('locator_type', v_val)} 
                 options={[
@@ -183,7 +193,7 @@ export default function LocatorPage() {
               />
             </Field>
 
-            <Field label="Locator Usage" required error={v.fieldError('locator_usage')}>
+            <Field label="Locator Usage" required error={v.errors.locator_usage}>
               <Select value={formData.locator_usage} 
                 onChange={v_val => setField('locator_usage', v_val)} 
                 options={[
@@ -198,25 +208,25 @@ export default function LocatorPage() {
               />
             </Field>
 
-            <Field label="Max Weight Kg" error={v.fieldError('max_weight_kg')}>
+            <Field label="Max Weight Kg" error={v.errors.max_weight_kg}>
               <Input type="number" step="any" value={formData.max_weight_kg} 
                 onChange={e => setField('max_weight_kg', e.target.value)} 
                 onBlur={() => v.handleBlur('max_weight_kg', formData)}
-                error={v.fieldError('max_weight_kg')}
+                error={v.errors.max_weight_kg}
                 disabled={view==='view'}
               />
             </Field>
 
-            <Field label="Max Volume Cbm" error={v.fieldError('max_volume_cbm')}>
+            <Field label="Max Volume Cbm" error={v.errors.max_volume_cbm}>
               <Input type="number" step="any" value={formData.max_volume_cbm} 
                 onChange={e => setField('max_volume_cbm', e.target.value)} 
                 onBlur={() => v.handleBlur('max_volume_cbm', formData)}
-                error={v.fieldError('max_volume_cbm')}
+                error={v.errors.max_volume_cbm}
                 disabled={view==='view'}
               />
             </Field>
 
-            <Field label="Material Status" required error={v.fieldError('material_status')}>
+            <Field label="Material Status" required error={v.errors.material_status}>
               <Select value={formData.material_status} 
                 onChange={v_val => setField('material_status', v_val)} 
                 options={[
@@ -230,7 +240,7 @@ export default function LocatorPage() {
               />
             </Field>
 
-            <Field label="Temperature Range" required error={v.fieldError('temperature_range')}>
+            <Field label="Temperature Range" required error={v.errors.temperature_range}>
               <Select value={formData.temperature_range} 
                 onChange={v_val => setField('temperature_range', v_val)} 
                 options={[
@@ -245,19 +255,19 @@ export default function LocatorPage() {
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v_val => setField('active_flag', v_val)} /></Field>
             
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v_val => setField('effective_from', v_val)} 
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')}
+                error={v.errors.effective_from}
               />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v_val => setField('effective_to', v_val)} 
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')}
+                error={v.errors.effective_to}
               />
             </Field>
 
@@ -298,3 +308,6 @@ export default function LocatorPage() {
     </>
   )
 }
+
+
+

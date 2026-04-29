@@ -61,7 +61,15 @@ export default function InventoryOrgPage() {
       if (view === 'edit') await table.update(selected['inv_org_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -87,56 +95,56 @@ export default function InventoryOrgPage() {
             <CompanyGroup formData={formData} setField={setField} errors={v.errors}
               handleBlur={(k) => v.handleBlur(k, formData)} />
 
-            <Field label="Legal Entity" required error={v.fieldError('le_id')}>
+            <Field label="Legal Entity" required error={v.errors.le_id}>
               <Select value={formData.le_id} onChange={val => setField('le_id', val)}
                 onBlur={() => v.handleBlur('le_id', formData)}
-                error={v.fieldError('le_id')}
+                error={v.errors.le_id}
                 options={legalEntities?.map(r => ({ value: r.le_id, label: r.le_name || r.le_id }))} />
             </Field>
 
-            <Field label="Inv Org Name" required error={v.fieldError('inv_org_name')}>
+            <Field label="Inv Org Name" required error={v.errors.inv_org_name}>
               <Input value={formData.inv_org_name}
                 onChange={e => setField('inv_org_name', e.target.value)}
                 onBlur={() => v.handleBlur('inv_org_name', formData)}
-                error={v.fieldError('inv_org_name')} />
+                error={v.errors.inv_org_name} />
             </Field>
 
-            <Field label="Inv Org Code" required error={v.fieldError('inv_org_code')}>
+            <Field label="Inv Org Code" required error={v.errors.inv_org_code}>
               <Input value={formData.inv_org_code}
                 readOnly
                 onBlur={() => v.handleBlur('inv_org_code', formData)}
-                error={v.fieldError('inv_org_code')}
+                error={v.errors.inv_org_code}
                 placeholder="Auto-generated from name" />
             </Field>
 
-            <Field label="Location" required error={v.fieldError('location_id')}>
+            <Field label="Location" required error={v.errors.location_id}>
               <Select value={formData.location_id} onChange={val => setField('location_id', val)}
                 onBlur={() => v.handleBlur('location_id', formData)}
-                error={v.fieldError('location_id')}
+                error={v.errors.location_id}
                 options={locations?.map(r => ({ value: r.location_id, label: r.location_name || r.location_id }))} />
             </Field>
 
-            <Field label="Module" required error={v.fieldError('module_id')}>
+            <Field label="Module" required error={v.errors.module_id}>
               <Select value={formData.module_id} onChange={val => setField('module_id', val)}
                 onBlur={() => v.handleBlur('module_id', formData)}
-                error={v.fieldError('module_id')}
+                error={v.errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
 
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from}
                 onChange={val => setField('effective_from', val)}
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')} />
+                error={v.errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to}
                 onChange={val => setField('effective_to', val)}
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')} />
+                error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -176,3 +184,5 @@ export default function InventoryOrgPage() {
     </>
   )
 }
+
+

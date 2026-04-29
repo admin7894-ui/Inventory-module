@@ -67,7 +67,15 @@ export default function OrgParameterPage() {
       if (view === 'edit') await table.update(selected['org_param_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch {}
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => { await table.remove(confirmDelete['org_param_id']); setConfirmDelete(null) }
@@ -90,18 +98,18 @@ export default function OrgParameterPage() {
             <CompanyGroup formData={formData} setField={setField} errors={v.errors}
               handleBlur={(k) => v.handleBlur(k, formData)} />
 
-            <Field label="Inv Org" required error={v.fieldError('inv_org_id')}>
+            <Field label="Inv Org" required error={v.errors.inv_org_id}>
               <Select value={formData.inv_org_id} onChange={val => setField('inv_org_id', val)}
                 onBlur={() => v.handleBlur('inv_org_id', formData)}
-                error={v.fieldError('inv_org_id')}
+                error={v.errors.inv_org_id}
                 options={inventoryOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
             </Field>
 
-            <Field label="Org Code" required error={v.fieldError('org_code')}>
+            <Field label="Org Code" required error={v.errors.org_code}>
               <Input value={formData.org_code}
                 readOnly
                 onBlur={() => v.handleBlur('org_code', formData)}
-                error={v.fieldError('org_code')}
+                error={v.errors.org_code}
                 placeholder="Auto-generated from Inv Org" />
             </Field>
 
@@ -109,59 +117,59 @@ export default function OrgParameterPage() {
               <Input value={formData.item_master_org} onChange={e => setField('item_master_org', e.target.value)} />
             </Field>
 
-            <Field label="Workday Calendar" required error={v.fieldError('workday_calendar_id')}>
+            <Field label="Workday Calendar" required error={v.errors.workday_calendar_id}>
               <Select value={formData.workday_calendar_id} onChange={val => setField('workday_calendar_id', val)}
                 onBlur={() => v.handleBlur('workday_calendar_id', formData)}
-                error={v.fieldError('workday_calendar_id')}
+                error={v.errors.workday_calendar_id}
                 options={workdayCalendars?.map(r => ({ value: r.workday_calendar_id || r.calendar_id, label: r.calendar_name || r.workday_calendar_id }))} />
             </Field>
 
             <Field label="Locator Control"><Toggle value={formData.locator_control} onChange={val => setField('locator_control', val)} /></Field>
 
-            <Field label="Move Order Timeout Days" error={v.fieldError('move_order_timeout_days')}>
+            <Field label="Move Order Timeout Days" error={v.errors.move_order_timeout_days}>
               <Input type="number" value={formData.move_order_timeout_days}
                 onChange={e => setField('move_order_timeout_days', e.target.value)}
                 onBlur={() => v.handleBlur('move_order_timeout_days', formData)}
-                error={v.fieldError('move_order_timeout_days')} />
+                error={v.errors.move_order_timeout_days} />
             </Field>
 
             <Field label="Move Order Timeout Action">
               <Input value={formData.move_order_timeout_action} onChange={e => setField('move_order_timeout_action', e.target.value)} />
             </Field>
 
-            <Field label="Cost Method" required error={v.fieldError('cost_method_id')}>
+            <Field label="Cost Method" required error={v.errors.cost_method_id}>
               <Select value={formData.cost_method_id} onChange={val => setField('cost_method_id', val)}
                 onBlur={() => v.handleBlur('cost_method_id', formData)}
-                error={v.fieldError('cost_method_id')}
+                error={v.errors.cost_method_id}
                 options={costMethods?.map(r => ({ value: r.cost_method_id, label: r.cost_method_name || r.cost_method_id }))} />
             </Field>
 
-            <Field label="Cost Type" required error={v.fieldError('cost_type_id')}>
+            <Field label="Cost Type" required error={v.errors.cost_type_id}>
               <Select value={formData.cost_type_id} onChange={val => setField('cost_type_id', val)}
                 onBlur={() => v.handleBlur('cost_type_id', formData)}
-                error={v.fieldError('cost_type_id')}
+                error={v.errors.cost_type_id}
                 options={costTypes?.map(r => ({ value: r.cost_type_id, label: r.cost_type_name || r.cost_type_id }))} />
             </Field>
 
             <Field label="Lot Control Enabled"><Toggle value={formData.lot_control_enabled} onChange={val => setField('lot_control_enabled', val)} /></Field>
             <Field label="Serial Control Enabled"><Toggle value={formData.serial_control_enabled} onChange={val => setField('serial_control_enabled', val)} /></Field>
 
-            <Field label="Module" required error={v.fieldError('module_id')}>
+            <Field label="Module" required error={v.errors.module_id}>
               <Select value={formData.module_id} onChange={val => setField('module_id', val)}
                 onBlur={() => v.handleBlur('module_id', formData)}
-                error={v.fieldError('module_id')}
+                error={v.errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
 
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} onChange={val => setField('effective_from', val)}
-                onBlur={() => v.handleBlur('effective_from', formData)} error={v.fieldError('effective_from')} />
+                onBlur={() => v.handleBlur('effective_from', formData)} error={v.errors.effective_from} />
             </Field>
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} onChange={val => setField('effective_to', val)}
-                onBlur={() => v.handleBlur('effective_to', formData)} error={v.fieldError('effective_to')} />
+                onBlur={() => v.handleBlur('effective_to', formData)} error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -184,3 +192,5 @@ export default function OrgParameterPage() {
     </>
   )
 }
+
+

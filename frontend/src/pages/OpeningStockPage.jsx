@@ -245,7 +245,15 @@ export default function OpeningStockPage() {
       if (view === 'edit') await table.update(selected['opening_stock_id'], payload)
       else await table.create(payload)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -419,3 +427,4 @@ export default function OpeningStockPage() {
     </>
   )
 }
+

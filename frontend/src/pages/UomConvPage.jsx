@@ -106,7 +106,15 @@ export default function UomConvPage() {
       if (view === 'edit') await table.update(selected['uom_conv_id'], formData)
       else await table.create(formData)
       handleBack()
-    } catch { }
+    } catch (err) {
+      if (err.response?.data?.errors) {
+        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
+        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Action failed')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -129,59 +137,59 @@ export default function UomConvPage() {
             <Field label="Uom Conv Id (Auto-gen)"><Input value={formData.uom_conv_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Item" required error={v.fieldError('item_id')}>
+            <Field label="Item" required error={v.errors.item_id}>
               <Select value={formData.item_id} 
                 onChange={v => setField('item_id', v)} 
                 onBlur={() => v.handleBlur('item_id', formData)}
-                error={v.fieldError('item_id')}
+                error={v.errors.item_id}
                 options={dropdowns.itemMaster?.map(r => ({ value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` }))} />
             </Field>
 
-            <Field label="From UOM" required error={v.fieldError('from_uom_id')}>
+            <Field label="From UOM" required error={v.errors.from_uom_id}>
               <Select value={formData.from_uom_id} 
                 onChange={v => setField('from_uom_id', v)} 
                 onBlur={() => v.handleBlur('from_uom_id', formData)}
-                error={v.fieldError('from_uom_id')}
+                error={v.errors.from_uom_id}
                 options={dropdowns.uom?.map(r => ({ value: r.uom_id, label: r.uom_name || r.uom_id }))} />
             </Field>
 
-            <Field label="To UOM" required error={v.fieldError('to_uom_id')}>
+            <Field label="To UOM" required error={v.errors.to_uom_id}>
               <Select value={formData.to_uom_id} 
                 onChange={v => setField('to_uom_id', v)} 
                 onBlur={() => v.handleBlur('to_uom_id', formData)}
-                error={v.fieldError('to_uom_id')}
+                error={v.errors.to_uom_id}
                 options={dropdowns.uom?.map(r => ({ value: r.uom_id, label: r.uom_name || r.uom_id }))} />
             </Field>
 
-            <Field label="Conversion Rate" required error={v.fieldError('conversion_rate')}>
+            <Field label="Conversion Rate" required error={v.errors.conversion_rate}>
               <Input type="number" step="any" value={formData.conversion_rate} 
                 onChange={e => setField('conversion_rate', e.target.value)}
                 onBlur={() => v.handleBlur('conversion_rate', formData)}
-                error={v.fieldError('conversion_rate')} />
+                error={v.errors.conversion_rate} />
             </Field>
 
-            <Field label="Conversion Type" required error={v.fieldError('conversion_type')}>
+            <Field label="Conversion Type" required error={v.errors.conversion_type}>
               <Select value={formData.conversion_type} 
                 onChange={v => setField('conversion_type', v)} 
                 onBlur={() => v.handleBlur('conversion_type', formData)}
-                error={v.fieldError('conversion_type')}
+                error={v.errors.conversion_type}
                 options={["Item", "Standard"]} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
 
-            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+            <Field label="Effective From" required error={v.errors.effective_from}>
               <DateInput value={formData.effective_from} 
                 onChange={v => setField('effective_from', v)}
                 onBlur={() => v.handleBlur('effective_from', formData)}
-                error={v.fieldError('effective_from')} />
+                error={v.errors.effective_from} />
             </Field>
 
-            <Field label="Effective To" error={v.fieldError('effective_to')}>
+            <Field label="Effective To" error={v.errors.effective_to}>
               <DateInput value={formData.effective_to} 
                 onChange={v => setField('effective_to', v)}
                 onBlur={() => v.handleBlur('effective_to', formData)}
-                error={v.fieldError('effective_to')} />
+                error={v.errors.effective_to} />
             </Field>
 
             <AuditFields formData={formData} setField={setField} />
@@ -221,3 +229,5 @@ export default function UomConvPage() {
     </>
   )
 }
+
+
