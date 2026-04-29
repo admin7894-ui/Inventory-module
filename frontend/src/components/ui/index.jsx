@@ -400,3 +400,14 @@ export function SectionHeader({ icon: Icon, title, subtitle, color = 'brand' }) 
     </div>
   )
 }
+
+// -- Error Banner ----------------------------------------------
+export function ErrorBanner({ message }) {
+  if (!message) return null
+  return (
+    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700 animate-slide-in">
+      <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+      <span className="text-sm font-medium">{message}</span>
+    </div>
+  )
+}

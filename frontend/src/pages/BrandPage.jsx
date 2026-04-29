@@ -3,7 +3,9 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, ErrorBanner } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
+import { autoCode } from '../validations/validationEngine'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -32,6 +34,7 @@ export default function BrandPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const v = useFormValidation('brand')
 
   // Load all needed dropdowns
   const companies = []
@@ -83,19 +86,21 @@ export default function BrandPage() {
   const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
+    if (e) e.preventDefault()
+    if (!v.validate(formData)) return toast.error('Please fix the highlighted errors')
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['brand_id'], formData)
@@ -103,7 +108,9 @@ export default function BrandPage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+    }
   }
 
   const handleDelete = async () => {
@@ -115,19 +122,63 @@ export default function BrandPage() {
     return (
       <FormPage title={view==='view'?`View Brand`:view==='edit'?`Edit Brand`:`New Brand`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.submitFailed && <ErrorBanner message="Please fix the highlighted errors before saving." />}
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Brand Id (Auto-gen)"><Input value={formData.brand_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Brand Id (Auto-gen)"><Input value={formData.brand_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-      <Field label="Brand Code"><Input value={formData.brand_code} onChange={e => setField('brand_code',e.target.value)} /></Field>
-      <Field label="Brand Name"><Input value={formData.brand_name} onChange={e => setField('brand_name',e.target.value)} /></Field>
-      <Field label="Description"><textarea className="input" rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} disabled={view==='view'} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
+            <Field label="Brand Name" required error={v.fieldError('brand_name')}>
+              <Input value={formData.brand_name} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setFormData(p => ({ 
+                    ...p, 
+                    brand_name: val,
+                    brand_code: view === 'create' ? autoCode(val, 'B_') : p.brand_code
+                  }))
+                }}
+                onBlur={() => v.handleBlur('brand_name', formData)}
+                error={v.fieldError('brand_name')}
+              />
+            </Field>
+
+            <Field label="Brand Code" required error={v.fieldError('brand_code')}>
+              <Input value={formData.brand_code} 
+                onChange={e => setField('brand_code', e.target.value)} 
+                onBlur={() => v.handleBlur('brand_code', formData)}
+                error={v.fieldError('brand_code')}
+              />
+            </Field>
+
+            <Field label="Description" error={v.fieldError('description')}>
+              <textarea className={`input ${v.fieldError('description') ? 'border-red-500' : ''}`}
+                rows={3} value={formData.description||''} 
+                onChange={e => setField('description',e.target.value)} 
+                onBlur={() => v.handleBlur('description', formData)}
+                disabled={view==='view'} />
+              {v.fieldError('description') && <p className="text-red-500 text-xs mt-1">{v.fieldError('description')}</p>}
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
+            
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v_val => setField('effective_from', v_val)} 
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')}
+              />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v_val => setField('effective_to', v_val)} 
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')}
+              />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
           </div>
         </div>
       </FormPage>

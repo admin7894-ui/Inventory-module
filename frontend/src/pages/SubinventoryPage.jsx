@@ -3,7 +3,9 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, ErrorBanner } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
+import { autoCode } from '../validations/validationEngine'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -32,6 +34,7 @@ export default function SubinventoryPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const v = useFormValidation('subinventory')
 
   // Load all needed dropdowns
   const companies = []
@@ -83,19 +86,23 @@ export default function SubinventoryPage() {
   const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01',
+      max_capacity_kg: 0,
+      current_utilization_pct: 0
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
+    if (e) e.preventDefault()
+    if (!v.validate(formData)) return toast.error('Please fix the highlighted errors')
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['subinventory_id'], formData)
@@ -103,7 +110,9 @@ export default function SubinventoryPage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+    }
   }
 
   const handleDelete = async () => {
@@ -115,25 +124,108 @@ export default function SubinventoryPage() {
     return (
       <FormPage title={view==='view'?`View Subinventory`:view==='edit'?`Edit Subinventory`:`New Subinventory`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.submitFailed && <ErrorBanner message="Please fix the highlighted errors before saving." />}
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Subinventory Id (Auto-gen)"><Input value={formData.subinventory_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Subinventory Id (Auto-gen)"><Input value={formData.subinventory_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-      <Field label="Inv Org Id"><Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} options={dropdowns.inventoryOrg?.map(r=>{return{value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}})} /></Field>
-      <Field label="Subinventory Code"><Input value={formData.subinventory_code} onChange={e => setField('subinventory_code',e.target.value)} /></Field>
-      <Field label="Subinventory Name"><Input value={formData.subinventory_name} onChange={e => setField('subinventory_name',e.target.value)} /></Field>
-      <Field label="Description"><textarea className="input" disabled={view==='view'} rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} /></Field>
-      <Field label="Zone"><Select value={formData.zone_id} onChange={v => setField('zone_id',v)} options={dropdowns.zone?.map(r=>{return{value:r.zone_id,label:r.zone_name||r.zone_id}})} /></Field>
-      <Field label="Material Status"><Select value={formData.material_status} onChange={v => setField('material_status',v)} options={["AVAILABLE","BLOCKED","QUARANTINE","DAMAGED","Hold"]} /></Field>
-      <Field label="Max Capacity Kg"><Input value={formData.max_capacity_kg} onChange={e => setField('max_capacity_kg',e.target.value)} /></Field>
-      <Field label="Current Utilization Pct"><Input value={formData.current_utilization_pct} onChange={e => setField('current_utilization_pct',e.target.value)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Inv Org Id" required error={v.fieldError('inv_org_id')}>
+              <Select value={formData.inv_org_id} 
+                onChange={v_val => setField('inv_org_id', v_val)} 
+                onBlur={() => v.handleBlur('inv_org_id', formData)}
+                options={dropdowns.inventoryOrg?.map(r=>({value:r.inv_org_id, label:r.inv_org_name||r.inv_org_id}))} 
+                disabled={view === 'view'}
+                placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Org"}
+              />
+            </Field>
+
+            <Field label="Subinventory Name" required error={v.fieldError('subinventory_name')}>
+              <Input value={formData.subinventory_name} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setFormData(p => ({ 
+                    ...p, 
+                    subinventory_name: val,
+                    subinventory_code: view === 'create' ? autoCode(val, 'SUB_INV_') : p.subinventory_code
+                  }))
+                }}
+                onBlur={() => v.handleBlur('subinventory_name', formData)}
+                error={v.fieldError('subinventory_name')}
+                disabled={!formData.inv_org_id || view === 'view'}
+              />
+            </Field>
+
+            <Field label="Subinventory Code" required error={v.fieldError('subinventory_code')}>
+              <Input value={formData.subinventory_code} 
+                onChange={e => setField('subinventory_code', e.target.value)} 
+                onBlur={() => v.handleBlur('subinventory_code', formData)}
+                error={v.fieldError('subinventory_code')}
+                disabled={!formData.inv_org_id || view === 'view'}
+              />
+            </Field>
+
+            <Field label="Zone" required error={v.fieldError('zone_id')}>
+              <Select value={formData.zone_id} 
+                onChange={v_val => setField('zone_id', v_val)} 
+                onBlur={() => v.handleBlur('zone_id', formData)}
+                options={dropdowns.zone?.map(r=>({value:r.zone_id, label:r.zone_name||r.zone_id}))} 
+                disabled={!formData.inv_org_id || view === 'view'}
+              />
+            </Field>
+
+            <Field label="Material Status" required error={v.fieldError('material_status')}>
+              <Select value={formData.material_status} 
+                onChange={v_val => setField('material_status', v_val)} 
+                options={[
+                  { value: 'AVAILABLE', label: 'Available' },
+                  { value: 'BLOCKED', label: 'Blocked' },
+                  { value: 'QUARANTINE', label: 'Quarantine' },
+                  { value: 'DAMAGED', label: 'Damaged' },
+                  { value: 'HOLD', label: 'Hold' }
+                ]} 
+                disabled={view === 'view'}
+              />
+            </Field>
+
+            <Field label="Max Capacity Kg" required error={v.fieldError('max_capacity_kg')}>
+              <Input type="number" value={formData.max_capacity_kg} 
+                onChange={e => setField('max_capacity_kg', e.target.value)} 
+                onBlur={() => v.handleBlur('max_capacity_kg', formData)}
+                error={v.fieldError('max_capacity_kg')}
+              />
+            </Field>
+
+            <Field label="Current Utilization Pct" error={v.fieldError('current_utilization_pct')}>
+              <Input type="number" value={formData.current_utilization_pct} 
+                onChange={e => setField('current_utilization_pct', e.target.value)} 
+                onBlur={() => v.handleBlur('current_utilization_pct', formData)}
+                error={v.fieldError('current_utilization_pct')}
+              />
+            </Field>
+
+            <Field label="Description"><textarea className="input" disabled={view==='view'} rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} /></Field>
+            
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
+            
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v_val => setField('effective_from', v_val)} 
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')}
+              />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v_val => setField('effective_to', v_val)} 
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')}
+              />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )

@@ -13,6 +13,7 @@ import { validate } from './validationEngine';
 export function useFormValidation(formName) {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
+  const [submitFailed, setSubmitFailed] = useState(false);
 
   /** Clear a single field error (call in setField) */
   const clearError = useCallback((key) => {
@@ -35,11 +36,17 @@ export function useFormValidation(formName) {
   const runValidation = useCallback((formData, options = {}) => {
     const { errors: valErrors, isValid } = validate(formName, formData, options);
     setErrors(valErrors);
+    setSubmitFailed(!isValid);
     setTouched(
       Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {})
     );
     return isValid;
   }, [formName]);
+
+  /** Alias for runValidation */
+  const validateForm = useCallback((formData, options = {}) => {
+    return runValidation(formData, options);
+  }, [runValidation]);
 
   /** Get error for a field (only if touched) */
   const fieldError = useCallback((key) => {
@@ -50,6 +57,7 @@ export function useFormValidation(formName) {
   const reset = useCallback(() => {
     setErrors({});
     setTouched({});
+    setSubmitFailed(false);
   }, []);
 
   /** Check if there are any errors and at least one field is touched */
@@ -58,14 +66,17 @@ export function useFormValidation(formName) {
   return {
     errors,
     touched,
+    submitFailed,
     hasErrors,
     clearError,
     handleBlur,
     runValidation,
+    validate: validateForm, // Alias
     fieldError,
     reset,
     setErrors,
     setTouched,
+    setSubmitFailed,
   };
 }
 

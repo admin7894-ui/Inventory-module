@@ -19,6 +19,11 @@ const { validateUomConv } = require('./uomConvValidator');
 const { validateCategorySet } = require('./categorySetValidator');
 const { validateItemCategory } = require('./itemCategoryValidator');
 const { validateItemSubCategory } = require('./itemSubCategoryValidator');
+const validateBrand = require('./brandValidator');
+const validateItemType = require('./itemTypeValidator');
+const validateZone = require('./zoneValidator');
+const validateSubinventory = require('./subinventoryValidator');
+const validateLocator = require('./locatorValidator');
 
 /**
  * Express validation middleware factory
@@ -56,5 +61,10 @@ module.exports = {
   validateUomConv,
   validateCategorySet,
   validateItemCategory,
-  validateItemSubCategory
+  validateItemSubCategory,
+  validateBrand,
+  validateItemType,
+  validateZone,
+  validateSubinventory,
+  validateLocator
 };

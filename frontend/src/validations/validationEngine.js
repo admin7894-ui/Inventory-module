@@ -26,19 +26,19 @@ const posNum = (val, label) => !isEmpty(val) && !isPositiveNumber(val) ? `${labe
 const nonNeg = (val, label) => !isEmpty(val) && !isNonNegativeNumber(val) ? `${label} must be ≥ 0` : null;
 
 // Common: Company Group cascade
-const validateCompanyGroup = (e, d) => {
+function validateCompanyGroup(e, d) {
   if (isEmpty(d.bg_id)) e.bg_id = 'Business Group is required';
   if (isEmpty(d.COMPANY_id)) e.COMPANY_id = 'Company is required';
   if (isEmpty(d.business_type_id)) e.business_type_id = 'Business Type is required';
-};
+}
 
 // Common: Date range
-const validateDates = (e, d) => {
+function validateDates(e, d) {
   if (isEmpty(d.effective_from)) e.effective_from = 'Effective From is required';
   if (d.effective_from && d.effective_to && new Date(d.effective_to) < new Date(d.effective_from)) {
     e.effective_to = 'Effective To must be ≥ Effective From';
   }
-};
+}
 
 // ── Module Rule Sets ─────────────────────────────────────────
 
@@ -450,6 +450,80 @@ const RULES = {
     else if (!REGEX.NAME.test(d.sub_category_name)) e.sub_category_name = 'Name: 3–100 chars, no special chars except & ( ) -';
     if (isEmpty(d.sub_category_code)) e.sub_category_code = 'Sub Category Code is required';
     else if (!REGEX.CODE.test(d.sub_category_code)) e.sub_category_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  brand: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.brand_name)) e.brand_name = 'Brand Name is required';
+    else if (!REGEX.NAME.test(d.brand_name)) e.brand_name = 'Name: 3–100 chars, no special chars except & ( ) -';
+    if (isEmpty(d.brand_code)) e.brand_code = 'Brand Code is required';
+    else if (!REGEX.CODE.test(d.brand_code)) e.brand_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (d.description && d.description.length > 250) e.description = 'Description: max 250 chars';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  item_type: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.item_type_name)) e.item_type_name = 'Item Type Name is required';
+    const isPhysical = d.is_physical === 'Y' || d.is_physical === true;
+    const requiresInv = d.requires_inventory === 'Y' || d.requires_inventory === true;
+    if (!isPhysical && requiresInv) e.requires_inventory = 'Non-physical items cannot require inventory';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  zone: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.zone_name)) e.zone_name = 'Zone Name is required';
+    if (isEmpty(d.zone_code)) e.zone_code = 'Zone Code is required';
+    else if (!REGEX.CODE.test(d.zone_code)) e.zone_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.zone_type)) e.zone_type = 'Please select Zone Type';
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  subinventory: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Inventory Org is required';
+    if (isEmpty(d.subinventory_name)) e.subinventory_name = 'Subinventory Name is required';
+    if (isEmpty(d.subinventory_code)) e.subinventory_code = 'Subinventory Code is required';
+    else if (!REGEX.CODE.test(d.subinventory_code)) e.subinventory_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.zone_id)) e.zone_id = 'Please select Zone';
+    if (isEmpty(d.material_status)) e.material_status = 'Please select Material Status';
+    const capErr = nonNeg(d.max_capacity_kg, 'Capacity'); if (capErr) e.max_capacity_kg = capErr;
+    if (!isEmpty(d.current_utilization_pct)) {
+      const util = Number(d.current_utilization_pct);
+      if (isNaN(util) || util < 0 || util > 100) e.current_utilization_pct = 'Utilization: 0-100';
+    }
+    if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
+    validateDates(e, d);
+    return e;
+  },
+
+  locator: (d) => {
+    const e = {};
+    validateCompanyGroup(e, d);
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Subinventory is required';
+    if (isEmpty(d.locator_name)) e.locator_name = 'Locator Name is required';
+    if (isEmpty(d.locator_code)) e.locator_code = 'Locator Code is required';
+    else if (!REGEX.CODE.test(d.locator_code)) e.locator_code = 'Must be 2–20 uppercase alphanumeric or _';
+    if (isEmpty(d.locator_type)) e.locator_type = 'Please select Locator Type';
+    if (isEmpty(d.locator_usage)) e.locator_usage = 'Please select Locator Usage';
+    const wErr = nonNeg(d.max_weight_kg, 'Weight'); if (wErr) e.max_weight_kg = wErr;
+    const vErr = nonNeg(d.max_volume_cbm, 'Volume'); if (vErr) e.max_volume_cbm = vErr;
+    if (isEmpty(d.material_status)) e.material_status = 'Please select Material Status';
+    if (isEmpty(d.temperature_range)) e.temperature_range = 'Please select Temp Range';
     if (isEmpty(d.module_id)) e.module_id = 'Please select Module';
     validateDates(e, d);
     return e;

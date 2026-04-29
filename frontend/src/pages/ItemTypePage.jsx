@@ -3,7 +3,8 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, ErrorBanner } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -32,6 +33,7 @@ export default function ItemTypePage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const v = useFormValidation('item_type')
 
   // Load all needed dropdowns
   const companies = []
@@ -83,19 +85,23 @@ export default function ItemTypePage() {
   const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01',
+      is_physical: 'Y',
+      requires_inventory: 'Y'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
+    if (e) e.preventDefault()
+    if (!v.validate(formData)) return toast.error('Please fix the highlighted errors')
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['item_type_id'], formData)
@@ -103,7 +109,9 @@ export default function ItemTypePage() {
         await table.create(formData)
       }
       handleBack()
-    } catch {}
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+    }
   }
 
   const handleDelete = async () => {
@@ -115,20 +123,64 @@ export default function ItemTypePage() {
     return (
       <FormPage title={view==='view'?`View Item Type`:view==='edit'?`Edit Item Type`:`New Item Type`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating||table.isUpdating} mode={view}>
+        {v.submitFailed && <ErrorBanner message="Please fix the highlighted errors before saving." />}
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Field label="Item Type Id (Auto-gen)"><Input value={formData.item_type_id} readOnly /></Field>
-      <CompanyGroup formData={formData} setField={setField} />
+            <Field label="Item Type Id (Auto-gen)"><Input value={formData.item_type_id} readOnly /></Field>
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-      <Field label="Item Type Name"><Input value={formData.item_type_name} onChange={e => setField('item_type_name',e.target.value)} /></Field>
-      <Field label="Is Physical"><Toggle value={formData.is_physical} onChange={v => setField('is_physical',v)} /></Field>
-      <Field label="Requires Inventory"><Toggle value={formData.requires_inventory} onChange={v => setField('requires_inventory',v)} /></Field>
-      <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>{return{value:r.module_id,label:r.module_name||r.module_id}})} /></Field>
-      <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
-      <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} /></Field>
-      <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} /></Field>
-      <AuditFields formData={formData} setField={setField} />
-      </div>
+            <Field label="Item Type Name" required error={v.fieldError('item_type_name')}>
+              <Input value={formData.item_type_name} 
+                onChange={e => setField('item_type_name', e.target.value)} 
+                onBlur={() => v.handleBlur('item_type_name', formData)}
+                error={v.fieldError('item_type_name')}
+              />
+            </Field>
+
+            <Field label="Is Physical">
+              <Toggle value={formData.is_physical} 
+                onChange={val => {
+                  setFormData(p => ({
+                    ...p,
+                    is_physical: val,
+                    requires_inventory: val === 'N' ? 'N' : p.requires_inventory
+                  }))
+                }} 
+              />
+            </Field>
+
+            <Field label="Requires Inventory" error={v.fieldError('requires_inventory')}>
+              <Toggle value={formData.requires_inventory} 
+                onChange={val => {
+                  if (formData.is_physical === 'N' && val === 'Y') {
+                    return toast.error('Non-physical items cannot require inventory')
+                  }
+                  setField('requires_inventory', val)
+                }} 
+              />
+              {v.fieldError('requires_inventory') && <p className="text-red-500 text-xs mt-1">{v.fieldError('requires_inventory')}</p>}
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
+            
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v_val => setField('effective_from', v_val)} 
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')}
+              />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v_val => setField('effective_to', v_val)} 
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')}
+              />
+            </Field>
+
+            <AuditFields formData={formData} setField={setField} />
+          </div>
         </div>
       </FormPage>
     )

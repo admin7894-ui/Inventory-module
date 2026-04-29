@@ -3,7 +3,9 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
-import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
+import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, ErrorBanner } from '../components/ui/index'
+import { useFormValidation } from '../validations/useFormValidation'
+import { autoCode } from '../validations/validationEngine'
 
 import {
   companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
@@ -32,6 +34,7 @@ export default function LocatorPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
+  const v = useFormValidation('locator')
 
   // Load all needed dropdowns
   const companies = []
@@ -83,19 +86,21 @@ export default function LocatorPage() {
   const setField = (k, v) => setFormData(p => ({ ...p, [k]: v }))
 
   const handleCreate = () => {
-    setFormData({ active_flag: 'Y', effective_from: new Date().toISOString().split('T')[0] })
-    setView('create')
+    setFormData({ 
+      active_flag: 'Y', 
+      effective_from: new Date().toISOString().split('T')[0],
+      module_id: 'MOD01'
+    })
+    v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); setView('view') }
+  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
 
   const handleSubmit = async (e) => {
-    if (!formData.COMPANY_id || !formData.business_type_id || !formData.bg_id) {
-      return toast.error('Please select Company, Business Group and Business Type')
-    }
+    if (e) e.preventDefault()
+    if (!v.validate(formData)) return toast.error('Please fix the highlighted errors')
 
-    e.preventDefault()
     try {
       if (view === 'edit') {
         await table.update(selected['locator_id'], formData)
@@ -103,7 +108,9 @@ export default function LocatorPage() {
         await table.create(formData)
       }
       handleBack()
-    } catch { }
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save record')
+    }
   }
 
   const handleDelete = async () => {
@@ -115,28 +122,145 @@ export default function LocatorPage() {
     return (
       <FormPage title={view === 'view' ? `View Locator / Bin` : view === 'edit' ? `Edit Locator / Bin` : `New Locator / Bin`}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}>
+        {v.submitFailed && <ErrorBanner message="Please fix the highlighted errors before saving." />}
         <div className="card p-6 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Locator Id (Auto-gen)"><Input value={formData.locator_id} readOnly /></Field>
-            <Field label="Subinventory Id"><Select value={formData.subinventory_id} onChange={v => setField('subinventory_id', v)} options={dropdowns.subinventory?.map(r => { return { value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id } })} /></Field>
-            <CompanyGroup formData={formData} setField={setField} />
+            <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
-            <Field label="Locator Code"><Input value={formData.locator_code} onChange={e => setField('locator_code', e.target.value)} /></Field>
-            <Field label="Locator Name"><Input value={formData.locator_name} onChange={e => setField('locator_name', e.target.value)} /></Field>
-            <Field label="Aisle Code"><Input value={formData.aisle_code} onChange={e => setField('aisle_code', e.target.value)} /></Field>
-            <Field label="Rack No"><Input value={formData.rack_no} onChange={e => setField('rack_no', e.target.value)} /></Field>
-            <Field label="Shelf No"><Input value={formData.shelf_no} onChange={e => setField('shelf_no', e.target.value)} /></Field>
-            <Field label="Bin No"><Input value={formData.bin_no} onChange={e => setField('bin_no', e.target.value)} /></Field>
-            <Field label="Locator Type"><Select value={formData.locator_type} onChange={v => setField('locator_type', v)} options={["BIN", "SHELF", "FLOOR", "VIRTUAL", "LOCATOR", "PALLET"]} /></Field>
-            <Field label="Locator Usage"><Select value={formData.locator_usage} onChange={v => setField('locator_usage', v)} options={["QC", "STORAGE", "STAGING", "RECEIVING", "PICK", "REJECT"]} /></Field>
-            <Field label="Max Weight Kg"><Input type="number" step="any" value={formData.max_weight_kg} onChange={e => setField('max_weight_kg', e.target.value)} /></Field>
-            <Field label="Max Volume Cbm"><Input value={formData.max_volume_cbm} onChange={e => setField('max_volume_cbm', e.target.value)} /></Field>
-            <Field label="Material Status"><Select value={formData.material_status} onChange={v => setField('material_status', v)} options={["AVAILABLE", "BLOCKED", "QUARANTINE", "DAMAGED", "Hold"]} /></Field>
-            <Field label="Temperature Range"><Select value={formData.temperature_range} onChange={v => setField('temperature_range', v)} options={["Ambient", "Cold", "Frozen", "2-8°C", "AMBIENT"]} /></Field>
-            <Field label="Module"><Select value={formData.module_id} onChange={v => setField('module_id', v)} options={dropdowns.module?.map(r => { return { value: r.module_id, label: r.module_name || r.module_id } })} /></Field>
-            <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>
-            <Field label="Effective From"><DateInput value={formData.effective_from} onChange={v => setField('effective_from', v)} /></Field>
-            <Field label="Effective To"><DateInput value={formData.effective_to} onChange={v => setField('effective_to', v)} /></Field>
+            <Field label="Subinventory Id" required error={v.fieldError('subinventory_id')}>
+              <Select value={formData.subinventory_id} 
+                onChange={v_val => setField('subinventory_id', v_val)} 
+                onBlur={() => v.handleBlur('subinventory_id', formData)}
+                options={dropdowns.subinventory?.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} 
+                disabled={!formData.business_type_id || view === 'view'}
+                placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Subinventory"}
+              />
+            </Field>
+
+            <Field label="Locator Name" required error={v.fieldError('locator_name')}>
+              <Input value={formData.locator_name} 
+                onChange={e => {
+                  const val = e.target.value;
+                  setFormData(p => ({ 
+                    ...p, 
+                    locator_name: val,
+                    locator_code: view === 'create' ? autoCode(val, 'L_') : p.locator_code
+                  }))
+                }}
+                onBlur={() => v.handleBlur('locator_name', formData)}
+                error={v.fieldError('locator_name')}
+                disabled={!formData.subinventory_id || view === 'view'}
+              />
+            </Field>
+
+            <Field label="Locator Code" required error={v.fieldError('locator_code')}>
+              <Input value={formData.locator_code} 
+                onChange={e => setField('locator_code', e.target.value)} 
+                onBlur={() => v.handleBlur('locator_code', formData)}
+                error={v.fieldError('locator_code')}
+                disabled={!formData.subinventory_id || view === 'view'}
+              />
+            </Field>
+
+            <Field label="Aisle Code"><Input value={formData.aisle_code} onChange={e => setField('aisle_code', e.target.value)} disabled={view==='view'} /></Field>
+            <Field label="Rack No"><Input value={formData.rack_no} onChange={e => setField('rack_no', e.target.value)} disabled={view==='view'} /></Field>
+            <Field label="Shelf No"><Input value={formData.shelf_no} onChange={e => setField('shelf_no', e.target.value)} disabled={view==='view'} /></Field>
+            <Field label="Bin No"><Input value={formData.bin_no} onChange={e => setField('bin_no', e.target.value)} disabled={view==='view'} /></Field>
+
+            <Field label="Locator Type" required error={v.fieldError('locator_type')}>
+              <Select value={formData.locator_type} 
+                onChange={v_val => setField('locator_type', v_val)} 
+                options={[
+                  { value: 'BIN', label: 'Bin' },
+                  { value: 'SHELF', label: 'Shelf' },
+                  { value: 'FLOOR', label: 'Floor' },
+                  { value: 'PALLET', label: 'Pallet' },
+                  { value: 'LOCATOR', label: 'Locator' },
+                  { value: 'VIRTUAL', label: 'Virtual' }
+                ]} 
+                disabled={view==='view'}
+              />
+            </Field>
+
+            <Field label="Locator Usage" required error={v.fieldError('locator_usage')}>
+              <Select value={formData.locator_usage} 
+                onChange={v_val => setField('locator_usage', v_val)} 
+                options={[
+                  { value: 'STORAGE', label: 'Storage' },
+                  { value: 'STAGING', label: 'Staging' },
+                  { value: 'RECEIVING', label: 'Receiving' },
+                  { value: 'QC', label: 'QC' },
+                  { value: 'PICK', label: 'Pick' },
+                  { value: 'REJECT', label: 'Reject' }
+                ]} 
+                disabled={view==='view'}
+              />
+            </Field>
+
+            <Field label="Max Weight Kg" error={v.fieldError('max_weight_kg')}>
+              <Input type="number" step="any" value={formData.max_weight_kg} 
+                onChange={e => setField('max_weight_kg', e.target.value)} 
+                onBlur={() => v.handleBlur('max_weight_kg', formData)}
+                error={v.fieldError('max_weight_kg')}
+                disabled={view==='view'}
+              />
+            </Field>
+
+            <Field label="Max Volume Cbm" error={v.fieldError('max_volume_cbm')}>
+              <Input type="number" step="any" value={formData.max_volume_cbm} 
+                onChange={e => setField('max_volume_cbm', e.target.value)} 
+                onBlur={() => v.handleBlur('max_volume_cbm', formData)}
+                error={v.fieldError('max_volume_cbm')}
+                disabled={view==='view'}
+              />
+            </Field>
+
+            <Field label="Material Status" required error={v.fieldError('material_status')}>
+              <Select value={formData.material_status} 
+                onChange={v_val => setField('material_status', v_val)} 
+                options={[
+                  { value: 'AVAILABLE', label: 'Available' },
+                  { value: 'BLOCKED', label: 'Blocked' },
+                  { value: 'QUARANTINE', label: 'Quarantine' },
+                  { value: 'DAMAGED', label: 'Damaged' },
+                  { value: 'HOLD', label: 'Hold' }
+                ]} 
+                disabled={view==='view'}
+              />
+            </Field>
+
+            <Field label="Temperature Range" required error={v.fieldError('temperature_range')}>
+              <Select value={formData.temperature_range} 
+                onChange={v_val => setField('temperature_range', v_val)} 
+                options={[
+                  { value: 'AMBIENT', label: 'Ambient' },
+                  { value: 'COLD', label: 'Cold' },
+                  { value: 'FROZEN', label: 'Frozen' },
+                  { value: '2-8C', label: '2-8°C' }
+                ]} 
+                disabled={view==='view'}
+              />
+            </Field>
+
+            <Field label="Active"><Toggle value={formData.active_flag} onChange={v_val => setField('active_flag', v_val)} /></Field>
+            
+            <Field label="Effective From" required error={v.fieldError('effective_from')}>
+              <DateInput value={formData.effective_from} 
+                onChange={v_val => setField('effective_from', v_val)} 
+                onBlur={() => v.handleBlur('effective_from', formData)}
+                error={v.fieldError('effective_from')}
+              />
+            </Field>
+
+            <Field label="Effective To" error={v.fieldError('effective_to')}>
+              <DateInput value={formData.effective_to} 
+                onChange={v_val => setField('effective_to', v_val)} 
+                onBlur={() => v.handleBlur('effective_to', formData)}
+                error={v.fieldError('effective_to')}
+              />
+            </Field>
+
             <AuditFields formData={formData} setField={setField} />
           </div>
         </div>
