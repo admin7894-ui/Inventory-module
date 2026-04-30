@@ -132,8 +132,7 @@ exports.create = async (req, res) => {
 
     res.status(201).json({ success: true, data: result, message: `Transaction ${body.txn_action} processed successfully` });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: e.message });
+    res.status(400).json({ success: false, message: e.message });
   }
 };
 

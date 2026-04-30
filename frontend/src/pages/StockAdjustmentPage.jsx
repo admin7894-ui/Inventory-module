@@ -13,7 +13,7 @@ import {
   stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
   lotMasterApi, serialMasterApi, itemStockApi,
-  itemOrgAssignmentApi, itemSubinvRestrictionApi
+  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -57,6 +57,7 @@ export default function StockAdjustmentPage() {
   const { options: serials } = useDropdownData(serialMasterApi, 'ser_dd')
   const { options: assignments } = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
   const { options: restrictions } = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
+  const { options: orgParameters } = useDropdownData(orgParameterApi, 'org_param_dd')
   const { rows: allStock } = useTableData(itemStockApi, 'item_stock_onhand', { limit: 1000 })
 
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
@@ -67,8 +68,23 @@ export default function StockAdjustmentPage() {
     return (items || []).find(i => String(i.item_id) === String(formData.item_id));
   }, [items, formData.item_id]);
 
-  const isLotControlled = selectedItem && isYes(selectedItem.is_lot_controlled);
-  const isSerialControlled = selectedItem && isYes(selectedItem.is_serial_controlled);
+  const getActiveOrgParam = useCallback((orgId) => {
+    const today = new Date()
+    return (orgParameters || []).find(p => {
+      if (String(p.inv_org_id) !== String(orgId)) return false
+      if (!isYes(p.active_flag)) return false
+      const from = p.effective_from ? new Date(p.effective_from) : null
+      const to = p.effective_to ? new Date(p.effective_to) : null
+      return (!from || today >= from) && (!to || today <= to)
+    })
+  }, [orgParameters])
+
+  const selectedOrgParam = useMemo(() => getActiveOrgParam(formData.inv_org_id), [getActiveOrgParam, formData.inv_org_id])
+  const selectedToOrgParam = useMemo(() => getActiveOrgParam(formData.to_inv_org_id), [getActiveOrgParam, formData.to_inv_org_id])
+  const locatorRequired = !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
+  const destLocatorRequired = !!selectedToOrgParam && isYes(selectedToOrgParam.locator_control)
+  const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled);
+  const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled);
 
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }));
@@ -107,7 +123,7 @@ export default function StockAdjustmentPage() {
         formData.item_id &&
         formData.inv_org_id &&
         formData.subinventory_id &&
-        formData.locator_id
+        (!locatorRequired || formData.locator_id)
 
       if (!hasBaseSelection) {
         if (!active) return
@@ -124,9 +140,9 @@ export default function StockAdjustmentPage() {
           limit: 1000,
           item_id: formData.item_id,
           inv_org_id: formData.inv_org_id,
-          subinventory_id: formData.subinventory_id,
-          locator_id: formData.locator_id
+          subinventory_id: formData.subinventory_id
         }
+        if (locatorRequired) params.locator_id = formData.locator_id
 
         if (isLotControlled && formData.lot_id) params.lot_id = formData.lot_id
         const resp = await itemStockApi.getAll(params)
@@ -167,6 +183,7 @@ export default function StockAdjustmentPage() {
     formData.inv_org_id,
     formData.subinventory_id,
     formData.locator_id,
+    locatorRequired,
     formData.lot_id,
     formData.serial_id,
     formData.serial_ids,
@@ -177,10 +194,10 @@ export default function StockAdjustmentPage() {
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
     const { errors: newErrors } = validateStockAdjustment({ ...formData, [k]: val }, {
-      stockInfo: currentStockInfo, isLotControlled, isSerialControlled
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired
     })
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
-  }, [formData, currentStockInfo, isLotControlled, isSerialControlled])
+  }, [formData, currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired])
 
   const handleTxnTypeChange = (tid) => {
     const type = (txnTypes || []).find(t => String(t.txn_type_id) === String(tid));
@@ -375,7 +392,7 @@ export default function StockAdjustmentPage() {
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     )
     const { errors: valErrors, isValid } = validateStockAdjustment(trimmedData, {
-      stockInfo: currentStockInfo, isLotControlled, isSerialControlled
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired
     })
 
     setErrors(valErrors)
@@ -453,10 +470,12 @@ export default function StockAdjustmentPage() {
                     <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} disabled={view === 'view'}
                       options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                   </Field>
-                  <Field label="Locator (Bin)" required error={errors.locator_id}>
-                    <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view' || !formData.subinventory_id}
-                      options={filteredSourceLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
-                  </Field>
+                  {locatorRequired && (
+                    <Field label="Locator (Bin)" required error={errors.locator_id}>
+                      <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view' || !formData.subinventory_id}
+                        options={filteredSourceLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
+                    </Field>
+                  )}
                 </div>
               </div>
 
@@ -473,10 +492,12 @@ export default function StockAdjustmentPage() {
                       <Select value={formData.to_subinventory_id} onChange={v => { setField('to_subinventory_id', v); setField('to_locator_id', ''); }} disabled={view === 'view'}
                         options={filteredToSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
                     </Field>
-                    <Field label="To Locator (Bin)" required={isTransfer} error={errors.to_locator_id}>
-                      <Select value={formData.to_locator_id} onChange={v => setField('to_locator_id', v)} disabled={view === 'view' || !formData.to_subinventory_id}
-                        options={filteredDestLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
-                    </Field>
+                    {destLocatorRequired && (
+                      <Field label="To Locator (Bin)" required={isTransfer} error={errors.to_locator_id}>
+                        <Select value={formData.to_locator_id} onChange={v => setField('to_locator_id', v)} disabled={view === 'view' || !formData.to_subinventory_id}
+                          options={filteredDestLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
+                      </Field>
+                    )}
                   </div>
                 </div>
               )}
@@ -529,14 +550,23 @@ export default function StockAdjustmentPage() {
               )}
               {isSerialControlled && (
                 <Field label="Serials" required error={errors.serial_ids}>
-                  <MultiSelect value={formData.serial_ids} onChange={v => {
-                    setField('serial_ids', v);
-                    setField('physical_qty', v.length);
-                  }} disabled={view === 'view'}
-                    options={serials?.filter(r => {
-                      if (!isTransfer) return true
-                      return itemStock.some(s => String(s.serial_id) === String(r.serial_id) && parseFloat(s.available_qty) > 0)
-                    }).map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+                  {currentAdjQty > 0 && !isTransfer ? (
+                    <Input value={formData.serial_numbers_text || ''} placeholder="Comma-separated new serials"
+                      disabled={view === 'view'}
+                      onChange={e => {
+                        const serials = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                        setField('serial_numbers_text', e.target.value)
+                        setField('serial_numbers', serials)
+                        setField('physical_qty', serials.length)
+                      }} />
+                  ) : (
+                    <MultiSelect value={formData.serial_ids} onChange={v => {
+                      setField('serial_ids', v);
+                      setField('physical_qty', v.length);
+                    }} disabled={view === 'view'}
+                      options={serials?.filter(r => itemStock.some(s => String(s.serial_id) === String(r.serial_id) && parseFloat(s.available_qty) > 0))
+                        .map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+                  )}
                 </Field>
               )}
               <Field label="UOM">

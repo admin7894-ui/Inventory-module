@@ -1,5 +1,15 @@
 const db = require('../data/db');
 const { generateId } = require('../utils/idGenerator');
+const {
+  isYes,
+  asNumber,
+  getControlContext,
+  getSerialValues,
+  findSerial,
+  validateIssueControls,
+  validateReceiptControls,
+  applyStandardCost
+} = require('../utils/inventoryControls');
 
 /**
  * Inventory Transaction Processing Engine
@@ -46,7 +56,7 @@ class InventoryEngine {
   }
 
   isYes(val) {
-    return val === 'Y' || val === true || val === 'True' || val === 'true';
+    return isYes(val);
   }
 
   // ─── OPENING STOCK (FULL ENGINE) ─────────────────────────────
@@ -104,33 +114,10 @@ class InventoryEngine {
     // SERIAL CONTROL
     if (this.isYes(item.is_serial_controlled)) {
       const serialNumbers = data.serial_numbers || [];
-      // If no serials provided and it's an IN txn, we might need to auto-gen
-      const effectiveSerials = serialNumbers.length > 0 ? serialNumbers : (qty > 0 ? Array.from({length:qty}, (_,i) => this.generateSerialNumber(data.item_id, i+1)) : []);
+      const effectiveSerials = serialNumbers.length > 0 ? serialNumbers : [];
 
       for (const sn of effectiveSerials) {
-        let existingSerial = db.serial_master.find(s => s.item_id === data.item_id && s.serial_number === sn);
-        if (existingSerial) {
-          serial_ids.push(existingSerial.serial_id);
-        } else {
-          const serialRecord = {
-            serial_id: generateId('serial_master'),
-            COMPANY_id: data.COMPANY_id,
-            business_type_id: data.business_type_id,
-            bg_id: data.bg_id,
-            item_id: data.item_id,
-            serial_number: sn,
-            current_subinventory_id: data.subinventory_id,
-            current_locator_id: data.locator_id || '',
-            status: 'AVAILABLE',
-            receipt_date: openingDate,
-            module_id: data.module_id || 'MOD01',
-            active_flag: 'Y',
-            created_by: user?.username || 'system',
-            created_at: new Date().toISOString()
-          };
-          db.serial_master.push(serialRecord);
-          serial_ids.push(serialRecord.serial_id);
-        }
+        serial_ids.push(sn);
       }
     }
 
@@ -147,11 +134,11 @@ class InventoryEngine {
     const qty = parseFloat(data.opening_qty || 0);
     if (qty <= 0) throw new Error('Opening quantity must be greater than 0');
 
-    // Ensure Lot/Serial
+    // Ensure Lot and carry required serial list forward.
     const { lot_id, serial_ids } = await this.ensureLotAndSerial(item, data, qty, user);
 
     // Create Transactions
-    if (this.isYes(item.is_serial_controlled) && serial_ids.length > 0) {
+    if (serial_ids.length > 0) {
       const results = [];
       for (const sid of serial_ids) {
         const txn = await this.processTransaction({
@@ -159,7 +146,7 @@ class InventoryEngine {
           txn_action: 'IN',
           txn_qty: 1,
           lot_id,
-          serial_id: sid,
+          serial_number: sid,
           reference_type: 'OPENING_STOCK',
           reference_id: data.opening_stock_id,
           reference_no: data.reference_no || data.opening_stock_id
@@ -195,6 +182,7 @@ class InventoryEngine {
    * @param {Object} user - User context
    */
   async processTransaction(params, user) {
+    const controls = getControlContext(params, params.txn_date || new Date());
     const {
       item_id,
       inv_org_id,
@@ -221,18 +209,96 @@ class InventoryEngine {
       module_id = 'MOD01'
     } = params;
 
-    // Block non-physical items from inventory transactions
-    const item = this.getItem(item_id);
-    if (item && !this.isPhysicalItem(item)) {
-      throw new Error('Inventory transactions are not allowed for non-physical (software) items');
+    const item = controls.item;
+    const qty = parseFloat(txn_qty || 0);
+    const action = txn_action.toUpperCase();
+    if (!['IN', 'OUT'].includes(action)) throw new Error('Transaction action must be IN or OUT');
+    if (qty <= 0) throw new Error('Transaction quantity must be greater than 0');
+
+    applyStandardCost(params, controls);
+    const cost = parseFloat(params.unit_cost || unit_cost || 0);
+
+    const serialValues = getSerialValues(params);
+    if (controls.serialRequired && serialValues.length > 1 && !params.__singleSerial) {
+      if (action === 'IN') validateReceiptControls(params, controls, qty, { allowExistingSerial: params.allow_existing_serial_receipt });
+      else validateIssueControls(params, controls, qty);
+      const transactions = [];
+      for (const serialValue of serialValues) {
+        const serial = action === 'OUT' ? findSerial(serialValue, item_id, inv_org_id) : null;
+        const txn = await this.processTransaction({
+          ...params,
+          __singleSerial: true,
+          serial_ids: undefined,
+          serial_numbers: undefined,
+          serial_id: serial?.serial_id || '',
+          serial_number: serial?.serial_number || serialValue,
+          txn_qty: 1
+        }, user);
+        transactions.push(txn);
+      }
+      return { transactions };
     }
 
-    const qty = parseFloat(txn_qty || 0);
-    const cost = parseFloat(unit_cost || 0);
-    const action = txn_action.toUpperCase();
-
     // 0. Validate Assignments (Org and Subinventory)
-    this.validateAssignments({ item_id, inv_org_id, subinventory_id, locator_id });
+    this.validateAssignments({ item_id, inv_org_id, subinventory_id, locator_id, controls });
+
+    if (action === 'IN') validateReceiptControls(params, controls, qty, { allowExistingSerial: params.allow_existing_serial_receipt });
+    if (action === 'OUT') validateIssueControls(params, controls, qty);
+
+    let effectiveLotId = params.lot_id || lot_id;
+    let effectiveLotNumber = params.lot_number || lot_number;
+    if (controls.lotRequired && action === 'IN' && !effectiveLotId) {
+      const lotRecord = {
+        lot_id: generateId('lot_master'),
+        COMPANY_id,
+        business_type_id,
+        bg_id,
+        inv_org_id,
+        item_id,
+        lot_number: lot_number || params.lot_no,
+        manufacture_date: params.manufacture_date || params.opening_date || params.txn_date || new Date().toISOString().split('T')[0],
+        expiry_date: params.expiry_date || '',
+        status: 'ACTIVE',
+        module_id: module_id || 'MOD01',
+        active_flag: 'Y',
+        created_by: user?.username || 'system',
+        created_at: new Date().toISOString()
+      };
+      db.lot_master.push(lotRecord);
+      effectiveLotId = lotRecord.lot_id;
+      effectiveLotNumber = lotRecord.lot_number;
+    }
+
+    let effectiveSerialId = serial_id;
+    let effectiveSerialNumber = serial_number;
+    if (controls.serialRequired && action === 'IN') {
+      effectiveSerialNumber = effectiveSerialNumber || serialValues[0];
+      const existingSerial = params.allow_existing_serial_receipt ? findSerial(effectiveSerialId || effectiveSerialNumber, item_id, inv_org_id) : null;
+      const serialRecord = existingSerial || {
+        serial_id: generateId('serial_master'),
+        COMPANY_id,
+        business_type_id,
+        bg_id,
+        inv_org_id,
+        item_id,
+        serial_number: effectiveSerialNumber,
+        current_subinventory_id: subinventory_id,
+        current_locator_id: locator_id || '',
+        status: 'AVAILABLE',
+        receipt_date: new Date().toISOString().split('T')[0],
+        module_id: module_id || 'MOD01',
+        active_flag: 'Y',
+        created_by: user?.username || 'system',
+        created_at: new Date().toISOString()
+      };
+      if (!existingSerial) db.serial_master.push(serialRecord);
+      effectiveSerialId = serialRecord.serial_id;
+      effectiveSerialNumber = serialRecord.serial_number;
+    } else if (controls.serialRequired && action === 'OUT') {
+      const serialRecord = findSerial(effectiveSerialId || effectiveSerialNumber || serialValues[0], item_id, inv_org_id);
+      effectiveSerialId = serialRecord?.serial_id || effectiveSerialId;
+      effectiveSerialNumber = serialRecord?.serial_number || effectiveSerialNumber;
+    }
 
     // 1. Idempotency Check
     const existing = db.inventory_transaction.find(t => 
@@ -241,13 +307,13 @@ class InventoryEngine {
       t.txn_action === action &&
       t.item_id === item_id &&
       t.inv_org_id === inv_org_id &&
-      (t.serial_id || '') === (serial_id || '')
+      (t.serial_id || '') === (effectiveSerialId || '')
     );
     if (existing) return existing;
 
     // 2. Status Validation for OUT movements
-    if (action === 'OUT' && serial_id) {
-      const serial = db.serial_master.find(s => s.serial_id === serial_id);
+    if (action === 'OUT' && effectiveSerialId) {
+      const serial = db.serial_master.find(s => s.serial_id === effectiveSerialId);
       if (serial && (serial.status === 'RESERVED' || serial.status === 'BLOCKED')) {
         throw new Error(`Serial ${serial.serial_number} is ${serial.status} and cannot be moved.`);
       }
@@ -264,10 +330,10 @@ class InventoryEngine {
       inv_org_id,
       subinventory_id,
       locator_id,
-      lot_id,
-      serial_id,
-      lot_number: lot_number || (lot_id ? db.lot_master.find(l => l.lot_id === lot_id)?.lot_number : ''),
-      serial_number: serial_number || (serial_id ? db.serial_master.find(s => s.serial_id === serial_id)?.serial_number : ''),
+      lot_id: effectiveLotId,
+      serial_id: effectiveSerialId,
+      lot_number: effectiveLotNumber || (effectiveLotId ? db.lot_master.find(l => l.lot_id === effectiveLotId)?.lot_number : ''),
+      serial_number: effectiveSerialNumber || (effectiveSerialId ? db.serial_master.find(s => s.serial_id === effectiveSerialId)?.serial_number : ''),
       uom_id: uom_id || item?.primary_uom_id,
       txn_type_id,
       txn_reason_id,
@@ -298,8 +364,8 @@ class InventoryEngine {
       inv_org_id,
       subinventory_id,
       locator_id,
-      lot_id,
-      serial_id,
+      lot_id: effectiveLotId,
+      serial_id: effectiveSerialId,
       lot_number: txnRecord.lot_number,
       uom_id: txnRecord.uom_id,
       qty,
@@ -312,11 +378,11 @@ class InventoryEngine {
     this.createLedgerEntry(txnRecord, user);
 
     // 6. Update Batch/Serial Tracking & Serial Master
-    if (lot_id || serial_id || txnRecord.lot_number || txnRecord.serial_number) {
+    if (effectiveLotId || effectiveSerialId || txnRecord.lot_number || txnRecord.serial_number) {
       this.updateTracking(txnRecord, user);
       
-      if (serial_id) {
-        const serialIdx = db.serial_master.findIndex(s => s.serial_id === serial_id);
+      if (effectiveSerialId) {
+        const serialIdx = db.serial_master.findIndex(s => s.serial_id === effectiveSerialId);
         if (serialIdx !== -1) {
           db.serial_master[serialIdx].status = action === 'IN' ? 'AVAILABLE' : 'ISSUED';
           db.serial_master[serialIdx].current_subinventory_id = action === 'IN' ? subinventory_id : '';
@@ -496,6 +562,7 @@ class InventoryEngine {
         inv_org_id: adj.to_inv_org_id,
         subinventory_id: adj.to_subinventory_id,
         locator_id: adj.to_locator_id || '',
+        allow_existing_serial_receipt: true,
         txn_action: 'IN',
         txn_qty: adj.adjustment_qty,
         reference_type: 'TRANSFER_IN',
@@ -549,7 +616,7 @@ class InventoryEngine {
    * Validates that the item is correctly assigned to the Org
    * and restricted to the specified Subinventory/Locator.
    */
-  validateAssignments({ item_id, inv_org_id, subinventory_id, locator_id }) {
+  validateAssignments({ item_id, inv_org_id, subinventory_id, locator_id, controls }) {
     // 1. Check Item Org Assignment
     const orgAssignment = (db.item_org_assignment || []).find(a =>
       a.item_id === item_id && a.inv_org_id === inv_org_id
@@ -559,8 +626,7 @@ class InventoryEngine {
     }
 
     // 2. Check Org Parameters for Locator Control
-    const orgParam = (db.org_parameter || []).find(p => p.inv_org_id === inv_org_id);
-    const locatorControlEnabled = orgParam && (orgParam.locator_control === 'Y' || orgParam.locator_control === 'True' || orgParam.locator_control === true);
+    const locatorControlEnabled = controls ? controls.locatorRequired : false;
 
     if (locatorControlEnabled && !locator_id) {
       throw new Error(`Locator is mandatory for Inventory Organization ${inv_org_id} (Locator Control is enabled).`);

@@ -2,6 +2,7 @@ const db = require('../data/db');
 const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
 const inventoryEngine = require('../services/inventoryEngine');
+const { getControlContext, applyStandardCost } = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
 
 const TABLE = 'opening_stock';
@@ -127,6 +128,9 @@ exports.create = async (req, res) => {
     const qty = parseFloat(body.opening_qty || 0);
     if (qty <= 0) return res.status(400).json({ success: false, message: 'Opening quantity must be greater than 0' });
 
+    const controls = getControlContext(body, body.opening_date || new Date());
+    applyStandardCost(body, controls);
+
     // Unit Cost validation
     const cost = parseFloat(body.unit_cost || 0);
     if (cost < 0) return res.status(400).json({ success: false, message: 'Unit cost must be a non-negative number' });
@@ -181,7 +185,7 @@ exports.create = async (req, res) => {
     const engineResult = await inventoryEngine.processOpeningStock(body, req.user);
 
     res.status(201).json({ success: true, data: body, engine: engineResult, message: 'Opening stock processed successfully' });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  } catch (e) { res.status(400).json({ success: false, message: e.message }); }
 };
 
 exports.update = (req, res) => {

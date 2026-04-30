@@ -20,6 +20,11 @@ const COLUMNS = [
   { key: 'active_flag', label: 'Status', type: 'badge' }
 ]
 
+const cleanFormData = (data = {}) => {
+  const { item_master_org, item_master_org_display, item_master_org_name, ...clean } = data
+  return clean
+}
+
 export default function OrgParameterPage() {
   const navigate = useNavigate()
   const table = useTableData(orgParameterApi, 'org_parameter')
@@ -56,16 +61,17 @@ export default function OrgParameterPage() {
     setFormData({ active_flag: 'Y', effective_from: new Date().toISOString().split('T')[0] })
     setCodeEdited(false); v.reset(); setView('create')
   }
-  const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setCodeEdited(true); v.reset(); setView('edit') }
-  const handleView = (row) => { setSelected(row); setFormData({ ...row }); v.reset(); setView('view') }
+  const handleEdit = (row) => { setSelected(row); setFormData(cleanFormData(row)); setCodeEdited(true); v.reset(); setView('edit') }
+  const handleView = (row) => { setSelected(row); setFormData(cleanFormData(row)); v.reset(); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
+    const payload = cleanFormData(formData)
+    if (!v.runValidation(payload)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') await table.update(selected['org_param_id'], formData)
-      else await table.create(formData)
+      if (view === 'edit') await table.update(selected['org_param_id'], payload)
+      else await table.create(payload)
       handleBack()
     } catch (err) {
       if (err.response?.data?.errors) {
@@ -111,10 +117,6 @@ export default function OrgParameterPage() {
                 onBlur={() => v.handleBlur('org_code', formData)}
                 error={v.errors.org_code}
                 placeholder="Auto-generated from Inv Org" />
-            </Field>
-
-            <Field label="Item Master Org">
-              <Input value={formData.item_master_org} onChange={e => setField('item_master_org', e.target.value)} />
             </Field>
 
             <Field label="Workday Calendar" required error={v.errors.workday_calendar_id}>

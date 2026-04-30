@@ -6,6 +6,11 @@ const MOCK_USER = 'admin';
 const TABLE = 'org_parameter';
 const PK    = 'org_param_id';
 
+function cleanPayload(payload) {
+  const { item_master_org, item_master_org_display, item_master_org_name, ...clean } = payload || {};
+  return clean;
+}
+
 // RLS filter — filter by company_id if user has company context
 function applyRLS(data, user) {
   return applyScopeFilter(data, user);
@@ -45,7 +50,7 @@ exports.getById = (req, res) => {
 
 exports.create = (req, res) => {
   try {
-    const body = { ...req.body };
+    const body = cleanPayload(req.body);
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
@@ -63,7 +68,7 @@ exports.update = (req, res) => {
   try {
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
-    db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
+    db[TABLE][idx] = { ...cleanPayload(db[TABLE][idx]), ...cleanPayload(req.body), [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
     res.json({ success:true, data:db[TABLE][idx], message:'Updated' });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };

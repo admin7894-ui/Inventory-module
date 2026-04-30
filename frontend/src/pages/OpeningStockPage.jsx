@@ -8,7 +8,7 @@ import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X
 import {
   openingStockApi, moduleApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, itemTypeApi, transactionReasonApi,
-  itemOrgAssignmentApi, itemSubinvRestrictionApi
+  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -41,7 +41,7 @@ export default function OpeningStockPage() {
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
   const [serialInputs, setSerialInputs] = useState([])
-  const [serialMode, setSerialMode] = useState('auto') // 'auto' | 'manual'
+  const [serialMode, setSerialMode] = useState('manual')
 
   // Dropdowns
   const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
@@ -54,6 +54,7 @@ export default function OpeningStockPage() {
   const { options: txnReasons } = useDropdownData(transactionReasonApi, 'txnr_dd')
   const { options: assignments } = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
   const { options: restrictions } = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
+  const { options: orgParameters } = useDropdownData(orgParameterApi, 'org_param_dd')
 
   // Filter reasons: active + category = 'OPENING'
   const filteredReasons = useMemo(() => {
@@ -88,8 +89,19 @@ export default function OpeningStockPage() {
   }, [formData.item_id, allItems])
 
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true'
-  const isLotControlled = selectedItem && isYes(selectedItem.is_lot_controlled)
-  const isSerialControlled = selectedItem && isYes(selectedItem.is_serial_controlled)
+  const selectedOrgParam = useMemo(() => {
+    const today = new Date()
+    return (orgParameters || []).find(p => {
+      if (String(p.inv_org_id) !== String(formData.inv_org_id)) return false
+      if (!isYes(p.active_flag)) return false
+      const from = p.effective_from ? new Date(p.effective_from) : null
+      const to = p.effective_to ? new Date(p.effective_to) : null
+      return (!from || today >= from) && (!to || today <= to)
+    })
+  }, [orgParameters, formData.inv_org_id])
+  const locatorRequired = !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
+  const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled)
+  const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled)
   const isExpirable = selectedItem && isYes(selectedItem.is_expirable)
   const shelfLifeDays = selectedItem ? parseInt(selectedItem.shelf_life_days || 0) : 0
 
@@ -172,7 +184,7 @@ export default function OpeningStockPage() {
       expiry_date: '',
     }))
     setSerialInputs([])
-    setSerialMode('auto')
+    setSerialMode('manual')
     setErrors({})
   }, [allItems])
 
@@ -194,14 +206,14 @@ export default function OpeningStockPage() {
   // Serial input management
   const handleQtyChangeForSerials = useCallback((newQty) => {
     setField('opening_qty', newQty)
-    if (isSerialControlled && serialMode === 'manual') {
+    if (isSerialControlled) {
       const count = parseInt(newQty) || 0
       setSerialInputs(prev => {
         if (count > prev.length) return [...prev, ...Array(count - prev.length).fill('')]
         return prev.slice(0, count)
       })
     }
-  }, [isSerialControlled, serialMode, setField])
+  }, [isSerialControlled, setField])
 
   const handleCreate = () => {
     setFormData({
@@ -210,7 +222,7 @@ export default function OpeningStockPage() {
       opening_date: new Date().toISOString().split('T')[0]
     })
     setSerialInputs([])
-    setSerialMode('auto')
+    setSerialMode('manual')
     setErrors({})
     setView('create')
   }
@@ -236,7 +248,7 @@ export default function OpeningStockPage() {
 
     try {
       const payload = { ...formData, total_value: totalValue, active_flag: 'Y' }
-      if (isSerialControlled && serialMode === 'manual') {
+      if (isSerialControlled) {
         payload.serial_numbers = serialInputs.filter(s => s.trim())
       }
       if (isExpirable && !payload.expiry_date && computedExpiry) {
@@ -309,10 +321,12 @@ export default function OpeningStockPage() {
                 <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} onBlur={() => validateField('subinventory_id', formData.subinventory_id)} error={errors.subinventory_id} disabled={view === 'view'}
                   options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
               </Field>
-              <Field label="Locator / Bin">
-                <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view'}
-                  options={filteredLocators.map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))} />
-              </Field>
+              {locatorRequired && (
+                <Field label="Locator / Bin" required error={errors.locator_id}>
+                  <Select value={formData.locator_id} onChange={v => setField('locator_id', v)} disabled={view === 'view'}
+                    options={filteredLocators.map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))} />
+                </Field>
+              )}
               <Field label="UOM">
                 <Select value={formData.uom_id} onChange={v => setField('uom_id', v)} disabled={view === 'view'}
                   options={uoms?.map(r => ({ value: r.uom_id, label: `${r.uom_code || ''} - ${r.uom_name || r.uom_id}` }))} />
@@ -357,19 +371,6 @@ export default function OpeningStockPage() {
           <div className="card p-6 mb-5 border-l-4 border-amber-500 animate-slide-in">
             <SectionHeader icon={Hash} title="Serial Numbers" subtitle="Required for serial-controlled items" color="amber" />
             {view === 'create' && (
-              <div className="mb-4 flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" checked={serialMode === 'auto'} onChange={() => setSerialMode('auto')} className="accent-amber-500" />
-                  <span className="text-sm font-medium">Auto-Generate</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" checked={serialMode === 'manual'} onChange={() => setSerialMode('manual')} className="accent-amber-500" />
-                  <span className="text-sm font-medium">Enter Manually</span>
-                </label>
-              </div>
-            )}
-
-            {serialMode === 'manual' && view === 'create' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {serialInputs.map((val, idx) => (
                   <Input key={idx} value={val} placeholder={`Serial #${idx + 1}`}

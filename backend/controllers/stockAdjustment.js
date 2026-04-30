@@ -2,6 +2,13 @@ const db = require('../data/db');
 const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
 const inventoryEngine = require('../services/inventoryEngine');
+const {
+  getControlContext,
+  validateIssueControls,
+  validateReceiptControls,
+  validateLocator,
+  applyStandardCost
+} = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
 
 const TABLE = 'stock_adjustment';
@@ -77,11 +84,7 @@ exports.getById = (req, res) => {
 };
 
 async function autoCreateTransaction(adj, user) {
-  try {
-    await inventoryEngine.processStockAdjustment(adj, user);
-  } catch (e) {
-    console.error('Inventory Engine Error:', e);
-  }
+  return inventoryEngine.processStockAdjustment(adj, user);
 }
 
 exports.create = async (req, res) => {
@@ -101,12 +104,14 @@ exports.create = async (req, res) => {
     if (!item && body.item_id) fieldErrors.item_id = 'Invalid Item';
 
     const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
-    const isLotControlled = isYes(item?.is_lot_controlled);
-    const isSerialControlled = isYes(item?.is_serial_controlled);
+    const controls = getControlContext(body, body.adjustment_date || new Date());
+    applyStandardCost(body, controls);
+    const isLotControlled = controls.lotRequired;
+    const isSerialControlled = controls.serialRequired;
     const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
 
     // ── 2. Lot/Serial Validation ────────────────────────────────
-    if (isLotControlled && !body.lot_id) {
+    if (isLotControlled && !body.lot_id && !body.lot_number) {
       fieldErrors.lot_id = 'Lot is required for this item';
     }
     if (isSerialControlled) {
@@ -140,9 +145,8 @@ exports.create = async (req, res) => {
       // Transfer Logic
       if (!body.to_inv_org_id) fieldErrors.to_inv_org_id = 'Destination Org is required';
       if (!body.to_subinventory_id) fieldErrors.to_subinventory_id = 'Destination Subinventory is required';
-      if (!body.to_locator_id) fieldErrors.to_locator_id = 'Destination Locator is required';
       if (!body.subinventory_id) fieldErrors.subinventory_id = 'Subinventory is required';
-      if (!body.locator_id) fieldErrors.locator_id = 'Locator is required';
+      if (controls.locatorRequired && !body.locator_id) fieldErrors.locator_id = 'Locator is required';
 
       const requested = parseFloat(body.physical_qty || body.adjustment_qty || 0);
       if (requested <= 0) fieldErrors.physical_qty = 'Transfer quantity must be > 0';
@@ -171,6 +175,10 @@ exports.create = async (req, res) => {
       body.transfer_flag = 'Y';
       body.approval_status = 'APPROVED'; // Transfers are usually auto-approved or require different flow, keeping auto for now
       body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+
+      validateIssueControls(body, controls, requested);
+      const destControls = getControlContext({ ...body, inv_org_id: body.to_inv_org_id }, body.adjustment_date || new Date());
+      if (destControls.locatorRequired) validateLocator(body.to_subinventory_id, body.to_locator_id);
     } else {
       // Adjustment Logic (IN / OUT / etc)
       const physical = parseFloat(body.physical_qty || 0);
@@ -188,6 +196,9 @@ exports.create = async (req, res) => {
       body.adjustment_qty = netAdj;
       body.approval_status = body.approval_status || 'PENDING';
       if (body.approval_status === 'APPROVED') body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+
+      if (netAdj < 0) validateIssueControls(body, controls, Math.abs(netAdj));
+      if (netAdj > 0) validateReceiptControls(body, controls, netAdj);
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -206,7 +217,7 @@ exports.create = async (req, res) => {
 
     if (body.approval_status === 'APPROVED') await autoCreateTransaction(body, req.user);
     res.status(201).json({ success: true, data: body, message: 'Stock adjustment saved' });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  } catch (e) { res.status(400).json({ success: false, message: e.message }); }
 };
 
 exports.update = async (req, res) => {

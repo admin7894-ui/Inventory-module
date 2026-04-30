@@ -9,7 +9,7 @@ export const stockAdjustmentValidation = {
   txn_type_id: { required: true, message: "Adjustment Type is required" },
   inv_org_id: { required: true, message: "Organization is required" },
   subinventory_id: { required: true, message: "Subinventory is required" },
-  locator_id: { required: true, message: "Locator is required" },
+  locator_id: { required: false, message: "Locator is required" },
   to_inv_org_id: {
     requiredIf: (data) => data.txn_action === "TRANSFER",
     message: "Destination Org is required"
@@ -19,7 +19,7 @@ export const stockAdjustmentValidation = {
     message: "Destination Subinventory is required"
   },
   to_locator_id: {
-    requiredIf: (data) => data.txn_action === "TRANSFER",
+    requiredIf: () => false,
     message: "Destination Locator is required"
   },
   txn_reason_id: { required: true, message: "Reason is required" },
@@ -78,7 +78,7 @@ const runStaticValidation = (data, schema) => {
 
 const runDynamicValidation = (data, options) => {
   const errors = {};
-  const { stockInfo, isLotControlled, isSerialControlled } = options;
+  const { stockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired } = options;
   const isTransfer = data.txn_action === 'TRANSFER';
 
   const systemQty = parseFloat(stockInfo?.onhand_qty || 0);
@@ -86,6 +86,8 @@ const runDynamicValidation = (data, options) => {
   const physical = parseFloat(data.physical_qty || 0);
 
   if (isTransfer) {
+    if (locatorRequired && !data.locator_id) errors.locator_id = "Locator is required";
+    if (destLocatorRequired && !data.to_locator_id) errors.to_locator_id = "Destination Locator is required";
     if (physical <= 0) {
       errors.physical_qty = "Transfer quantity must be > 0";
     } else if (physical > availableQty) {
@@ -98,6 +100,7 @@ const runDynamicValidation = (data, options) => {
       errors.to_locator_id = "Source and destination cannot be same";
     }
   } else {
+    if (locatorRequired && !data.locator_id) errors.locator_id = "Locator is required";
     if (physical < systemQty) {
       const reduction = systemQty - physical;
       if (reduction > availableQty) {
@@ -114,7 +117,7 @@ const runDynamicValidation = (data, options) => {
   }
 
   if (isSerialControlled) {
-    const serials = data.serial_ids || [];
+    const serials = data.serial_ids?.length ? data.serial_ids : (data.serial_numbers || []);
     if (serials.length === 0) {
       errors.serial_ids = "Serials are required";
     } else if (serials.length !== physical) {
