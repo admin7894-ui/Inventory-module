@@ -2,10 +2,37 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api' })
 
+function getScope() {
+  try {
+    return JSON.parse(localStorage.getItem('erp_scope') || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function addScopeHeaders(cfg) {
+  const scope = getScope()
+  cfg.headers = cfg.headers || {}
+  if (scope.bg_id) cfg.headers['X-BG-ID'] = scope.bg_id
+  if (scope.COMPANY_id) cfg.headers['X-Company-ID'] = scope.COMPANY_id
+  if (scope.business_type_id) cfg.headers['X-Business-Type-ID'] = scope.business_type_id
+  return cfg
+}
+
+function scopedData(data = {}) {
+  const scope = getScope()
+  return {
+    ...data,
+    ...(scope.bg_id && !data.bg_id ? { bg_id: scope.bg_id } : {}),
+    ...(scope.COMPANY_id && !data.COMPANY_id && !data.company_id ? { COMPANY_id: scope.COMPANY_id } : {}),
+    ...(scope.business_type_id && !data.business_type_id ? { business_type_id: scope.business_type_id } : {}),
+  }
+}
+
 api.interceptors.request.use(cfg => {
   const token = localStorage.getItem('erp_token')
   if (token) cfg.headers.Authorization = `Bearer ${token}`
-  return cfg
+  return addScopeHeaders(cfg)
 })
 
 api.interceptors.response.use(
@@ -24,8 +51,8 @@ api.interceptors.response.use(
 export const crud = (endpoint) => ({
   getAll:  (params) => api.get(endpoint, { params }).then(r => r.data),
   getOne:  (id)    => api.get(`${endpoint}/${id}`).then(r => r.data),
-  create:  (data)  => api.post(endpoint, data).then(r => r.data),
-  update:  (id, data) => api.put(`${endpoint}/${id}`, data).then(r => r.data),
+  create:  (data)  => api.post(endpoint, scopedData(data)).then(r => r.data),
+  update:  (id, data) => api.put(`${endpoint}/${id}`, scopedData(data)).then(r => r.data),
   remove:  (id)    => api.delete(`${endpoint}/${id}`).then(r => r.data),
 })
 

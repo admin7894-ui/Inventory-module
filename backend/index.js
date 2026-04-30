@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const db = require('./data/db');
 const { initCounters } = require('./utils/idGenerator');
 const { decoratePayload } = require('./utils/fkDisplay');
+const { filterPayload } = require('./utils/scopeFilter');
 
 // Initialize ID counters from existing data
 initCounters(db);
@@ -18,7 +19,13 @@ app.use(morgan('dev'));
 
 app.use('/api', (req, res, next) => {
   const json = res.json.bind(res);
-  res.json = (payload) => json(decoratePayload(payload));
+  res.json = (payload) => {
+    const scopedPayload = req.method === 'GET' ? filterPayload(payload, req.user) : payload;
+    if (req.method === 'GET' && scopedPayload?.data === null && scopedPayload?.message === 'Not found') {
+      res.status(404);
+    }
+    return json(decoratePayload(scopedPayload));
+  };
   next();
 });
 

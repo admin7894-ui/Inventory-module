@@ -2,8 +2,10 @@ import React from 'react'
 import { Field, Select, Input } from './ui/index'
 import { Loader2 } from 'lucide-react'
 import { useCompanyLogic } from '../hooks/useCompanyLogic'
+import { useScope } from '../context/ScopeContext'
 
 export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
+  const { scope, setScope } = useScope()
   const { 
     businessGroups,
     companies, 
@@ -16,13 +18,21 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
     handleCompanyChange 
   } = useCompanyLogic(formData, setField)
 
+  React.useEffect(() => {
+    if (scope.bg_id && formData.bg_id !== scope.bg_id) setField('bg_id', scope.bg_id)
+    if (scope.COMPANY_id && formData.COMPANY_id !== scope.COMPANY_id) setField('COMPANY_id', scope.COMPANY_id)
+    if (scope.business_type_id && formData.business_type_id !== scope.business_type_id) setField('business_type_id', scope.business_type_id)
+  }, [scope.bg_id, scope.COMPANY_id, scope.business_type_id])
+
   const onBGChange = (v) => {
     handleBGChange(v)
+    setScope({ bg_id: v, COMPANY_id: '', business_type_id: '' })
     if (handleBlur) handleBlur('bg_id', v)
   }
 
   const onCompanyChange = (v) => {
     handleCompanyChange(v)
+    setScope({ COMPANY_id: v, business_type_id: '' })
     if (handleBlur) handleBlur('COMPANY_id', v)
   }
 
@@ -79,7 +89,7 @@ export function CompanyGroup({ formData, setField, errors = {}, handleBlur }) {
         <div className="relative">
           <Select 
             value={formData.business_type_id} 
-            onChange={v => { setField('business_type_id', v); handleBlur?.('business_type_id', v) }} 
+            onChange={v => { setField('business_type_id', v); setScope({ business_type_id: v }); handleBlur?.('business_type_id', v) }} 
             onBlur={(e) => handleBlur?.('business_type_id', formData.business_type_id)}
             disabled={!formData.COMPANY_id}
             placeholder={!formData.COMPANY_id ? 'Select Company first' : isLoadingBT ? 'Loading...' : '-- Select --'}

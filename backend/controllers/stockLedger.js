@@ -1,4 +1,5 @@
 const db = require('../data/db');
+const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
 const MOCK_USER = 'admin';
 
@@ -6,9 +7,7 @@ const TABLE = 'stock_ledger';
 const PK    = 'ledger_id';
 
 function applyRLS(data, user) {
-  if (!user || !user.company_id) return data;
-  if (user.username === 'software_user' || user.username === 'admin') return data;
-  return data.filter(r => !r.COMPANY_id || r.COMPANY_id === user.company_id || !r.company_id || r.company_id === user.company_id);
+  return applyScopeFilter(data, user);
 }
 
 exports.getAll = (req, res) => {

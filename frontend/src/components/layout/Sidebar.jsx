@@ -2,6 +2,9 @@ import { Link, useLocation } from 'react-router-dom'
 import React, { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useScope } from '../../context/ScopeContext'
+import { useDropdownData } from '../../hooks/useTableData'
+import { businessGroupApi, companyApi, businessTypeApi } from '../../services/api'
 import clsx from 'clsx'
 import { Menu, X, Sun, Moon, LogOut, ChevronDown, ChevronRight, LayoutDashboard, Database } from 'lucide-react'
 
@@ -151,12 +154,56 @@ export function Sidebar({ collapsed, onToggle }) {
 }
 
 export function Header({ onMenuToggle }) {
+  const { scope, setScope } = useScope()
+  const { options: businessGroups } = useDropdownData(businessGroupApi, 'global_bg_dd')
+  const { options: companies, isLoading: loadingCompanies } = useDropdownData(
+    companyApi,
+    'global_company_dd',
+    { bg_id: scope.bg_id },
+    !!scope.bg_id
+  )
+  const { options: businessTypes, isLoading: loadingBusinessTypes } = useDropdownData(
+    businessTypeApi,
+    'global_bt_dd',
+    { COMPANY_id: scope.COMPANY_id },
+    !!scope.COMPANY_id
+  )
+
+  const setBG = (bg_id) => setScope({ bg_id, COMPANY_id: '', business_type_id: '' })
+  const setCompany = (COMPANY_id) => setScope({ COMPANY_id, business_type_id: '' })
+  const setBusinessType = (business_type_id) => setScope({ business_type_id })
+
   return (
-    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-4 flex-shrink-0 sticky top-0 z-10">
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex flex-wrap items-center gap-3 flex-shrink-0 sticky top-0 z-10">
       <button onClick={onMenuToggle} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
         <Menu className="w-5 h-5 text-gray-600 dark:text-gray-400" />
       </button>
-      <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">ERP Inventory Management System</span>
+      <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 mr-auto">ERP Inventory Management System</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={scope.bg_id || ''} onChange={e => setBG(e.target.value)}
+          className="input py-1.5 text-xs w-44">
+          <option value="">Business Group</option>
+          {businessGroups.map(r => (
+            <option key={r.bg_id} value={r.bg_id}>{r.bg_name || r['Business Group Name'] || r.bg_id}</option>
+          ))}
+        </select>
+        <select value={scope.COMPANY_id || ''} onChange={e => setCompany(e.target.value)}
+          disabled={!scope.bg_id || loadingCompanies}
+          className="input py-1.5 text-xs w-44 disabled:opacity-60">
+          <option value="">{!scope.bg_id ? 'Select BG first' : 'Company'}</option>
+          {companies.map(r => (
+            <option key={r.company_id} value={r.company_id}>{r.company_name || r.company_id}</option>
+          ))}
+        </select>
+        <select value={scope.business_type_id || ''} onChange={e => setBusinessType(e.target.value)}
+          disabled={!scope.COMPANY_id || loadingBusinessTypes}
+          className="input py-1.5 text-xs w-44 disabled:opacity-60">
+          <option value="">{!scope.COMPANY_id ? 'Select Company first' : 'Business Type'}</option>
+          {businessTypes.map(r => (
+            <option key={r.business_type_id} value={r.business_type_id}>{r.name || r.business_type_id}</option>
+          ))}
+        </select>
+      </div>
     </header>
   )
 }

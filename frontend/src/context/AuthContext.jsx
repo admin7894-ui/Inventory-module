@@ -13,6 +13,7 @@ export function AuthProvider({ children }) {
     if (res.success) {
       localStorage.setItem('erp_token', res.token)
       localStorage.setItem('erp_user', JSON.stringify(res.user))
+      localStorage.removeItem('erp_scope')
       setUser(res.user)
     }
     return res
@@ -21,6 +22,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('erp_token')
     localStorage.removeItem('erp_user')
+    localStorage.removeItem('erp_scope')
     setUser(null)
   }
 

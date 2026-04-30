@@ -1,16 +1,31 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 
-export function useTableData(api, queryKey) {
+function readScope() {
+  try { return JSON.parse(localStorage.getItem('erp_scope') || '{}') } catch { return {} }
+}
+
+export function useTableData(api, queryKey, initialParams = {}) {
   const qc = useQueryClient()
-  const [params, setParams] = useState({ page: 1, limit: 50 })
+  const [params, setParams] = useState({ page: 1, limit: 50, ...initialParams })
   const [sortBy, setSortBy] = useState('')
   const [sortOrder, setSortOrder] = useState('asc')
   const [search, setSearch] = useState('')
+  const [scope, setScope] = useState(readScope)
+
+  useEffect(() => {
+    const handleScopeChange = (ev) => setScope(ev.detail || readScope())
+    window.addEventListener('erp-scope-change', handleScopeChange)
+    window.addEventListener('storage', handleScopeChange)
+    return () => {
+      window.removeEventListener('erp-scope-change', handleScopeChange)
+      window.removeEventListener('storage', handleScopeChange)
+    }
+  }, [])
 
   const { data, isLoading } = useQuery({
-    queryKey: [queryKey, params, search, sortBy, sortOrder],
+    queryKey: [queryKey, params, search, sortBy, sortOrder, scope],
     queryFn: () => api.getAll({ ...params, search, sortBy, sortOrder }),
   })
 
@@ -62,8 +77,20 @@ export function useTableData(api, queryKey) {
 
 // For dropdown data
 export function useDropdownData(api, queryKey, filters = {}, enabled = true) {
+  const [scope, setScope] = useState(readScope)
+
+  useEffect(() => {
+    const handleScopeChange = (ev) => setScope(ev.detail || readScope())
+    window.addEventListener('erp-scope-change', handleScopeChange)
+    window.addEventListener('storage', handleScopeChange)
+    return () => {
+      window.removeEventListener('erp-scope-change', handleScopeChange)
+      window.removeEventListener('storage', handleScopeChange)
+    }
+  }, [])
+
   const { data, isLoading } = useQuery({
-    queryKey: [queryKey, 'all', filters],
+    queryKey: [queryKey, 'all', filters, scope],
     queryFn: () => api.getAll({ limit: 1000, ...filters }),
     enabled,
     staleTime: 60000,

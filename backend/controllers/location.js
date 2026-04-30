@@ -1,4 +1,5 @@
 const db = require('../data/db');
+const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
 const MOCK_USER = 'admin';
 
@@ -7,8 +8,7 @@ const PK    = 'location_id';
 
 // RLS filter — filter by company_id if user has company context
 function applyRLS(data, user) {
-  if (!user || !user.company_id) return data;
-  return data.filter(r => !r.COMPANY_id || r.COMPANY_id === user.company_id || !r.company_id || r.company_id === user.company_id);
+  return applyScopeFilter(data, user);
 }
 
 exports.getAll = (req, res) => {
