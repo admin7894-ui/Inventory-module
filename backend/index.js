@@ -85,7 +85,7 @@ app.use((err, req, res, next) => {
 });
 app.use((req, res) => res.status(404).json({ success: false, message: `${req.path} not found` }));
 
-const PORT = process.env.PORT || 6000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`\n🚀 ERP Backend → http://localhost:${PORT}`);
   console.log(`📋 46 tables | All routes active\n`);
