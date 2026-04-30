@@ -83,8 +83,8 @@ export default function SubinventoryPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
-  const setField = (k, v) => {
-    setFormData(p => ({ ...p, [k]: v }));
+  const setField = (k, value) => {
+    setFormData(p => ({ ...p, [k]: value }));
     v.clearError(k);
   }
 
