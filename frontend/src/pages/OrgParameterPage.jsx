@@ -156,12 +156,12 @@ export default function OrgParameterPage() {
             <Field label="Lot Control Enabled"><Toggle value={formData.lot_control_enabled} onChange={val => setField('lot_control_enabled', val)} /></Field>
             <Field label="Serial Control Enabled"><Toggle value={formData.serial_control_enabled} onChange={val => setField('serial_control_enabled', val)} /></Field>
 
-            <Field label="Module" required error={v.errors.module_id}>
+            {/* <Field label="Module" required error={v.errors.module_id}>
               <Select value={formData.module_id} onChange={val => setField('module_id', val)}
                 onBlur={() => v.handleBlur('module_id', formData)}
                 error={v.errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
-            </Field>
+            </Field> */}
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
 

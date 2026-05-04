@@ -124,12 +124,12 @@ export default function InventoryOrgPage() {
                 options={locations?.map(r => ({ value: r.location_id, label: r.location_name || r.location_id }))} />
             </Field>
 
-            <Field label="Module" required error={v.errors.module_id}>
+           {/* <Field label="Module" required error={v.errors.module_id}>
               <Select value={formData.module_id} onChange={val => setField('module_id', val)}
                 onBlur={() => v.handleBlur('module_id', formData)}
                 error={v.errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
-            </Field>
+            </Field>*/}
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
 

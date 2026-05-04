@@ -178,9 +178,9 @@ export default function ItemSubinvRestrictionPage() {
           options={filteredLocators?.map(r=>({value:r.locator_id,label:r.locator_name||r.locator_id}))}
           disabled={!formData.subinventory_id} placeholder={!formData.subinventory_id ? "Select Subinventory first" : "-- Select --"} />
       </Field>
-      <Field label="Module" required error={errors.module_id}>
+      {/* <Field label="Module" required error={errors.module_id}>
         <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
-      </Field>
+      </Field> */}
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
       <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>

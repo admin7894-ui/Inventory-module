@@ -167,9 +167,9 @@ export default function ItemOrgAssignmentPage() {
         <Input type="number" step="any" value={formData.safety_stock_qty} onChange={e => setField('safety_stock_qty',e.target.value)} onBlur={() => validateField('safety_stock_qty', formData.safety_stock_qty)} disabled={!hasValidInvOrg} />
       </Field>
       <Field label="Lot Divisible Flag"><Toggle value={formData.lot_divisible_flag} onChange={v => setField('lot_divisible_flag',v)} disabled={!hasValidInvOrg} /></Field>
-      <Field label="Module" required error={errors.module_id}>
-        <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} disabled={!hasValidInvOrg} />
-      </Field>
+        {/* <Field label="Module" required error={errors.module_id}>
+          <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} disabled={!hasValidInvOrg} />
+        </Field> */}
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
       <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>

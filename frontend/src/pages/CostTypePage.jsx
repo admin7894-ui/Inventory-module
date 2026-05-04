@@ -106,12 +106,12 @@ export default function CostTypePage() {
                 value={formData.description||''} onChange={e => setField('description', e.target.value)} />
             </Field>
 
-            <Field label="Module" required error={v.errors.module_id}>
+            {/* <Field label="Module" required error={v.errors.module_id}>
               <Select value={formData.module_id} onChange={val => setField('module_id', val)}
                 onBlur={() => v.handleBlur('module_id', formData)}
                 error={v.errors.module_id}
                 options={modules?.map(r => ({ value: r.module_id, label: r.module_name || r.module_id }))} />
-            </Field>
+            </Field> */}
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={val => setField('active_flag', val)} /></Field>
 
