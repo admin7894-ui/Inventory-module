@@ -34,6 +34,8 @@ export default function OrgParameterPage() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [formData, setFormData] = useState({})
   const [codeEdited, setCodeEdited] = useState(false)
+  const [showLocatorWarning, setShowLocatorWarning] = useState(false)
+  const [pendingLocatorChange, setPendingLocatorChange] = useState(null)
 
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -43,6 +45,24 @@ export default function OrgParameterPage() {
 
   const existingCodes = table.rows.map(r => r.org_code)
   const setField = (k, val) => {
+    if (k === 'locator_control' && val === false && view === 'edit') {
+      const checkLocators = async () => {
+        try {
+          const resp = await locatorApi.getAll({ inv_org_id: formData.inv_org_id, limit: 1 })
+          if (resp.total > 0) {
+            setPendingLocatorChange(val)
+            setShowLocatorWarning(true)
+          } else {
+            setFormData(p => ({ ...p, [k]: val }))
+          }
+        } catch (err) {
+          setFormData(p => ({ ...p, [k]: val }))
+        }
+      }
+      checkLocators()
+      return
+    }
+
     setFormData(p => {
       const next = { ...p, [k]: val }
       // Auto-generate org_code from selected Inventory Org name
@@ -55,6 +75,12 @@ export default function OrgParameterPage() {
       return next
     })
     v.clearError(k)
+  }
+
+  const confirmLocatorControlChange = () => {
+    setFormData(p => ({ ...p, locator_control: pendingLocatorChange }))
+    setShowLocatorWarning(false)
+    setPendingLocatorChange(null)
   }
 
   const handleCreate = () => {
@@ -191,6 +217,11 @@ export default function OrgParameterPage() {
       <ConfirmDialog open={!!confirmDelete} title="Delete Record"
         message={`Delete Org Parameter "${confirmDelete?.org_code}"? This cannot be undone.`}
         onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} loading={table.isDeleting} />
+      
+      <ConfirmDialog open={showLocatorWarning} title="Disable Locator Control?"
+        severity="warning"
+        message="This Inventory Organization has existing locators defined. Disabling locator control will hide these locators from transaction forms, but historical data will remain intact. Do you want to proceed?"
+        onConfirm={confirmLocatorControlChange} onCancel={() => setShowLocatorWarning(false)} />
     </>
   )
 }

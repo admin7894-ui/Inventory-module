@@ -12,11 +12,11 @@ const isValidDate = (v) => !isEmpty(v) && !isNaN(new Date(v).getTime());
 const isFutureDate = (v) => isValidDate(v) && new Date(v) > new Date();
 
 const REGEX = {
-  NAME:     /^[A-Za-z0-9 &()\-]{3,100}$/,
-  CODE:     /^[A-Z0-9_]{2,20}$/,
-  GST:      /^[0-9A-Z]{15}$/,
+  NAME: /^[A-Za-z0-9 &()\-]{3,100}$/,
+  CODE: /^[A-Z0-9_]{2,20}$/,
+  GST: /^[0-9A-Z]{15}$/,
   CURRENCY: /^[A-Z]{3}$/,
-  HSN:      /^[0-9]{4,8}$/,
+  HSN: /^[0-9]{4,8}$/,
 };
 
 // Require a field; returns error string or null
@@ -139,6 +139,7 @@ const RULES = {
     if (isEmpty(d.item_id)) e.item_id = 'Please select Item';
     if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Inventory Org';
     if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Please select Subinventory';
+    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = 'Please select Locator';
     if (isEmpty(d.txn_reason_id)) e.txn_reason_id = 'Please select Transaction Reason';
     if (isEmpty(d.opening_qty)) e.opening_qty = 'Quantity is required';
     else if (!isPositiveNumber(d.opening_qty)) e.opening_qty = 'Quantity must be > 0';
@@ -185,14 +186,16 @@ const RULES = {
     if (isEmpty(d.txn_type_id)) e.txn_type_id = 'Please select Adjustment Type';
     if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Source Org';
     if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Please select Subinventory';
+    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = 'Source Locator is required';
 
     const isTransfer = opts.isTransfer || d.txn_action === 'TRANSFER';
     if (isTransfer) {
       if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'Destination Org is required';
       if (isEmpty(d.to_subinventory_id)) e.to_subinventory_id = 'Destination Subinventory is required';
+      if (opts.locatorRequired && isEmpty(d.to_locator_id)) e.to_locator_id = 'Destination Locator is required';
       if (!isEmpty(d.inv_org_id) && !isEmpty(d.to_inv_org_id) &&
-          !isEmpty(d.subinventory_id) && !isEmpty(d.to_subinventory_id) &&
-          d.inv_org_id === d.to_inv_org_id && d.subinventory_id === d.to_subinventory_id)
+        !isEmpty(d.subinventory_id) && !isEmpty(d.to_subinventory_id) &&
+        d.inv_org_id === d.to_inv_org_id && d.subinventory_id === d.to_subinventory_id)
         e.to_subinventory_id = 'Destination must differ from source';
     }
 
@@ -270,13 +273,13 @@ const RULES = {
   },
 
   // ━━━━━━━━━━━━━━ ITEM SUBINV RESTRICTION ━━━━━━━━━━━━━━
-  item_subinv_restriction: (d) => {
+  item_subinv_restriction: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.item_id)) e.item_id = 'This field is required';
     if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
     if (isEmpty(d.subinventory_id)) e.subinventory_id = 'This field is required';
-    if (isEmpty(d.locator_id)) e.locator_id = 'This field is required';
+    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = 'This field is required';
     if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
     return e;
@@ -288,14 +291,14 @@ const RULES = {
     validateCompanyGroup(e, d);
     if (isEmpty(d.item_id)) e.item_id = 'This field is required';
     if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
-    
+
     // Stock Policy
     if (isEmpty(d.min_qty)) e.min_qty = 'This field is required';
     else if (!isNonNegativeNumber(d.min_qty)) e.min_qty = 'Invalid format';
-    
+
     if (isEmpty(d.max_qty)) e.max_qty = 'This field is required';
     else if (!isPositiveNumber(d.max_qty)) e.max_qty = 'Invalid format';
-    else if (!isEmpty(d.min_qty) && Number(d.max_qty) <= Number(d.min_qty)) 
+    else if (!isEmpty(d.min_qty) && Number(d.max_qty) <= Number(d.min_qty))
       e.max_qty = 'Invalid format';
 
     if (isEmpty(d.safety_stock_qty)) e.safety_stock_qty = 'This field is required';
@@ -590,7 +593,8 @@ const RULES = {
   locator: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'This field is required';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Inventory is required';
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Subinventory is required';
     if (isEmpty(d.locator_name)) {
       e.locator_name = 'This field is required';
     } else if (!REGEX.NAME.test(String(d.locator_name).trim())) {
@@ -659,7 +663,7 @@ export const autoCode = (name, prefix = '', existingCodes = []) => {
   // Convert to UPPERCASE, replace non-alphanumeric with _, trim underscores
   const cleanName = name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
   let code = prefix + cleanName;
-  
+
   // Enforce max length (20 chars)
   if (code.length > 20) code = code.substring(0, 20);
 

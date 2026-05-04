@@ -14,7 +14,7 @@ import {
   lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
   categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
-  departmentsApi, rolesApi, designationApi,
+  departmentsApi, rolesApi, designationApi, orgParameterApi,
 } from '../services/api'
 
 const COLUMNS = [
@@ -43,6 +43,7 @@ export default function LocatorPage() {
   const { options: locations } = useDropdownData(locationApi, 'loc_dd')
   const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
+  const { options: orgParameters } = useDropdownData(orgParameterApi, 'orgp_dd')
   const { options: subinventories } = useDropdownData(subinventoryApi, 'sub_dd')
   const { options: locators } = useDropdownData(locatorApi, 'loc2_dd')
   const { options: items } = useDropdownData(itemMasterApi, 'item_dd')
@@ -70,10 +71,14 @@ export default function LocatorPage() {
   const { options: rolesList } = useDropdownData(rolesApi, 'roles_dd')
   const { options: designations } = useDropdownData(designationApi, 'desig_dd')
 
+  const activeInvOrgIds = new Set(orgParameters.map(p => String(p.inv_org_id)))
+  const filteredInventoryOrgs = inventoryOrgs.filter(o => activeInvOrgIds.has(String(o.inv_org_id)))
+  const filteredSubinventories = subinventories.filter(s => String(s.inv_org_id) === String(formData.inv_org_id))
+
   const dropdowns = {
     company: companies, businessGroup: businessGroups, businessType: businessTypes,
-    location: locations, module: modules, inventoryOrg: inventoryOrgs,
-    subinventory: subinventories, locator: locators, itemMaster: items,
+    location: locations, module: modules, inventoryOrg: filteredInventoryOrgs,
+    subinventory: filteredSubinventories, locator: locators, itemMaster: items,
     uom: uoms, uomType: uomTypes, itemCategory: itemCategories, itemSubCategory: itemSubCategories,
     brand: brands, itemType: itemTypes, zone: zones, lotMaster: lots, serialMaster: serials,
     transactionType: txnTypes, transactionReason: txnReasons, categorySet: categorySets,
@@ -86,7 +91,6 @@ export default function LocatorPage() {
   const setField = (k, val) => {
     setFormData(p => ({ ...p, [k]: val }))
     if (typeof v !== 'undefined' && v.clearError) v.clearError(k)
-    if (typeof setErrors === 'function') setErrors(p => { const n = {...p}; delete n[k]; return n })
   }
 
   const handleCreate = () => {
@@ -115,7 +119,6 @@ export default function LocatorPage() {
     } catch (err) {
       if (err.response?.data?.errors) {
         if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
-        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
         toast.error('Please fix the highlighted errors')
       } else {
         toast.error(err.response?.data?.message || err.message || 'Action failed')
@@ -138,13 +141,26 @@ export default function LocatorPage() {
             <Field label="Locator Id (Auto-gen)"><Input value={formData.locator_id} readOnly /></Field>
             <CompanyGroup formData={formData} setField={setField} errors={v.errors} handleBlur={v.handleBlur} />
 
+            <Field label="Inventory (Inv Org)" required error={v.errors.inv_org_id}>
+              <Select value={formData.inv_org_id} 
+                onChange={v_val => {
+                  setField('inv_org_id', v_val)
+                  setField('subinventory_id', '') // Reset Subinventory
+                }} 
+                onBlur={() => v.handleBlur('inv_org_id', formData)}
+                options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: `${r.inv_org_name} (${r.inv_org_code})` }))} 
+                disabled={view === 'view'}
+                placeholder="Select Inventory"
+              />
+            </Field>
+
             <Field label="Subinventory Id" required error={v.errors.subinventory_id}>
               <Select value={formData.subinventory_id} 
                 onChange={v_val => setField('subinventory_id', v_val)} 
                 onBlur={() => v.handleBlur('subinventory_id', formData)}
                 options={dropdowns.subinventory?.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} 
-                disabled={!formData.business_type_id || view === 'view'}
-                placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Subinventory"}
+                disabled={!formData.inv_org_id || view === 'view'}
+                placeholder={!formData.inv_org_id ? "Select Inventory first" : "Select Subinventory"}
               />
             </Field>
 
@@ -300,7 +316,7 @@ export default function LocatorPage() {
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete Record"
-        message={`Delete "${confirmDelete?.['{pk_field}']}"? This cannot be undone.`}
+        message={`Delete "${confirmDelete?.['locator_id']}"? This cannot be undone.`}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
         loading={table.isDeleting}
@@ -308,6 +324,3 @@ export default function LocatorPage() {
     </>
   )
 }
-
-
-

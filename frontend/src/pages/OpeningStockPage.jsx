@@ -108,7 +108,7 @@ export default function OpeningStockPage() {
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
     const { errors: newErrors } = validate('opening_stock', { ...formData, [k]: val }, {
-      isLotControlled, isSerialControlled, serialMode, serialInputs
+      isLotControlled, isSerialControlled, serialMode, serialInputs, locatorRequired
     })
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
   }, [formData, isLotControlled, isSerialControlled, serialMode, serialInputs])
@@ -237,7 +237,7 @@ export default function OpeningStockPage() {
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     );
     const { errors: valErrors, isValid } = validate('opening_stock', trimmedData, {
-      isLotControlled, isSerialControlled, serialMode, serialInputs
+      isLotControlled, isSerialControlled, serialMode, serialInputs, locatorRequired
     })
 
     setErrors(valErrors)

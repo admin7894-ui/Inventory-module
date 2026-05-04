@@ -12,7 +12,7 @@ import {
   lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
   categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
-  departmentsApi, rolesApi, designationApi,
+  departmentsApi, rolesApi, designationApi, orgParameterApi,
 } from '../services/api'
 import { validate, autoCode } from '../validations/validationEngine'
 import { ErrorBanner } from '../components/ui/index'
@@ -66,6 +66,7 @@ export default function ItemSubinvRestrictionPage() {
   const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
   const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
   const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
+  const { options: orgParameters }    = useDropdownData(orgParameterApi, 'org_param_dd')
 
   const dropdowns = {
     location:locations, module:modules, inventoryOrg:inventoryOrgs,
@@ -82,6 +83,10 @@ export default function ItemSubinvRestrictionPage() {
   const filteredInventoryOrgs = dropdowns.inventoryOrg || []
   const hasValidInvOrg = !!formData.inv_org_id && filteredInventoryOrgs.some(r => String(r.inv_org_id) === String(formData.inv_org_id))
 
+  const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true'
+  const selectedOrgParam = (orgParameters || []).find(p => String(p.inv_org_id) === String(formData.inv_org_id) && isYes(p.active_flag))
+  const locatorRequired = !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
+
   // Filtered dropdowns
   const filteredSubinventories = dropdowns.subinventory?.filter(s => !formData.inv_org_id || s.inv_org_id === formData.inv_org_id)
   const filteredLocators = dropdowns.locator?.filter(l => !formData.subinventory_id || l.subinventory_id === formData.subinventory_id)
@@ -94,7 +99,7 @@ export default function ItemSubinvRestrictionPage() {
 
   const validateField = (k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
-    const { errors: newErrors } = validate('item_subinv_restriction', { ...formData, [k]: val });
+    const { errors: newErrors } = validate('item_subinv_restriction', { ...formData, [k]: val }, { locatorRequired });
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }));
   }
 
@@ -124,7 +129,7 @@ export default function ItemSubinvRestrictionPage() {
     const trimmedData = Object.fromEntries(
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     );
-    const { errors: valErrors, isValid } = validate('item_subinv_restriction', trimmedData);
+    const { errors: valErrors, isValid } = validate('item_subinv_restriction', trimmedData, { locatorRequired });
     
     if (!isValid) {
         setErrors(valErrors);
@@ -173,11 +178,13 @@ export default function ItemSubinvRestrictionPage() {
           options={filteredSubinventories?.map(r=>({value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}))}
           disabled={!hasValidInvOrg} placeholder={!hasValidInvOrg ? "Select valid Org first" : "-- Select --"} />
       </Field>
-      <Field label="Locator Id" required error={errors.locator_id}>
-        <Select value={formData.locator_id} onChange={v => setField('locator_id',v)} onBlur={() => validateField('locator_id', formData.locator_id)}
-          options={filteredLocators?.map(r=>({value:r.locator_id,label:r.locator_name||r.locator_id}))}
-          disabled={!formData.subinventory_id} placeholder={!formData.subinventory_id ? "Select Subinventory first" : "-- Select --"} />
-      </Field>
+      {locatorRequired && (
+        <Field label="Locator Id" required error={errors.locator_id}>
+          <Select value={formData.locator_id} onChange={v => setField('locator_id',v)} onBlur={() => validateField('locator_id', formData.locator_id)}
+            options={filteredLocators?.map(r=>({value:r.locator_id,label:r.locator_name||r.locator_id}))}
+            disabled={!formData.subinventory_id} placeholder={!formData.subinventory_id ? "Select Subinventory first" : "-- Select --"} />
+        </Field>
+      )}
       {/* <Field label="Module" required error={errors.module_id}>
         <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
       </Field> */}

@@ -165,11 +165,11 @@ exports.create = async (req, res) => {
     body.updated_at = new Date().toISOString();
     body.txn_type_id = body.txn_type_id || 'TT06';
 
-    if (!db[TABLE]) db[TABLE] = [];
-    db[TABLE].push(body);
-
     // ── PROCESS VIA INVENTORY ENGINE ────────────────────────────
     const engineResult = await inventoryEngine.processOpeningStock(body, req.user);
+
+    if (!db[TABLE]) db[TABLE] = [];
+    db[TABLE].push(body);
 
     res.status(201).json({ success: true, data: body, engine: engineResult, message: 'Opening stock processed successfully' });
   } catch (e) { res.status(400).json({ success: false, message: e.message }); }

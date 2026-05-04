@@ -212,10 +212,11 @@ exports.create = async (req, res) => {
     body.created_at = new Date().toISOString();
     body.updated_at = new Date().toISOString();
 
+    if (body.approval_status === 'APPROVED') await autoCreateTransaction(body, req.user);
+
     if (!db[TABLE]) db[TABLE] = [];
     db[TABLE].push(body);
 
-    if (body.approval_status === 'APPROVED') await autoCreateTransaction(body, req.user);
     res.status(201).json({ success: true, data: body, message: 'Stock adjustment saved' });
   } catch (e) { res.status(400).json({ success: false, message: e.message }); }
 };

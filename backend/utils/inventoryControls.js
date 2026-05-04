@@ -181,8 +181,15 @@ function findSerial(value, itemId, invOrgId) {
   );
 }
 
-function validateLocator(subinventoryId, locatorId) {
-  if (!locatorId) throw new Error('Locator is required');
+function validateLocator(subinventoryId, locatorId, locatorRequired = true) {
+  if (locatorRequired && !locatorId) {
+    throw new Error('Locator is required for this Inventory Org');
+  }
+  if (!locatorRequired && locatorId) {
+    throw new Error('Locator not allowed for this Inventory Org');
+  }
+  if (!locatorId) return null;
+
   const locator = (db.locator___bin || []).find(l => String(l.locator_id) === String(locatorId));
   if (!locator || String(locator.subinventory_id) !== String(subinventoryId)) {
     throw new Error('Locator must belong to selected subinventory');
@@ -209,7 +216,7 @@ function availableQty(data, controls, serialValue) {
 }
 
 function validateIssueControls(data, controls, qty) {
-  if (controls.locatorRequired) validateLocator(data.subinventory_id, data.locator_id);
+  validateLocator(data.subinventory_id, data.locator_id, controls.locatorRequired);
 
   if (controls.lotRequired) {
     if (!data.lot_id && !data.lot_number) throw new Error('Lot is required');
@@ -237,7 +244,7 @@ function validateIssueControls(data, controls, qty) {
 }
 
 function validateReceiptControls(data, controls, qty, { allowNewLot = true, allowExistingSerial = false } = {}) {
-  if (controls.locatorRequired) validateLocator(data.subinventory_id, data.locator_id);
+  validateLocator(data.subinventory_id, data.locator_id, controls.locatorRequired);
 
   if (controls.lotRequired) {
     if (!data.lot_id && !data.lot_number) throw new Error('Lot is required');

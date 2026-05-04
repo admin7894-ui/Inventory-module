@@ -176,6 +176,8 @@ class InventoryEngine {
           lot_id,
           serial_id: sid,
           serial_number: serialRow?.serial_number || '',
+          serial_ids: undefined,
+          serial_numbers: undefined,
           allow_existing_serial_receipt: true,
           reference_type: 'OPENING_STOCK',
           reference_id: data.opening_stock_id,
@@ -616,6 +618,8 @@ class InventoryEngine {
           lot_id,
           serial_id: sid,
           serial_number: serialRow?.serial_number || '',
+          serial_ids: undefined,
+          serial_numbers: undefined,
           allow_existing_serial_receipt: true,
           reference_type: 'ADJUSTMENT',
           reference_id: adj.adjustment_id,
@@ -658,6 +662,9 @@ class InventoryEngine {
 
     if (locatorControlEnabled && !locator_id) {
       throw new Error(`Locator is mandatory for Inventory Organization ${inv_org_id} (Locator Control is enabled).`);
+    }
+    if (!locatorControlEnabled && locator_id) {
+      throw new Error(`Locator not allowed for Inventory Organization ${inv_org_id} (Locator Control is disabled).`);
     }
 
     // 3. Check Subinventory Restriction - must have at least one rule for this item+org
