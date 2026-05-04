@@ -146,6 +146,17 @@ exports.create = async (req, res) => {
 
     if (isTransfer) {
       // Transfer Logic
+      if (body.inv_org_id && body.to_inv_org_id) {
+        const hasShipNetwork = (db.ship_network || []).some(sn => 
+          (String(sn.from_inv_org_id) === String(body.inv_org_id) || String(sn['Dropdown from_inv_org_id']) === String(body.inv_org_id)) && 
+          String(sn.to_inv_org_id) === String(body.to_inv_org_id) && 
+          isYes(sn.active_flag)
+        );
+        if (!hasShipNetwork) {
+          return res.status(400).json({ success: false, message: 'Shipping network does not exist between selected locations' });
+        }
+      }
+
       if (!body.to_inv_org_id) fieldErrors.to_inv_org_id = 'Destination Org is required';
       if (!body.to_subinventory_id) fieldErrors.to_subinventory_id = 'Destination Subinventory is required';
       if (!body.subinventory_id) fieldErrors.subinventory_id = 'Subinventory is required';
