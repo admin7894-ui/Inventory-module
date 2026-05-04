@@ -7,6 +7,7 @@ const {
   isNonNegativeNumber,
   isEmpty
 } = require('./commonValidator');
+const { getInvOrgIdsFromOrgParameter } = require('../utils/orgParameterInvOrgFilter');
 
 /**
  * Ship Network Validator
@@ -24,7 +25,23 @@ const validateShipNetwork = (data) => {
   
   // From != To Org
   if (!isEmpty(data.from_inv_org_id) && !isEmpty(data.to_inv_org_id) && String(data.from_inv_org_id) === String(data.to_inv_org_id)) {
-    errors.to_inv_org_id = 'Source and Destination Organizations must be different';
+    const dupMsg = 'From and To Inventory Org cannot be same';
+    errors.from_inv_org_id = dupMsg;
+    errors.to_inv_org_id = dupMsg;
+  }
+
+  const allowedInv = getInvOrgIdsFromOrgParameter({
+    COMPANY_id: data.COMPANY_id || data.company_id,
+    business_type_id: data.business_type_id,
+    bg_id: data.bg_id,
+    module_id: data.module_id,
+  });
+  const notInParam = 'This Inventory Org is not configured in Org Parameter';
+  if (!errors.from_inv_org_id && !isEmpty(data.from_inv_org_id) && !allowedInv.has(String(data.from_inv_org_id))) {
+    errors.from_inv_org_id = notInParam;
+  }
+  if (!errors.to_inv_org_id && !isEmpty(data.to_inv_org_id) && !allowedInv.has(String(data.to_inv_org_id))) {
+    errors.to_inv_org_id = notInParam;
   }
 
   // Transfer Type

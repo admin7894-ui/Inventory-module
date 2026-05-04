@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
@@ -41,7 +41,69 @@ export default function ShipNetworkPage() {
   const businessTypes = []
   const { options: locations } = useDropdownData(locationApi, 'loc_dd')
   const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
+
+  const invOrgParamFilters = useMemo(
+    () => ({
+      org_parameter_only: 'true',
+      COMPANY_id: formData.COMPANY_id,
+      bg_id: formData.bg_id,
+      business_type_id: formData.business_type_id,
+      ...(formData.module_id ? { module_id: formData.module_id } : {}),
+    }),
+    [formData.COMPANY_id, formData.bg_id, formData.business_type_id, formData.module_id]
+  )
+
+  const invOrgDropdownEnabled =
+    view !== 'list' && !!formData.COMPANY_id && !!formData.bg_id && !!formData.business_type_id
+
+  const { options: invOrgsShip, isLoading: invOrgsLoading } = useDropdownData(
+    inventoryOrgApi,
+    'invorg_ship_orgparam',
+    invOrgParamFilters,
+    invOrgDropdownEnabled
+  )
+
+  const orgValidateOpts = useMemo(
+    () => ({
+      allowedInvOrgIds: new Set((invOrgsShip || []).map((r) => String(r.inv_org_id))),
+      invOrgListLoaded: invOrgDropdownEnabled ? !invOrgsLoading : false,
+    }),
+    [invOrgsShip, invOrgsLoading, invOrgDropdownEnabled]
+  )
+
+  useEffect(() => {
+    if (view === 'list' || !invOrgDropdownEnabled || invOrgsLoading) return
+    const ids = new Set((invOrgsShip || []).map((r) => String(r.inv_org_id)))
+    setFormData((prev) => {
+      let next = { ...prev }
+      let changed = false
+      if (prev.from_inv_org_id && !ids.has(String(prev.from_inv_org_id))) {
+        next.from_inv_org_id = ''
+        changed = true
+      }
+      if (prev.to_inv_org_id && !ids.has(String(prev.to_inv_org_id))) {
+        next.to_inv_org_id = ''
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [view, invOrgDropdownEnabled, invOrgsLoading, invOrgsShip])
+
+  const fromInvOrgSelectOptions = useMemo(
+    () =>
+      (invOrgsShip || [])
+        .filter((r) => String(r.inv_org_id) !== String(formData.to_inv_org_id || ''))
+        .map((r) => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id })),
+    [invOrgsShip, formData.to_inv_org_id]
+  )
+
+  const toInvOrgSelectOptions = useMemo(
+    () =>
+      (invOrgsShip || [])
+        .filter((r) => String(r.inv_org_id) !== String(formData.from_inv_org_id || ''))
+        .map((r) => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id })),
+    [invOrgsShip, formData.from_inv_org_id]
+  )
   const { options: subinventories } = useDropdownData(subinventoryApi, 'sub_dd')
   const { options: locators } = useDropdownData(locatorApi, 'loc2_dd')
   const { options: items } = useDropdownData(itemMasterApi, 'item_dd')
@@ -71,7 +133,7 @@ export default function ShipNetworkPage() {
 
   const dropdowns = {
     company: companies, businessGroup: businessGroups, businessType: businessTypes,
-    location: locations, module: modules, inventoryOrg: inventoryOrgs,
+    location: locations, module: modules,
     subinventory: subinventories, locator: locators, itemMaster: items,
     uom: uoms, uomType: uomTypes, itemCategory: itemCategories, itemSubCategory: itemSubCategories,
     brand: brands, itemType: itemTypes, zone: zones, lotMaster: lots, serialMaster: serials,
@@ -85,6 +147,26 @@ export default function ShipNetworkPage() {
   const setField = (k, val) => {
     setFormData(p => ({ ...p, [k]: val }))
     v.clearError(k)
+  }
+
+  const setFromInvOrg = (val) => {
+    setFormData((p) => {
+      const next = { ...p, from_inv_org_id: val }
+      if (val != null && val !== '' && String(next.to_inv_org_id) === String(val)) next.to_inv_org_id = ''
+      return next
+    })
+    v.clearError('from_inv_org_id')
+    v.clearError('to_inv_org_id')
+  }
+
+  const setToInvOrg = (val) => {
+    setFormData((p) => {
+      const next = { ...p, to_inv_org_id: val }
+      if (val != null && val !== '' && String(next.from_inv_org_id) === String(val)) next.from_inv_org_id = ''
+      return next
+    })
+    v.clearError('from_inv_org_id')
+    v.clearError('to_inv_org_id')
   }
 
   const handleCreate = () => {
@@ -101,7 +183,7 @@ export default function ShipNetworkPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!v.runValidation(formData)) return toast.error('Please fix the highlighted errors')
+    if (!v.runValidation(formData, orgValidateOpts)) return toast.error('Please fix the highlighted errors')
     try {
       if (view === 'edit') await table.update(selected['ship_network_id'], formData)
       else await table.create(formData)
@@ -138,18 +220,20 @@ export default function ShipNetworkPage() {
             
             <Field label="From Inv Org" required error={v.errors.from_inv_org_id}>
               <Select value={formData.from_inv_org_id} 
-                onChange={v => setField('from_inv_org_id', v)} 
-                onBlur={() => v.handleBlur('from_inv_org_id', formData)}
+                onChange={setFromInvOrg} 
+                onBlur={() => v.handleBlur('from_inv_org_id', formData, orgValidateOpts)}
                 error={v.errors.from_inv_org_id}
-                options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
+                disabled={!invOrgDropdownEnabled || invOrgsLoading}
+                options={fromInvOrgSelectOptions} />
             </Field>
 
             <Field label="To Inv Org" required error={v.errors.to_inv_org_id}>
               <Select value={formData.to_inv_org_id} 
-                onChange={v => setField('to_inv_org_id', v)} 
-                onBlur={() => v.handleBlur('to_inv_org_id', formData)}
+                onChange={setToInvOrg} 
+                onBlur={() => v.handleBlur('to_inv_org_id', formData, orgValidateOpts)}
                 error={v.errors.to_inv_org_id}
-                options={dropdowns.inventoryOrg?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
+                disabled={!invOrgDropdownEnabled || invOrgsLoading}
+                options={toInvOrgSelectOptions} />
             </Field>
 
             <Field label="Transfer Type" required error={v.errors.transfer_type}>

@@ -1,7 +1,7 @@
 const db = require('../data/db');
 const { applyScopeFilter, getScope } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
-const { isYes } = require('../utils/inventoryControls');
+const { getInvOrgIdsFromOrgParameter } = require('../utils/orgParameterInvOrgFilter');
 const MOCK_USER = 'admin';
 
 const TABLE = 'inventory_org';
@@ -41,21 +41,12 @@ exports.getAll = (req, res) => {
       const businessTypeFilter = filters.business_type_id || scope.business_type_id;
       const bgFilter = filters.bg_id || scope.bg_id;
 
-      const allowedInvOrgIds = new Set(
-        (db.org_parameter || [])
-          .filter(op => isYes(op.active_flag))
-          .filter(op => {
-            // Keep module check on org_parameter itself.
-            if (filters.module_id && String(op.module_id || '') !== String(filters.module_id)) return false;
-            // Enforce same company/business type context to prevent cross-company org usage.
-            if (companyFilter && String(op.COMPANY_id || op.company_id || '') !== String(companyFilter)) return false;
-            if (businessTypeFilter && String(op.business_type_id || '') !== String(businessTypeFilter)) return false;
-            // bg_id can be missing in older rows; enforce only when org_parameter carries bg_id.
-            if (bgFilter && op.bg_id && String(op.bg_id) !== String(bgFilter)) return false;
-            return true;
-          })
-          .map(op => String(op.inv_org_id))
-      );
+      const allowedInvOrgIds = getInvOrgIdsFromOrgParameter({
+        COMPANY_id: companyFilter,
+        business_type_id: businessTypeFilter,
+        bg_id: bgFilter,
+        module_id: filters.module_id,
+      });
       data = data.filter(r => allowedInvOrgIds.has(String(r.inv_org_id)));
     }
 

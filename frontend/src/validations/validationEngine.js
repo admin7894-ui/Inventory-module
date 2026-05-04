@@ -382,13 +382,27 @@ const RULES = {
   },
 
   // ━━━━━━━━━━━━━━ SHIP NETWORK ━━━━━━━━━━━━━━
-  ship_network: (d) => {
+  ship_network: (d, options = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.from_inv_org_id)) e.from_inv_org_id = 'This field is required';
     if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'This field is required';
-    if (!isEmpty(d.from_inv_org_id) && !isEmpty(d.to_inv_org_id) && String(d.from_inv_org_id) === String(d.to_inv_org_id))
-      e.to_inv_org_id = 'Invalid format';
+    if (!isEmpty(d.from_inv_org_id) && !isEmpty(d.to_inv_org_id) && String(d.from_inv_org_id) === String(d.to_inv_org_id)) {
+      const dupMsg = 'From and To Inventory Org cannot be same';
+      e.from_inv_org_id = dupMsg;
+      e.to_inv_org_id = dupMsg;
+    }
+    const notInParam = 'This Inventory Org is not configured in Org Parameter';
+    const allowed = options.allowedInvOrgIds;
+    const listReady = options.invOrgListLoaded !== false;
+    if (allowed instanceof Set && listReady) {
+      if (!e.from_inv_org_id && !isEmpty(d.from_inv_org_id) && !allowed.has(String(d.from_inv_org_id))) {
+        e.from_inv_org_id = notInParam;
+      }
+      if (!e.to_inv_org_id && !isEmpty(d.to_inv_org_id) && !allowed.has(String(d.to_inv_org_id))) {
+        e.to_inv_org_id = notInParam;
+      }
+    }
     if (isEmpty(d.transfer_type)) e.transfer_type = 'This field is required';
     if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = 'This field is required';
     if (isEmpty(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'This field is required';
