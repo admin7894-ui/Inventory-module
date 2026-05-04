@@ -116,7 +116,10 @@ exports.create = async (req, res) => {
     }
     if (isSerialControlled) {
       const serials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
-      if (serials.length === 0) fieldErrors.serial_ids = 'Serials are required for this item';
+      const numbers = Array.isArray(body.serial_numbers) ? body.serial_numbers : [];
+      if (serials.length === 0 && numbers.length === 0) {
+        fieldErrors.serial_ids = 'Serials are required for this item';
+      }
       body.serial_ids = serials;
     }
 

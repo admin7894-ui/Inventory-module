@@ -43,6 +43,8 @@ export default function StockAdjustmentPage() {
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
   const [stockSnapshot, setStockSnapshot] = useState(null)
+  const [serialInputs, setSerialInputs] = useState([])
+  const [serialMode, setSerialMode] = useState('manual')
 
   // Dropdowns
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -83,27 +85,13 @@ export default function StockAdjustmentPage() {
   const selectedToOrgParam = useMemo(() => getActiveOrgParam(formData.to_inv_org_id), [getActiveOrgParam, formData.to_inv_org_id])
   const locatorRequired = !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
   const destLocatorRequired = !!selectedToOrgParam && isYes(selectedToOrgParam.locator_control)
+  const lotConflict = !!selectedOrgParam && selectedItem && isYes(selectedItem.is_lot_controlled) && !isYes(selectedOrgParam.lot_control_enabled);
+  const serialConflict = !!selectedOrgParam && selectedItem && isYes(selectedItem.is_serial_controlled) && !isYes(selectedOrgParam.serial_control_enabled);
+
   const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled);
   const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled);
 
-  const orgItemMismatchToast = useRef('')
-  useEffect(() => {
-    if (!selectedItem || !formData.inv_org_id || !selectedOrgParam) return
-    const key = `${formData.item_id}|${formData.inv_org_id}`
-    if (isYes(selectedItem.is_lot_controlled) && !isYes(selectedOrgParam.lot_control_enabled)) {
-      if (orgItemMismatchToast.current !== `${key}|lot`) {
-        orgItemMismatchToast.current = `${key}|lot`
-        toast.error('Lot control not enabled for this org')
-      }
-      return
-    }
-    if (isYes(selectedItem.is_serial_controlled) && !isYes(selectedOrgParam.serial_control_enabled)) {
-      if (orgItemMismatchToast.current !== `${key}|ser`) {
-        orgItemMismatchToast.current = `${key}|ser`
-        toast.error('Serial control not enabled for this org')
-      }
-    }
-  }, [selectedItem, formData.item_id, formData.inv_org_id, selectedOrgParam])
+  const canSave = !lotConflict && !serialConflict;
 
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }));
@@ -213,7 +201,7 @@ export default function StockAdjustmentPage() {
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
     const { errors: newErrors } = validateStockAdjustment({ ...formData, [k]: val }, {
-      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, serialInputs
     })
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
   }, [formData, currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired])
@@ -249,6 +237,53 @@ export default function StockAdjustmentPage() {
         lot_id: '',
         serial_id: ''
       }));
+      setSerialInputs([])
+      setSerialMode('manual')
+    }
+  };
+
+  const handleQtyChangeForSerials = useCallback((newQty) => {
+    const qty = parseFloat(newQty) || 0;
+    setField('physical_qty', newQty);
+    
+    if (isSerialControlled && formData.txn_action === 'IN') {
+      const count = Math.max(0, Math.floor(qty));
+      setSerialInputs(prev => {
+        if (count > prev.length) return [...prev, ...Array(count - prev.length).fill('')];
+        return prev.slice(0, count);
+      });
+    }
+  }, [isSerialControlled, formData.txn_action, setField]);
+
+  const handleAutoGenerateSerials = async () => {
+    const qty = parseInt(formData.physical_qty) || 0;
+    if (!qty) return toast.error('Enter physical quantity first');
+    if (!formData.item_id) return toast.error('Select item first');
+    
+    try {
+      const resp = await serialMasterApi.generateSerials({ 
+        item_id: formData.item_id, 
+        qty: qty 
+      });
+      if (resp.success) {
+        setSerialInputs(resp.data);
+        toast.success('Serials auto-generated');
+      }
+    } catch (err) {
+      toast.error('Failed to generate serials');
+    }
+  };
+
+  const handleAutoGenerateLot = async () => {
+    if (!formData.item_id) return toast.error('Select item first');
+    try {
+      const lotResp = await lotMasterApi.generateLot({ item_id: formData.item_id });
+      if (lotResp.success) {
+        setField('lot_number', lotResp.data);
+        toast.success('Lot number auto-generated');
+      }
+    } catch (err) {
+      toast.error('Failed to generate lot number');
     }
   };
 
@@ -389,8 +424,11 @@ export default function StockAdjustmentPage() {
       active_flag: 'Y',
       effective_from: new Date().toISOString().split('T')[0],
       adjustment_date: new Date().toISOString().split('T')[0],
-      approval_status: 'PENDING'
+      approval_status: 'PENDING',
+      created_by: 'admin'
     })
+    setSerialInputs([])
+    setSerialMode('manual')
     setErrors({})
     setView('create')
   }
@@ -411,7 +449,7 @@ export default function StockAdjustmentPage() {
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     )
     const { errors: valErrors, isValid } = validateStockAdjustment(trimmedData, {
-      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, serialInputs
     })
 
     setErrors(valErrors)
@@ -433,6 +471,10 @@ export default function StockAdjustmentPage() {
         approved_by: isTransfer ? (formData.created_by || 'system') : formData.approved_by,
         active_flag: 'Y'
       }
+      if (isSerialControlled && formData.txn_action === 'IN') {
+        payload.serial_numbers = serialInputs.filter(s => s.trim());
+        payload.serial_ids = undefined; // Clear old field
+      }
       if (view === 'edit') await table.update(selected['adjustment_id'], payload)
       else await table.create(payload)
       handleBack()
@@ -449,7 +491,8 @@ export default function StockAdjustmentPage() {
   if (view !== 'list') {
     return (
       <FormPage title={view === 'view' ? 'View Adjustment' : view === 'edit' ? 'Edit Adjustment' : 'New Adjustment'}
-        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}>
+        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}
+        disabled={!canSave}>
         <>
           <div className="card p-6 mb-5">
             <SectionHeader icon={Package} title="Transaction Info" subtitle="Item and type details" color="brand" />
@@ -465,10 +508,12 @@ export default function StockAdjustmentPage() {
                   options={txnTypes?.map(r => ({ value: r.txn_type_id, label: r.txn_type_name }))} />
               </Field>
               <Field label="Control Type">
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   {isLotControlled && <span className="badge-purple">Lot</span>}
                   {isSerialControlled && <span className="badge-yellow">Serial</span>}
-                  {!isLotControlled && !isSerialControlled && <span className="badge-blue">Standard</span>}
+                  {lotConflict && <span className="badge-rose">Lot (Not Allowed)</span>}
+                  {serialConflict && <span className="badge-rose">Serial (Not Allowed)</span>}
+                  {!isLotControlled && !isSerialControlled && !lotConflict && !serialConflict && <span className="badge-blue">Standard</span>}
                 </div>
               </Field>
             </div>
@@ -545,7 +590,7 @@ export default function StockAdjustmentPage() {
                     </Field>
                   )}
                   <Field label={isTransfer ? "Transfer Qty" : "Physical Qty"} required error={errors.physical_qty}>
-                    <Input type="number" value={formData.physical_qty} onChange={e => setField('physical_qty', e.target.value)} disabled={view === 'view'} />
+                    <Input type="number" value={formData.physical_qty} onChange={e => handleQtyChangeForSerials(e.target.value)} disabled={view === 'view'} />
                   </Field>
                   <Field label="Net Adjustment">
                     <Input value={currentAdjQty} readOnly className="bg-white font-bold" />
@@ -558,35 +603,104 @@ export default function StockAdjustmentPage() {
           <div className="card p-6 mb-5">
             <SectionHeader icon={Hash} title="Tracking & Value" subtitle="Lot/Serial and Financials" color="purple" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {serialConflict && (
+                <div className="col-span-full bg-rose-50 border border-rose-200 p-4 rounded-lg flex items-start gap-3 animate-pulse">
+                  <AlertTriangle className="text-rose-500 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-rose-800 font-bold text-sm">Action Required: Serial Control Conflict</p>
+                    <p className="text-rose-600 text-xs mt-1">
+                      This item requires Serial Control, but it is disabled for this Inventory Org.
+                      Enable Serial Control in Org Parameter to proceed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {lotConflict && (
+                <div className="col-span-full bg-rose-50 border border-rose-200 p-4 rounded-lg flex items-start gap-3 animate-pulse">
+                  <AlertTriangle className="text-rose-500 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-rose-800 font-bold text-sm">Action Required: Lot Control Conflict</p>
+                    <p className="text-rose-600 text-xs mt-1">
+                      This item requires Lot Control, but it is disabled for this Inventory Org.
+                      Enable Lot Control in Org Parameter to proceed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {isLotControlled && (
-                <Field label="Lot" required error={errors.lot_id}>
-                  <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
-                    options={lots?.filter(r => {
-                      if (!isTransfer) return true
-                      return itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
-                    }).map(r => ({ value: r.lot_id, label: r.lot_number }))} />
+                <Field label="Lot Number" required error={errors.lot_id || errors.lot_number}>
+                  {formData.txn_action === 'IN' ? (
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Input value={formData.lot_number || ''} 
+                          placeholder="Auto-generated if empty"
+                          disabled={view === 'view'}
+                          onChange={e => setField('lot_number', e.target.value)} />
+                      </div>
+                      {view === 'create' && (
+                        <button type="button" onClick={handleAutoGenerateLot}
+                          className="px-3 py-2 text-[10px] font-bold uppercase bg-purple-50 text-purple-600 border border-purple-200 rounded hover:bg-purple-100 transition-colors">
+                          Auto
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
+                      options={lots?.filter(r => {
+                        if (!isTransfer) return true
+                        return itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
+                      }).map(r => ({ value: r.lot_id, label: r.lot_number }))} />
+                  )}
                 </Field>
               )}
               {isSerialControlled && (
-                <Field label="Serials" required error={errors.serial_ids}>
-                  {currentAdjQty > 0 && !isTransfer ? (
-                    <Input value={formData.serial_numbers_text || ''} placeholder="Comma-separated new serials"
-                      disabled={view === 'view'}
-                      onChange={e => {
-                        const serials = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                        setField('serial_numbers_text', e.target.value)
-                        setField('serial_numbers', serials)
-                        setField('physical_qty', serials.length)
-                      }} />
+                <div className="md:col-span-2 lg:col-span-3 mt-2 animate-slide-in">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-amber-500" />
+                      Serial Numbers
+                      <span className="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded ml-2">
+                        {formData.txn_action === 'IN' ? 'Enter one serial per unit' : 'Select existing serials'}
+                      </span>
+                    </h4>
+                    {formData.txn_action === 'IN' && view === 'create' && (
+                      <button type="button" onClick={handleAutoGenerateSerials}
+                        className="text-[10px] font-bold uppercase tracking-wider text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 px-3 py-1 rounded-full transition-all">
+                        Auto-Generate Serials
+                      </button>
+                    )}
+                  </div>
+
+                  {formData.txn_action === 'IN' ? (
+                    view === 'create' ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto pr-2 p-3 bg-amber-50/30 rounded-lg border border-amber-100/50">
+                        {serialInputs.map((val, idx) => (
+                          <div key={idx} className="relative">
+                            <Input value={val} placeholder={`Serial #${idx + 1}`}
+                              className={!val.trim() ? 'border-amber-200' : ''}
+                              onChange={e => { const a = [...serialInputs]; a[idx] = e.target.value; setSerialInputs(a); }} />
+                            {!val.trim() && <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-amber-400" />}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-50 rounded border text-sm text-gray-600">
+                        {formData.serial_numbers?.join(', ') || formData.serial_id || 'No serials recorded'}
+                      </div>
+                    )
                   ) : (
-                    <MultiSelect value={formData.serial_ids} onChange={v => {
-                      setField('serial_ids', v);
-                      setField('physical_qty', v.length);
-                    }} disabled={view === 'view'}
-                      options={serials?.filter(r => itemStock.some(s => String(s.serial_id) === String(r.serial_id) && parseFloat(s.available_qty) > 0))
-                        .map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+                    <Field error={errors.serial_ids}>
+                      <MultiSelect value={formData.serial_ids} onChange={v => {
+                        setField('serial_ids', v);
+                        setField('physical_qty', v.length);
+                      }} disabled={view === 'view'}
+                        options={serials?.filter(r => itemStock.some(s => String(s.serial_id) === String(r.serial_id) && parseFloat(s.available_qty) > 0))
+                          .map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+                    </Field>
                   )}
-                </Field>
+                </div>
               )}
               <Field label="UOM">
                 <Select value={formData.uom_id} onChange={v => setField('uom_id', v)} disabled={view === 'view'}
@@ -614,7 +728,7 @@ export default function StockAdjustmentPage() {
               <Field label="Remarks" className="md:col-span-2">
                 <textarea className="input" rows={2} value={formData.remarks || ''} onChange={e => setField('remarks', e.target.value)} disabled={view === 'view'} />
               </Field>
-              <AuditFields formData={formData} />
+              <AuditFields formData={formData} setField={setField} />
             </div>
           </div>
         </>

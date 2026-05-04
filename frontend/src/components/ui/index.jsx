@@ -330,7 +330,7 @@ export function Field({ label, required, error, children }) {
 }
 
 // ── Page Form Wrapper ─────────────────────────────────────────
-export function FormPage({ title, subtitle, onBack, onSubmit, loading, children, mode = 'edit' }) {
+export function FormPage({ title, subtitle, onBack, onSubmit, loading, children, mode = 'edit', disabled }) {
   return (
     <FormContext.Provider value={{ mode }}>
       <div className="animate-slide-in">
@@ -421,3 +421,4 @@ export function ErrorBanner({ message }) {
     </div>
   )
 }
+

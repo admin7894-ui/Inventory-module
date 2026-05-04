@@ -117,11 +117,35 @@ const runDynamicValidation = (data, options) => {
   }
 
   if (isSerialControlled) {
-    const serials = data.serial_ids?.length ? data.serial_ids : (data.serial_numbers || []);
-    if (serials.length === 0) {
-      errors.serial_ids = "Serials are required";
-    } else if (serials.length !== physical) {
-      errors.serial_ids = `Serial count (${serials.length}) must match quantity (${physical})`;
+    if (data.txn_action === 'IN') {
+      const serials = options.serialInputs || [];
+      const validSerials = serials.filter(s => s && s.trim());
+      const physical = parseFloat(data.physical_qty || 0);
+
+      if (validSerials.length === 0) {
+        errors.serial_ids = "Serial numbers are required";
+      } else if (validSerials.length !== physical) {
+        errors.serial_ids = `Serial count (${validSerials.length}) must match quantity (${physical})`;
+      } else {
+        // Check for duplicates in form
+        const seen = new Set();
+        const duplicates = [];
+        validSerials.forEach(s => {
+          if (seen.has(s.toLowerCase())) duplicates.push(s);
+          else seen.add(s.toLowerCase());
+        });
+        if (duplicates.length > 0) {
+          errors.serial_ids = `Duplicate serials found: ${duplicates.join(', ')}`;
+        }
+      }
+    } else {
+      const serials = data.serial_ids || [];
+      const physical = parseFloat(data.physical_qty || 0);
+      if (serials.length === 0) {
+        errors.serial_ids = "Serials are required";
+      } else if (serials.length !== physical) {
+        errors.serial_ids = `Serial count (${serials.length}) must match quantity (${physical})`;
+      }
     }
   }
 

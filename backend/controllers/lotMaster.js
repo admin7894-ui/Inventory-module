@@ -88,3 +88,17 @@ exports.update = (req, res) => {
 exports.remove = (req, res) => {
   res.status(403).json({ success:false, message:'Deletion of Lot Master records is disabled.' });
 };
+
+const { generateAutoLotNumber } = require('../utils/lotSerialAuto');
+exports.generate = (req, res) => {
+  try {
+    const { item_id } = req.body;
+    if (!item_id) return res.status(400).json({ success:false, message: 'item_id is required' });
+    
+    const item = (db.item_master || []).find(i => String(i.item_id) === String(item_id));
+    if (!item) return res.status(404).json({ success:false, message: 'Item not found' });
+
+    const lotNumber = generateAutoLotNumber(item);
+    res.json({ success:true, data: lotNumber });
+  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+};

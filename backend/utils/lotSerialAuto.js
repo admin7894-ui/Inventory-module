@@ -38,17 +38,19 @@ function maxSeqForSerialPrefix(prefix) {
 
 /**
  * LOT-{ITEM_CODE}-{YYYYMMDD}-{SEQ}
+ * SEQ: 3 digits, per item + date
  */
 function generateAutoLotNumber(item, dateValue = new Date()) {
   const itemCode = slugItemCode(item?.item_code || item?.item_id);
   const day = yyyymmdd(dateValue);
   const base = `LOT-${itemCode}-${day}`;
   const next = maxSeqForLotPrefix(base) + 1;
-  return `${base}-${String(next).padStart(4, '0')}`;
+  return `${base}-${String(next).padStart(3, '0')}`;
 }
 
 /**
- * SR-{ITEM_CODE}-{SEQ} (global seq per item code prefix)
+ * SR-{ITEM_CODE}-{SEQ}
+ * SEQ: 4 digits, per item
  */
 function generateAutoSerialNumbers(item, count) {
   const itemCode = slugItemCode(item?.item_code || item?.item_id);
@@ -57,7 +59,7 @@ function generateAutoSerialNumbers(item, count) {
   const out = [];
   for (let i = 0; i < count; i += 1) {
     start += 1;
-    out.push(`${base}-${String(start).padStart(6, '0')}`);
+    out.push(`${base}-${String(start).padStart(4, '0')}`);
   }
   return out;
 }

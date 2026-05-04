@@ -100,8 +100,13 @@ export default function OpeningStockPage() {
     })
   }, [orgParameters, formData.inv_org_id])
   const locatorRequired = !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
+  const lotConflict = !!selectedOrgParam && selectedItem && isYes(selectedItem.is_lot_controlled) && !isYes(selectedOrgParam.lot_control_enabled);
+  const serialConflict = !!selectedOrgParam && selectedItem && isYes(selectedItem.is_serial_controlled) && !isYes(selectedOrgParam.serial_control_enabled);
+
   const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled)
   const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled)
+
+  const canSave = !lotConflict && !serialConflict;
   const isExpirable = selectedItem && isYes(selectedItem.is_expirable)
   const shelfLifeDays = selectedItem ? parseInt(selectedItem.shelf_life_days || 0) : 0
 
@@ -279,6 +284,7 @@ export default function OpeningStockPage() {
         title={view === 'view' ? 'View Opening Stock' : view === 'edit' ? 'Edit Opening Stock' : 'New Opening Stock'}
         onBack={handleBack} onSubmit={handleSubmit}
         loading={table.isCreating || table.isUpdating} mode={view}
+        disabled={!canSave}
       >
         <ErrorBanner message={Object.keys(errors).length > 0 ? "Please fix the highlighted errors" : null} />
         <div className="card p-6 mb-5">
@@ -298,10 +304,12 @@ export default function OpeningStockPage() {
 
             {selectedItem && (
               <Field label="Control Type">
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {isLotControlled && <span className="badge-purple">Lot Controlled</span>}
-                  {isSerialControlled && <span className="badge-yellow">Serial Controlled</span>}
-                  {!isLotControlled && !isSerialControlled && <span className="badge-blue">Standard (No Tracking)</span>}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {isLotControlled && <span className="badge-purple">Lot</span>}
+                  {isSerialControlled && <span className="badge-yellow">Serial</span>}
+                  {lotConflict && <span className="badge-rose">Lot (Not Allowed)</span>}
+                  {serialConflict && <span className="badge-rose">Serial (Not Allowed)</span>}
+                  {!isLotControlled && !isSerialControlled && !lotConflict && !serialConflict && <span className="badge-blue">Standard</span>}
                   {isExpirable && <span className="badge-red">Expirable</span>}
                 </div>
               </Field>
@@ -312,6 +320,33 @@ export default function OpeningStockPage() {
         {selectedItem && (
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={MapPin} title="Location & Quantity" subtitle="Where and how much" color="emerald" />
+            
+            {serialConflict && (
+              <div className="mb-4 bg-rose-50 border border-rose-200 p-4 rounded-lg flex items-start gap-3 animate-pulse">
+                <AlertTriangle className="text-rose-500 mt-0.5" size={20} />
+                <div>
+                  <p className="text-rose-800 font-bold text-sm">Action Required: Serial Control Conflict</p>
+                  <p className="text-rose-600 text-xs mt-1">
+                    This item requires Serial Control, but it is disabled for this Inventory Org.
+                    Enable Serial Control in Org Parameter to proceed.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {lotConflict && (
+              <div className="mb-4 bg-rose-50 border border-rose-200 p-4 rounded-lg flex items-start gap-3 animate-pulse">
+                <AlertTriangle className="text-rose-500 mt-0.5" size={20} />
+                <div>
+                  <p className="text-rose-800 font-bold text-sm">Action Required: Lot Control Conflict</p>
+                  <p className="text-rose-600 text-xs mt-1">
+                    This item requires Lot Control, but it is disabled for this Inventory Org.
+                    Enable Lot Control in Org Parameter to proceed.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Inventory Organization" required error={errors.inv_org_id}>
                 <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} onBlur={() => validateField('inv_org_id', formData.inv_org_id)} error={errors.inv_org_id} disabled={view === 'view'}

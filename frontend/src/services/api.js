@@ -97,8 +97,14 @@ export const itemsApi                = crud('/items')
 export const subinventoriesApi       = crud('/subinventories')
 export const locatorsApi             = crud('/locators')
 export const uomConvApi               = crud('/uom-conv')
-export const lotMasterApi             = crud('/lot-master')
-export const serialMasterApi          = crud('/serial-master')
+export const lotMasterApi             = {
+  ...crud('/lot-master'),
+  generateLot: (data) => api.post('/lot-master/generate', data).then(r => r.data)
+}
+export const serialMasterApi          = {
+  ...crud('/serial-master'),
+  generateSerials: (data) => api.post('/serial-master/generate', data).then(r => r.data)
+}
 export const transactionTypeApi       = crud('/transaction-type')
 export const transactionReasonApi     = crud('/transaction-reason')
 export const openingStockApi          = crud('/opening-stock')

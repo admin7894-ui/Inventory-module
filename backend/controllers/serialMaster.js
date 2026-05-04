@@ -88,3 +88,17 @@ exports.update = (req, res) => {
 exports.remove = (req, res) => {
   res.status(403).json({ success:false, message:'Deletion of Serial Master records is disabled.' });
 };
+
+const { generateAutoSerialNumbers } = require('../utils/lotSerialAuto');
+exports.generate = (req, res) => {
+  try {
+    const { item_id, qty } = req.body;
+    if (!item_id || !qty) return res.status(400).json({ success:false, message: 'item_id and qty are required' });
+    
+    const item = (db.item_master || []).find(i => String(i.item_id) === String(item_id));
+    if (!item) return res.status(404).json({ success:false, message: 'Item not found' });
+
+    const serials = generateAutoSerialNumbers(item, parseInt(qty));
+    res.json({ success:true, data: serials });
+  } catch(e) { res.status(500).json({ success:false, message:e.message }); }
+};
