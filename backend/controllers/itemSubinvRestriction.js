@@ -55,6 +55,18 @@ exports.create = (req, res) => {
       errors.inv_org_id = e.message;
     }
     
+    // Item must be assigned to selected Org (Item Org Assignment)
+    if (req.body.item_id && req.body.inv_org_id) {
+      const assigns = (db.item_org_assignment || []).filter(a =>
+        String(a.item_id) === String(req.body.item_id) &&
+        String(a.inv_org_id) === String(req.body.inv_org_id) &&
+        String(a.COMPANY_id || '') === String(req.body.COMPANY_id || '') &&
+        String(a.bg_id || '') === String(req.body.bg_id || '') &&
+        String(a.business_type_id || '') === String(req.body.business_type_id || '')
+      );
+      if (!assigns.length) errors.item_id = 'Item is not assigned to selected Organization';
+    }
+
     // Relationship integrity
     if (req.body.subinventory_id && req.body.inv_org_id) {
       const sub = (db.subinventory || []).find(s => s.subinventory_id === req.body.subinventory_id);
@@ -67,6 +79,16 @@ exports.create = (req, res) => {
       if (loc && loc.subinventory_id !== req.body.subinventory_id) {
         errors.locator_id = 'Invalid Locator for selected Subinventory';
       }
+    }
+
+    // Prevent duplicate mapping: same item + org + subinventory
+    if (req.body.item_id && req.body.inv_org_id && req.body.subinventory_id) {
+      const exists = (db[TABLE] || []).find(r =>
+        String(r.item_id) === String(req.body.item_id) &&
+        String(r.inv_org_id) === String(req.body.inv_org_id) &&
+        String(r.subinventory_id) === String(req.body.subinventory_id)
+      );
+      if (exists) errors.subinventory_id = 'Duplicate mapping already exists';
     }
 
     if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });
@@ -97,18 +119,43 @@ exports.update = (req, res) => {
       errors.inv_org_id = e.message;
     }
     
+    const next = { ...current, ...req.body };
+
+    // Item must be assigned to selected Org (Item Org Assignment)
+    if (next.item_id && next.inv_org_id) {
+      const assigns = (db.item_org_assignment || []).filter(a =>
+        String(a.item_id) === String(next.item_id) &&
+        String(a.inv_org_id) === String(next.inv_org_id) &&
+        String(a.COMPANY_id || '') === String(next.COMPANY_id || '') &&
+        String(a.bg_id || '') === String(next.bg_id || '') &&
+        String(a.business_type_id || '') === String(next.business_type_id || '')
+      );
+      if (!assigns.length) errors.item_id = 'Item is not assigned to selected Organization';
+    }
+
     // Relationship integrity
-    if (req.body.subinventory_id && req.body.inv_org_id) {
-      const sub = (db.subinventory || []).find(s => s.subinventory_id === req.body.subinventory_id);
-      if (sub && sub.inv_org_id !== req.body.inv_org_id) {
+    if (next.subinventory_id && next.inv_org_id) {
+      const sub = (db.subinventory || []).find(s => s.subinventory_id === next.subinventory_id);
+      if (sub && String(sub.inv_org_id) !== String(next.inv_org_id)) {
         errors.subinventory_id = 'Invalid Subinventory for selected Org';
       }
     }
-    if (req.body.locator_id && req.body.subinventory_id) {
-      const loc = (db.locator || []).find(l => l.locator_id === req.body.locator_id);
-      if (loc && loc.subinventory_id !== req.body.subinventory_id) {
+    if (next.locator_id && next.subinventory_id) {
+      const loc = (db.locator || []).find(l => l.locator_id === next.locator_id);
+      if (loc && String(loc.subinventory_id) !== String(next.subinventory_id)) {
         errors.locator_id = 'Invalid Locator for selected Subinventory';
       }
+    }
+
+    // Prevent duplicate mapping: same item + org + subinventory (excluding self)
+    if (next.item_id && next.inv_org_id && next.subinventory_id) {
+      const exists = (db[TABLE] || []).find(r =>
+        String(r.item_id) === String(next.item_id) &&
+        String(r.inv_org_id) === String(next.inv_org_id) &&
+        String(r.subinventory_id) === String(next.subinventory_id) &&
+        String(r[PK]) !== String(req.params.id)
+      );
+      if (exists) errors.subinventory_id = 'Duplicate mapping already exists';
     }
 
     if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });

@@ -83,6 +83,10 @@ app.use('/api/item-stock',                require('./routes/itemStock'));
 app.use('/api/stock-ledger',              require('./routes/stockLedger'));
 app.use('/api/stock-adjustment',          require('./routes/stockAdjustment'));
 app.use('/api/batch-serial-tracking',     require('./routes/batchSerialTracking'));
+app.use('/api/inv-orgs',                  require('./routes/invOrgs'));
+app.use('/api/items',                     require('./routes/items'));
+app.use('/api/subinventories',            require('./routes/subinventories'));
+app.use('/api/locators',                  require('./routes/locators'));
 app.use('/api/auth',                      require('./routes/auth'));
 
 // ── Error handler ─────────────────────────────────────────────

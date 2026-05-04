@@ -5,9 +5,10 @@ import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, StatusBadge, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 import { itemOrgAssignmentApi } from '../services/api'
+import { invOrgsApi, itemsApi } from '../services/api'
 import {
-  companyApi, businessGroupApi, businessTypeApi, locationApi, moduleApi,
-  inventoryOrgApi, subinventoryApi, locatorApi, itemMasterApi, uomApi, uomTypeApi,
+  locationApi, moduleApi,
+  subinventoryApi, locatorApi, uomApi, uomTypeApi,
   itemCategoryApi, itemSubCategoryApi, brandApi, itemTypeApi, zoneApi,
   lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
   categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
@@ -38,10 +39,19 @@ export default function ItemOrgAssignmentPage() {
   // Load all needed dropdowns
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd', { org_parameter_only: 'true', module_id: 'MOD01' })
+  // Inv Org Id — only from Org Parameters (Inventory module only)
+  const invOrgEnabled = view !== 'list' && !!formData.bg_id && !!formData.COMPANY_id && !!formData.business_type_id
+  const { options: inventoryOrgs }    = useDropdownData(invOrgsApi, 'invorgs_op_inv', {}, invOrgEnabled)
   const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
   const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
-  const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
+  // Items — depend on selected Inv Org Id (exclude already assigned to that org)
+  const hasInvOrgSelected = !!formData.inv_org_id
+  const { options: itemsForOrg }      = useDropdownData(
+    itemsApi,
+    'items_unassigned_by_org',
+    { inv_org_id: formData.inv_org_id, mode: 'unassigned' },
+    view !== 'list' && hasInvOrgSelected
+  )
   const { options: uoms }             = useDropdownData(uomApi, 'uom_dd')
   const { options: uomTypes }         = useDropdownData(uomTypeApi, 'uomt_dd')
   const { options: itemCategories }   = useDropdownData(itemCategoryApi, 'cat_dd')
@@ -68,7 +78,7 @@ export default function ItemOrgAssignmentPage() {
 
   const dropdowns = {
     location:locations, module:modules, inventoryOrg:inventoryOrgs,
-    subinventory:subinventories, locator:locators, itemMaster:items,
+    subinventory:subinventories, locator:locators, itemMaster:itemsForOrg,
     uom:uoms, uomType:uomTypes, itemCategory:itemCategories, itemSubCategory:itemSubCategories,
     brand:brands, itemType:itemTypes, zone:zones, lotMaster:lots, serialMaster:serials,
     transactionType:txnTypes, transactionReason:txnReasons, categorySet:categorySets,
@@ -83,7 +93,7 @@ export default function ItemOrgAssignmentPage() {
 
   useEffect(() => {
     if (formData.inv_org_id && !hasValidInvOrg) {
-      setFormData(prev => ({ ...prev, inv_org_id: '' }))
+      setFormData(prev => ({ ...prev, inv_org_id: '', item_id: '' }))
     }
   }, [formData.inv_org_id, hasValidInvOrg])
 
@@ -96,6 +106,12 @@ export default function ItemOrgAssignmentPage() {
   const setField = (k, v) => {
     setFormData(p => ({ ...p, [k]: v }));
     if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
+  }
+
+  const setInvOrg = (v) => {
+    setFormData(p => ({ ...p, inv_org_id: v, item_id: '' }))
+    if (errors.inv_org_id) setErrors(p => ({ ...p, inv_org_id: null }))
+    if (errors.item_id) setErrors(p => ({ ...p, item_id: null }))
   }
 
   const handleCreate = () => {
@@ -148,14 +164,22 @@ export default function ItemOrgAssignmentPage() {
       <Field label="Item Org Assign Id (Auto-gen)"><Input value={formData.item_org_assign_id} readOnly /></Field>
       <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={validateField} />
 
-      <Field label="Item" required error={errors.item_id}>
-        <Select value={formData.item_id} onChange={v => setField('item_id',v)} onBlur={() => validateField('item_id', formData.item_id)}
-          options={dropdowns.itemMaster?.map(r=>({value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}))} />
-      </Field>
       <Field label="Inv Org Id" required error={errors.inv_org_id}>
-        <Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} onBlur={() => validateField('inv_org_id', formData.inv_org_id)}
+        <Select value={formData.inv_org_id} onChange={setInvOrg} onBlur={() => validateField('inv_org_id', formData.inv_org_id)}
           options={filteredInventoryOrgs?.map(r=>({value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}))}
+          disabled={!invOrgEnabled}
           placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Org (configured in Org Parameters)"} />
+      </Field>
+
+      <Field label="Item" required error={errors.item_id}>
+        <Select
+          value={formData.item_id}
+          onChange={v => setField('item_id',v)}
+          onBlur={() => validateField('item_id', formData.item_id)}
+          disabled={!hasValidInvOrg}
+          placeholder={!hasValidInvOrg ? "Select Inv Org first" : (itemsForOrg?.length ? "-- Select --" : "No items available for selected org")}
+          options={(itemsForOrg || []).map(r=>({value:r.item_id,label:`${r.item_code||''} - ${r.item_name||r.item_id}`}))}
+        />
       </Field>
       <Field label="Min Qty" required error={errors.min_qty}>
         <Input type="number" step="any" value={formData.min_qty} onChange={e => setField('min_qty',e.target.value)} onBlur={() => validateField('min_qty', formData.min_qty)} disabled={!hasValidInvOrg} />
