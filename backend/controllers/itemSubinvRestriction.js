@@ -1,6 +1,7 @@
 const db = require('../data/db');
 const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
+const { assertConfiguredInvOrg } = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
 
 const TABLE = 'item_subinventory_restriction';
@@ -48,6 +49,11 @@ exports.getById = (req, res) => {
 exports.create = (req, res) => {
   try {
     const { errors, isValid } = validateItemSubinvRestriction(req.body);
+    try {
+      assertConfiguredInvOrg(req.body);
+    } catch (e) {
+      errors.inv_org_id = e.message;
+    }
     
     // Relationship integrity
     if (req.body.subinventory_id && req.body.inv_org_id) {
@@ -83,6 +89,13 @@ exports.create = (req, res) => {
 exports.update = (req, res) => {
   try {
     const { errors, isValid } = validateItemSubinvRestriction(req.body);
+    const current = (db[TABLE] || []).find(r => r[PK] === req.params.id);
+    if (!current) return res.status(404).json({ success:false, message:'Not found' });
+    try {
+      assertConfiguredInvOrg({ ...current, ...req.body });
+    } catch (e) {
+      errors.inv_org_id = e.message;
+    }
     
     // Relationship integrity
     if (req.body.subinventory_id && req.body.inv_org_id) {
@@ -101,7 +114,6 @@ exports.update = (req, res) => {
     if (Object.keys(errors).length > 0) return res.status(400).json({ success: false, errors });
 
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
-    if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
     db[TABLE][idx] = { ...db[TABLE][idx], ...req.body, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
     res.json({ success:true, data:db[TABLE][idx], message:'Updated' });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }

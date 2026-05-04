@@ -42,7 +42,7 @@ export default function SubinventoryPage() {
   const businessTypes = []
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
+  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd', { org_parameter_only: 'true', module_id: 'MOD01' })
   const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
   const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
   const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
@@ -82,6 +82,15 @@ export default function SubinventoryPage() {
     securityProfile:securityProfiles, profileAccess:profileAccesses,
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
+
+  const filteredInventoryOrgs = dropdowns.inventoryOrg || []
+  const hasValidInvOrg = !!formData.inv_org_id && filteredInventoryOrgs.some(r => String(r.inv_org_id) === String(formData.inv_org_id))
+
+  useEffect(() => {
+    if (formData.inv_org_id && !hasValidInvOrg) {
+      setFormData(prev => ({ ...prev, inv_org_id: '' }))
+    }
+  }, [formData.inv_org_id, hasValidInvOrg])
 
   const setField = (k, value) => {
     setFormData(p => ({ ...p, [k]: value }));
@@ -143,9 +152,9 @@ export default function SubinventoryPage() {
               <Select value={formData.inv_org_id} 
                 onChange={v_val => setField('inv_org_id', v_val)} 
                 onBlur={() => v.handleBlur('inv_org_id', formData)}
-                options={dropdowns.inventoryOrg?.map(r=>({value:r.inv_org_id, label:r.inv_org_name||r.inv_org_id}))} 
+                options={filteredInventoryOrgs?.map(r=>({value:r.inv_org_id, label:r.inv_org_name||r.inv_org_id}))} 
                 disabled={view === 'view'}
-                placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Org"}
+                placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Org (configured in Org Parameters)"}
               />
             </Field>
 
@@ -161,7 +170,7 @@ export default function SubinventoryPage() {
                 }}
                 onBlur={() => v.handleBlur('subinventory_name', formData)}
                 error={v.errors.subinventory_name}
-                disabled={!formData.inv_org_id || view === 'view'}
+                disabled={!hasValidInvOrg || view === 'view'}
               />
             </Field>
 
@@ -170,7 +179,7 @@ export default function SubinventoryPage() {
                 onChange={e => setField('subinventory_code', e.target.value)} 
                 onBlur={() => v.handleBlur('subinventory_code', formData)}
                 error={v.errors.subinventory_code}
-                disabled={!formData.inv_org_id || view === 'view'}
+                disabled={!hasValidInvOrg || view === 'view'}
               />
             </Field>
 
@@ -179,7 +188,7 @@ export default function SubinventoryPage() {
                 onChange={v_val => setField('zone_id', v_val)} 
                 onBlur={() => v.handleBlur('zone_id', formData)}
                 options={dropdowns.zone?.map(r=>({value:r.zone_id, label:r.zone_name||r.zone_id}))} 
-                disabled={!formData.inv_org_id || view === 'view'}
+                disabled={!hasValidInvOrg || view === 'view'}
               />
             </Field>
 

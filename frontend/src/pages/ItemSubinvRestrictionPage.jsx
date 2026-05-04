@@ -39,7 +39,7 @@ export default function ItemSubinvRestrictionPage() {
   // Load all needed dropdowns
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
+  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd', { org_parameter_only: 'true', module_id: 'MOD01' })
   const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
   const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
   const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
@@ -79,9 +79,18 @@ export default function ItemSubinvRestrictionPage() {
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
 
+  const filteredInventoryOrgs = dropdowns.inventoryOrg || []
+  const hasValidInvOrg = !!formData.inv_org_id && filteredInventoryOrgs.some(r => String(r.inv_org_id) === String(formData.inv_org_id))
+
   // Filtered dropdowns
   const filteredSubinventories = dropdowns.subinventory?.filter(s => !formData.inv_org_id || s.inv_org_id === formData.inv_org_id)
   const filteredLocators = dropdowns.locator?.filter(l => !formData.subinventory_id || l.subinventory_id === formData.subinventory_id)
+
+  useEffect(() => {
+    if (formData.inv_org_id && !hasValidInvOrg) {
+      setFormData(prev => ({ ...prev, inv_org_id: '', subinventory_id: '', locator_id: '' }))
+    }
+  }, [formData.inv_org_id, hasValidInvOrg])
 
   const validateField = (k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
@@ -156,12 +165,13 @@ export default function ItemSubinvRestrictionPage() {
       </Field>
       <Field label="Inv Org Id" required error={errors.inv_org_id}>
         <Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} onBlur={() => validateField('inv_org_id', formData.inv_org_id)}
-          options={dropdowns.inventoryOrg?.map(r=>({value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}))} />
+          options={filteredInventoryOrgs?.map(r=>({value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}))}
+          placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Org (configured in Org Parameters)"} />
       </Field>
       <Field label="Subinventory Id" required error={errors.subinventory_id}>
         <Select value={formData.subinventory_id} onChange={v => setField('subinventory_id',v)} onBlur={() => validateField('subinventory_id', formData.subinventory_id)}
           options={filteredSubinventories?.map(r=>({value:r.subinventory_id,label:r.subinventory_name||r.subinventory_id}))}
-          disabled={!formData.inv_org_id} placeholder={!formData.inv_org_id ? "Select Org first" : "-- Select --"} />
+          disabled={!hasValidInvOrg} placeholder={!hasValidInvOrg ? "Select valid Org first" : "-- Select --"} />
       </Field>
       <Field label="Locator Id" required error={errors.locator_id}>
         <Select value={formData.locator_id} onChange={v => setField('locator_id',v)} onBlur={() => validateField('locator_id', formData.locator_id)}

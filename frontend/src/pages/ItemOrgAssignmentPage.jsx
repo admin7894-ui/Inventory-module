@@ -38,7 +38,7 @@ export default function ItemOrgAssignmentPage() {
   // Load all needed dropdowns
   const { options: locations }        = useDropdownData(locationApi, 'loc_dd')
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
-  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
+  const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd', { org_parameter_only: 'true', module_id: 'MOD01' })
   const { options: subinventories }   = useDropdownData(subinventoryApi, 'sub_dd')
   const { options: locators }         = useDropdownData(locatorApi, 'loc2_dd')
   const { options: items }            = useDropdownData(itemMasterApi, 'item_dd')
@@ -77,6 +77,15 @@ export default function ItemOrgAssignmentPage() {
     securityProfile:securityProfiles, profileAccess:profileAccesses,
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
   }
+
+  const filteredInventoryOrgs = dropdowns.inventoryOrg || []
+  const hasValidInvOrg = !!formData.inv_org_id && filteredInventoryOrgs.some(r => String(r.inv_org_id) === String(formData.inv_org_id))
+
+  useEffect(() => {
+    if (formData.inv_org_id && !hasValidInvOrg) {
+      setFormData(prev => ({ ...prev, inv_org_id: '' }))
+    }
+  }, [formData.inv_org_id, hasValidInvOrg])
 
   const validateField = (k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
@@ -145,20 +154,21 @@ export default function ItemOrgAssignmentPage() {
       </Field>
       <Field label="Inv Org Id" required error={errors.inv_org_id}>
         <Select value={formData.inv_org_id} onChange={v => setField('inv_org_id',v)} onBlur={() => validateField('inv_org_id', formData.inv_org_id)}
-          options={dropdowns.inventoryOrg?.map(r=>({value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}))} />
+          options={filteredInventoryOrgs?.map(r=>({value:r.inv_org_id,label:r.inv_org_name||r.inv_org_id}))}
+          placeholder={!formData.business_type_id ? "Select Business Type first" : "Select Org (configured in Org Parameters)"} />
       </Field>
       <Field label="Min Qty" required error={errors.min_qty}>
-        <Input type="number" step="any" value={formData.min_qty} onChange={e => setField('min_qty',e.target.value)} onBlur={() => validateField('min_qty', formData.min_qty)} />
+        <Input type="number" step="any" value={formData.min_qty} onChange={e => setField('min_qty',e.target.value)} onBlur={() => validateField('min_qty', formData.min_qty)} disabled={!hasValidInvOrg} />
       </Field>
       <Field label="Max Qty" required error={errors.max_qty}>
-        <Input type="number" step="any" value={formData.max_qty} onChange={e => setField('max_qty',e.target.value)} onBlur={() => validateField('max_qty', formData.max_qty)} />
+        <Input type="number" step="any" value={formData.max_qty} onChange={e => setField('max_qty',e.target.value)} onBlur={() => validateField('max_qty', formData.max_qty)} disabled={!hasValidInvOrg} />
       </Field>
       <Field label="Safety Stock Qty" required error={errors.safety_stock_qty}>
-        <Input type="number" step="any" value={formData.safety_stock_qty} onChange={e => setField('safety_stock_qty',e.target.value)} onBlur={() => validateField('safety_stock_qty', formData.safety_stock_qty)} />
+        <Input type="number" step="any" value={formData.safety_stock_qty} onChange={e => setField('safety_stock_qty',e.target.value)} onBlur={() => validateField('safety_stock_qty', formData.safety_stock_qty)} disabled={!hasValidInvOrg} />
       </Field>
-      <Field label="Lot Divisible Flag"><Toggle value={formData.lot_divisible_flag} onChange={v => setField('lot_divisible_flag',v)} /></Field>
+      <Field label="Lot Divisible Flag"><Toggle value={formData.lot_divisible_flag} onChange={v => setField('lot_divisible_flag',v)} disabled={!hasValidInvOrg} /></Field>
       <Field label="Module" required error={errors.module_id}>
-        <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
+        <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} disabled={!hasValidInvOrg} />
       </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>

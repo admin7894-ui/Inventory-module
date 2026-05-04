@@ -1,6 +1,7 @@
 const db = require('../data/db');
 const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
+const { assertConfiguredInvOrg } = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
 
 const TABLE = 'subinventory';
@@ -46,6 +47,7 @@ exports.getById = (req, res) => {
 exports.create = (req, res) => {
   try {
     const body = { ...req.body };
+    assertConfiguredInvOrg(body);
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
@@ -67,6 +69,8 @@ exports.update = (req, res) => {
   try {
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
+    const nextPayload = { ...db[TABLE][idx], ...req.body };
+    assertConfiguredInvOrg(nextPayload);
 
     // Uniqueness check for subinventory_code
     if (req.body.subinventory_code && (db[TABLE]||[]).find(r => r.subinventory_code === req.body.subinventory_code && r[PK] !== req.params.id))

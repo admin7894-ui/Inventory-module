@@ -61,6 +61,33 @@ function getActiveOrgParameter(invOrgId, dateValue = new Date()) {
   );
 }
 
+function matchesOptionalContext(row, data = {}) {
+  if (!row || !data) return false;
+  if (data.bg_id && row.bg_id && String(row.bg_id) !== String(data.bg_id)) return false;
+  if (data.COMPANY_id && String(row.COMPANY_id || row.company_id || '') !== String(data.COMPANY_id)) return false;
+  if (data.company_id && String(row.COMPANY_id || row.company_id || '') !== String(data.company_id)) return false;
+  if (data.business_type_id && String(row.business_type_id || '') !== String(data.business_type_id)) return false;
+  if (data.module_id && String(row.module_id || '') !== String(data.module_id)) return false;
+  return true;
+}
+
+function hasConfiguredActiveOrgParameter(data = {}, dateValue = new Date()) {
+  const invOrgId = data.inv_org_id || data.from_inv_org_id;
+  if (!invOrgId) return false;
+  return (db.org_parameter || []).some(row =>
+    String(row.inv_org_id) === String(invOrgId) &&
+    isYes(row.active_flag) &&
+    inDateRange(row, dateValue) &&
+    matchesOptionalContext(row, data)
+  );
+}
+
+function assertConfiguredInvOrg(data = {}, dateValue = new Date()) {
+  if (!hasConfiguredActiveOrgParameter(data, dateValue)) {
+    throw new Error('Selected Inventory Organization is not configured in Org Parameters');
+  }
+}
+
 function getItem(itemId) {
   return (db.item_master || []).find(i => String(i.item_id) === String(itemId));
 }
@@ -238,6 +265,8 @@ module.exports = {
   normalizeContext,
   requireContext,
   getActiveOrgParameter,
+  hasConfiguredActiveOrgParameter,
+  assertConfiguredInvOrg,
   getControlContext,
   getSerialValues,
   findLot,

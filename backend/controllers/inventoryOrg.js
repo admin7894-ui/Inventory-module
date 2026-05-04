@@ -1,6 +1,7 @@
 const db = require('../data/db');
-const { applyScopeFilter } = require('../utils/scopeFilter');
+const { applyScopeFilter, getScope } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
+const { isYes } = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
 
 const TABLE = 'inventory_org';
@@ -17,7 +18,47 @@ exports.getAll = (req, res) => {
     data = applyRLS(data, req.user);
 
     // Search
-    const { search, page = 1, limit = 50, sortBy, sortOrder = 'asc', ...filters } = req.query;
+    const {
+      search,
+      page = 1,
+      limit = 50,
+      sortBy,
+      sortOrder = 'asc',
+      org_parameter_only,
+      configured_only,
+      require_org_parameter,
+      ...filters
+    } = req.query;
+
+    const needsOrgParamFilter =
+      String(org_parameter_only || '').toLowerCase() === 'true' ||
+      String(configured_only || '').toLowerCase() === 'true' ||
+      String(require_org_parameter || '').toLowerCase() === 'true';
+
+    if (needsOrgParamFilter) {
+      const scope = getScope(req.user || {});
+      const companyFilter = filters.COMPANY_id || filters.company_id || scope.company_id;
+      const businessTypeFilter = filters.business_type_id || scope.business_type_id;
+      const bgFilter = filters.bg_id || scope.bg_id;
+
+      const allowedInvOrgIds = new Set(
+        (db.org_parameter || [])
+          .filter(op => isYes(op.active_flag))
+          .filter(op => {
+            // Keep module check on org_parameter itself.
+            if (filters.module_id && String(op.module_id || '') !== String(filters.module_id)) return false;
+            // Enforce same company/business type context to prevent cross-company org usage.
+            if (companyFilter && String(op.COMPANY_id || op.company_id || '') !== String(companyFilter)) return false;
+            if (businessTypeFilter && String(op.business_type_id || '') !== String(businessTypeFilter)) return false;
+            // bg_id can be missing in older rows; enforce only when org_parameter carries bg_id.
+            if (bgFilter && op.bg_id && String(op.bg_id) !== String(bgFilter)) return false;
+            return true;
+          })
+          .map(op => String(op.inv_org_id))
+      );
+      data = data.filter(r => allowedInvOrgIds.has(String(r.inv_org_id)));
+    }
+
     if (search) {
       const q = search.toLowerCase();
       data = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(q)));
