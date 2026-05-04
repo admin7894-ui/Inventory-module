@@ -617,7 +617,7 @@ export default function StockAdjustmentPage() {
               )}
 
               {isLotControlled && (
-                <Field label="Lot Number" required error={errors.lot_id || errors.lot_number}>
+                <Field label="Lot Number" required error={formData.txn_action === 'IN' ? errors.lot_number : errors.lot_id}>
                   {formData.txn_action === 'IN' ? (
                     <div className="flex gap-2">
                       <div className="flex-1">
@@ -689,11 +689,11 @@ export default function StockAdjustmentPage() {
                   )}
                 </div>
               )}
-              <Field label="UOM">
+              <Field label="UOM" error={errors.uom_id}>
                 <Select value={formData.uom_id} onChange={v => setField('uom_id', v)} disabled={view === 'view'}
                   options={uoms?.map(r => ({ value: r.uom_id, label: r.uom_name }))} />
               </Field>
-              <Field label="Unit Cost"><Input type="number" value={formData.unit_cost} onChange={e => setField('unit_cost', e.target.value)} disabled={view === 'view'} /></Field>
+              <Field label="Unit Cost" error={errors.unit_cost}><Input type="number" value={formData.unit_cost} onChange={e => setField('unit_cost', e.target.value)} disabled={view === 'view'} /></Field>
               <Field label="Reason" required error={errors.txn_reason_id}>
                 <Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id', v)} disabled={view === 'view'}
                   options={txnReasons?.map(r => ({ value: r.txn_reason_id, label: r.txn_reason }))} />

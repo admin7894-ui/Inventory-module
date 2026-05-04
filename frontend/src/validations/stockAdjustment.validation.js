@@ -30,7 +30,7 @@ export const stockAdjustmentValidation = {
     message: "Invalid quantity"
   },
   unit_cost: {
-    required: true,
+    required: false,
     min: 0,
     regex: /^[0-9]+(\.[0-9]{1,2})?$/,
     message: "Invalid unit cost"
@@ -112,8 +112,12 @@ const runDynamicValidation = (data, options) => {
     }
   }
 
-  if (isLotControlled && !data.lot_id) {
-    errors.lot_id = "Lot is required";
+  if (isLotControlled) {
+    if (data.txn_action === 'IN') {
+      if (!data.lot_number) errors.lot_number = "Lot is required";
+    } else {
+      if (!data.lot_id) errors.lot_id = "Lot is required";
+    }
   }
 
   if (isSerialControlled) {

@@ -219,9 +219,28 @@ const RULES = {
       e.adjustment_date = 'Adjustment date cannot be in the future';
 
     // Lot/Serial conditional
-    if (opts.isLotControlled && isEmpty(d.lot_id)) e.lot_id = 'Lot is required';
-    if (opts.isSerialControlled && (!d.serial_ids || d.serial_ids.length === 0))
-      e.serial_ids = 'Serial numbers are required';
+    if (opts.isLotControlled) {
+      if (d.txn_action === 'IN') {
+        if (isEmpty(d.lot_number)) e.lot_number = 'Lot is required';
+      } else if (d.txn_action === 'OUT' || d.txn_action === 'TRANSFER') {
+        if (isEmpty(d.lot_id)) e.lot_id = 'Lot is required';
+      } else {
+        if (isEmpty(d.lot_id) && isEmpty(d.lot_number)) {
+          e.lot_id = 'Lot is required';
+        }
+      }
+    }
+    if (opts.isSerialControlled) {
+      if (d.txn_action === 'IN') {
+        if (isEmpty(d.serial_numbers)) e.serial_ids = 'Serial numbers are required';
+      } else if (d.txn_action === 'OUT' || d.txn_action === 'TRANSFER') {
+        if (isEmpty(d.serial_ids)) e.serial_ids = 'Serial numbers are required';
+      } else {
+        if (isEmpty(d.serial_ids) && isEmpty(d.serial_numbers)) {
+          e.serial_ids = 'Serial numbers are required';
+        }
+      }
+    }
 
     return e;
   },
