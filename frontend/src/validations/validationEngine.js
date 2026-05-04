@@ -13,7 +13,7 @@ const isFutureDate = (v) => isValidDate(v) && new Date(v) > new Date();
 
 const REGEX = {
   NAME: /^[A-Za-z0-9 &()\-]{3,100}$/,
-  CODE: /^[A-Z0-9_]{2,20}$/,
+  CODE: /^[A-Z0-9_-]{2,20}$/,
   GST: /^[0-9A-Z]{15}$/,
   CURRENCY: /^[A-Z]{3}$/,
   HSN: /^[0-9]{4,8}$/,
