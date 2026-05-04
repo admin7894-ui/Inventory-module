@@ -146,13 +146,14 @@ const RULES = {
     else if (!isNonNegativeNumber(d.unit_cost)) e.unit_cost = 'Unit cost must be ≥ 0';
     if (!isEmpty(d.opening_date) && isFutureDate(d.opening_date))
       e.opening_date = 'Opening date cannot be in the future';
-    // Lot/Serial conditional
-    if (opts.isLotControlled && isEmpty(d.lot_number)) e.lot_number = 'Lot number is required';
+    // Lot optional when org+item lot-controlled — backend auto-generates if blank
     if (opts.isSerialControlled && opts.serialMode === 'manual') {
       const serials = opts.serialInputs || [];
       const validSerials = serials.filter(s => s && s.trim());
       const qty = parseInt(d.opening_qty) || 0;
-      if (validSerials.length !== qty) e.serial_numbers = `Need exactly ${qty} serial numbers`;
+      if (validSerials.length > 0 && validSerials.length !== qty) {
+        e.serial_numbers = `Need exactly ${qty} serial numbers (or leave all blank for auto-generation)`;
+      }
     }
     return e;
   },
