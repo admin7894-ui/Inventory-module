@@ -7,6 +7,8 @@ const validateTransactionType = (data) => {
 
   if (isEmpty(data.txn_type_name)) {
     errors.txn_type_name = 'Transaction Type Name is required';
+  }else if (!REGEX.NAME.test(String(data.txn_type_name).trim())) {
+    errors.txn_type_name = 'Invalid format';
   }
 
   if (isEmpty(data.txn_type_code)) {

@@ -81,7 +81,11 @@ const RULES = {
   inventory_org: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_name)) e.inv_org_name = 'This field is required';
+    if (isEmpty(d.inv_org_name)) {
+      e.inv_org_name = 'This field is required';
+    } else if (!REGEX.NAME.test(String(d.inv_org_name).trim())) {
+      e.inv_org_name = 'Invalid format';
+    }
     if (isEmpty(d.inv_org_code)) e.inv_org_code = 'This field is required';
     else if (!REGEX.CODE.test(String(d.inv_org_code).trim())) e.inv_org_code = 'Invalid format';
     if (isEmpty(d.le_id)) e.le_id = 'This field is required';
@@ -533,16 +537,29 @@ const RULES = {
   item_type: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_type_name)) e.item_type_name = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.item_type_name)) {
+      e.item_type_name = 'This field is required';
+    } else if (!REGEX.NAME.test(String(d.item_type_name).trim())) {
+      e.item_type_name = 'Invalid format';
+    }
+    if (isEmpty(d.module_id)) {
+      e.module_id = 'This field is required';
+    }
+    if (d.module_name && d.module_name !== 'Inventory') {
+      e.module_id = 'Only Inventory module allowed';
+    }
     validateDates(e, d);
     return e;
   },
-
+  
   zone: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.zone_name)) e.zone_name = 'This field is required';
+    if (isEmpty(d.zone_name)) {
+      e.zone_name = 'This field is required';
+    } else if (!REGEX.NAME.test(String(d.zone_name).trim())) {
+      e.zone_name = 'Invalid format';
+    }
     if (isEmpty(d.zone_code)) e.zone_code = 'This field is required';
     else if (!REGEX.CODE.test(String(d.zone_code).trim())) e.zone_code = 'Invalid format';
     if (isEmpty(d.zone_type)) e.zone_type = 'This field is required';
@@ -555,7 +572,11 @@ const RULES = {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
-    if (isEmpty(d.subinventory_name)) e.subinventory_name = 'This field is required';
+    if (isEmpty(d.subinventory_name)) {
+      e.subinventory_name = 'This field is required';
+    } else if (!REGEX.NAME.test(String(d.subinventory_name).trim())) {
+      e.subinventory_name = 'Invalid format';
+    }
     if (isEmpty(d.subinventory_code)) e.subinventory_code = 'This field is required';
     else if (!REGEX.CODE.test(String(d.subinventory_code).trim())) e.subinventory_code = 'Invalid format';
     if (isEmpty(d.zone_id)) e.zone_id = 'This field is required';
@@ -569,7 +590,11 @@ const RULES = {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.subinventory_id)) e.subinventory_id = 'This field is required';
-    if (isEmpty(d.locator_name)) e.locator_name = 'This field is required';
+    if (isEmpty(d.locator_name)) {
+      e.locator_name = 'This field is required';
+    } else if (!REGEX.NAME.test(String(d.locator_name).trim())) {
+      e.locator_name = 'Invalid format';
+    }
     if (isEmpty(d.locator_code)) e.locator_code = 'This field is required';
     else if (!REGEX.CODE.test(String(d.locator_code).trim())) e.locator_code = 'Invalid format';
     if (isEmpty(d.locator_type)) e.locator_type = 'This field is required';
