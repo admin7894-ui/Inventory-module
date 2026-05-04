@@ -1,6 +1,7 @@
 const db = require('../data/db');
 const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
+const { getActiveOrgParameter, isYes } = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
 
 const TABLE = 'locator___bin';
@@ -49,6 +50,19 @@ exports.create = (req, res) => {
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
+
+    const sub = (db.subinventory || []).find(s => String(s.subinventory_id) === String(body.subinventory_id));
+    const invOrgId = body.inv_org_id || sub?.inv_org_id;
+    if (!invOrgId) {
+      return res.status(400).json({ success: false, message: 'Inventory Organization could not be resolved for this subinventory' });
+    }
+    const orgParam = getActiveOrgParameter(invOrgId, new Date());
+    if (!orgParam || !isYes(orgParam.locator_control)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Locator control is not enabled for this Inventory Org. Cannot create locator for this subinventory.'
+      });
+    }
     
     // Uniqueness check for locator_code
     if ((db[TABLE]||[]).find(r => r.locator_code === body.locator_code))

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTableData, useDropdownData } from '../hooks/useTableData'
@@ -85,6 +85,25 @@ export default function StockAdjustmentPage() {
   const destLocatorRequired = !!selectedToOrgParam && isYes(selectedToOrgParam.locator_control)
   const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled);
   const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled);
+
+  const orgItemMismatchToast = useRef('')
+  useEffect(() => {
+    if (!selectedItem || !formData.inv_org_id || !selectedOrgParam) return
+    const key = `${formData.item_id}|${formData.inv_org_id}`
+    if (isYes(selectedItem.is_lot_controlled) && !isYes(selectedOrgParam.lot_control_enabled)) {
+      if (orgItemMismatchToast.current !== `${key}|lot`) {
+        orgItemMismatchToast.current = `${key}|lot`
+        toast.error('Lot control not enabled for this org')
+      }
+      return
+    }
+    if (isYes(selectedItem.is_serial_controlled) && !isYes(selectedOrgParam.serial_control_enabled)) {
+      if (orgItemMismatchToast.current !== `${key}|ser`) {
+        orgItemMismatchToast.current = `${key}|ser`
+        toast.error('Serial control not enabled for this org')
+      }
+    }
+  }, [selectedItem, formData.item_id, formData.inv_org_id, selectedOrgParam])
 
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }));

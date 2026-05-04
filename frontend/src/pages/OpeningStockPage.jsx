@@ -352,10 +352,11 @@ export default function OpeningStockPage() {
         {/* Conditional Rendering: Lot vs Serial */}
         {selectedItem && isLotControlled && (
           <div className="card p-6 mb-5 border-l-4 border-purple-500 animate-slide-in">
-            <SectionHeader icon={Hash} title="Lot Details" subtitle="Required for lot-controlled items" color="purple" />
+            <SectionHeader icon={Hash} title="Lot Details" subtitle="Optional — leave blank to auto-generate (Org + Item lot control)" color="purple" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Field label="Lot Number" required error={errors.lot_number}>
+              <Field label="Lot Number" error={errors.lot_number}>
                 <Input value={formData.lot_number} error={errors.lot_number} disabled={view === 'view' || view === 'edit'}
+                  placeholder="Auto-generated if empty"
                   onChange={e => setField('lot_number', e.target.value)} onBlur={() => validateField('lot_number', formData.lot_number)} />
               </Field>
               {isExpirable && (
@@ -369,7 +370,7 @@ export default function OpeningStockPage() {
 
         {selectedItem && isSerialControlled && (
           <div className="card p-6 mb-5 border-l-4 border-amber-500 animate-slide-in">
-            <SectionHeader icon={Hash} title="Serial Numbers" subtitle="Required for serial-controlled items" color="amber" />
+            <SectionHeader icon={Hash} title="Serial Numbers" subtitle="Leave all blank for auto-generation, or enter one per unit" color="amber" />
             {view === 'create' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {serialInputs.map((val, idx) => (

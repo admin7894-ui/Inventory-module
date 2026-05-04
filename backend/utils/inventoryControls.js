@@ -118,6 +118,13 @@ function getControlContext(data = {}, dateValue = new Date()) {
   if (!item) throw new Error(`Item ${data.item_id || ''} not found`);
   assertPhysicalStockItem(item);
 
+  if (isYes(item.is_lot_controlled) && !isYes(orgParam.lot_control_enabled)) {
+    throw new Error('Lot control not enabled for this Inventory Org');
+  }
+  if (isYes(item.is_serial_controlled) && !isYes(orgParam.serial_control_enabled)) {
+    throw new Error('Serial control not enabled for this Inventory Org');
+  }
+
   const assigned = (db.item_org_assignment || []).some(a =>
     String(a.item_id) === String(item.item_id) &&
     String(a.inv_org_id) === String(ctx.inv_org_id) &&

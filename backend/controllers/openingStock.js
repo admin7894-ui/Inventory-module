@@ -144,19 +144,6 @@ exports.create = async (req, res) => {
       }
     }
 
-    // Lot validation for lot-controlled items
-    if (isYes(item.is_lot_controlled) && !body.lot_number) {
-      return res.status(400).json({ success: false, message: 'Lot number is required' });
-    }
-
-    // Serial validation for serial-controlled items
-    if (isYes(item.is_serial_controlled)) {
-      const serials = body.serial_numbers || [];
-      if (serials.length > 0 && serials.length !== qty) {
-        return res.status(400).json({ success: false, message: `Serial count must match quantity (${qty})` });
-      }
-    }
-
     // Check if opening stock already exists for this item/location
     const existing = (db[TABLE] || []).find(r =>
       (r.COMPANY_id || r.company_id) === body.COMPANY_id &&
