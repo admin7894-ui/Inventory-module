@@ -58,8 +58,9 @@ const NAV = [
     { label: 'Zone',               path: '/zone' },
     { label: 'Subinventory',       path: '/subinventory' },
     { label: 'Locator / Bin',      path: '/locator' },
-    { label: 'Item-Subinv Rules',  path: '/item-subinv-restriction' },
     { label: 'Item Org Assign',    path: '/item-org-assignment' },
+    { label: 'Item-Subinv Rules',  path: '/item-subinv-restriction' },
+    
   ]},
   { group: '🔖 Lot & Serial', items: [
     { label: 'Lot Master',    path: '/lot-master' },
