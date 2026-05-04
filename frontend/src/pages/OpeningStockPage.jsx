@@ -253,6 +253,8 @@ export default function OpeningStockPage() {
 
     try {
       const payload = { ...formData, total_value: totalValue, active_flag: 'Y' }
+      if (!locatorRequired) delete payload.locator_id;
+
       if (isSerialControlled) {
         payload.serial_numbers = serialInputs.filter(s => s.trim())
       }

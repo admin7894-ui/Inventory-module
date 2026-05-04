@@ -307,15 +307,8 @@ export default function StockAdjustmentPage() {
       String(r.inv_org_id) === String(formData.inv_org_id)
     )
     const mapped = subinventories.filter(s => isYes(s.active_flag) && itemRestrictions.some(r => String(r.subinventory_id) === String(s.subinventory_id)))
-    if (!isTransfer) return mapped
-    // For transfers: only show subinventories where stock > 0 at at least one locator
-    return mapped.filter(sub => (allStock || []).some(s =>
-      String(s.item_id) === String(formData.item_id) &&
-      String(s.inv_org_id) === String(formData.inv_org_id) &&
-      String(s.subinventory_id) === String(sub.subinventory_id) &&
-      parseFloat(s.available_qty) > 0
-    ))
-  }, [formData.item_id, formData.inv_org_id, subinventories, restrictions, allStock, isTransfer])
+    return mapped
+  }, [formData.item_id, formData.inv_org_id, subinventories, restrictions])
 
   // ── Destination Orgs: same as source orgs (item assignment level) ──
   const filteredToOrgs = useMemo(() => filteredOrgs, [filteredOrgs])
@@ -354,16 +347,8 @@ export default function StockAdjustmentPage() {
       .map(r => r.locator_id)
     const subLocators = locators.filter(l => String(l.subinventory_id) === String(formData.subinventory_id))
     const base = allowedLocIds.length > 0 ? subLocators.filter(l => allowedLocIds.includes(l.locator_id)) : subLocators
-    if (!isTransfer) return base
-    // For transfers: only show locators where stock > 0
-    return base.filter(l => (allStock || []).some(s =>
-      String(s.item_id) === String(formData.item_id) &&
-      String(s.inv_org_id) === String(formData.inv_org_id) &&
-      String(s.subinventory_id) === String(formData.subinventory_id) &&
-      String(s.locator_id) === String(l.locator_id) &&
-      parseFloat(s.available_qty) > 0
-    ))
-  }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, locators, restrictions, allStock, isTransfer])
+    return base
+  }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, locators, restrictions])
 
   // Destination Locators: mapped in restriction, exclude source locator
   const filteredDestLocators = useMemo(() => {
@@ -471,6 +456,8 @@ export default function StockAdjustmentPage() {
         approved_by: isTransfer ? (formData.created_by || 'system') : formData.approved_by,
         active_flag: 'Y'
       }
+      if (!locatorRequired) delete payload.locator_id;
+      if (!destLocatorRequired) delete payload.to_locator_id;
       if (isSerialControlled && formData.txn_action === 'IN') {
         payload.serial_numbers = serialInputs.filter(s => s.trim());
         payload.serial_ids = undefined; // Clear old field

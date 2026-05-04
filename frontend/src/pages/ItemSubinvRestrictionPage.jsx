@@ -92,6 +92,7 @@ export default function ItemSubinvRestrictionPage() {
   const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
   const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
   const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
+  const { options: orgParameters }    = useDropdownData(orgParameterApi, 'org_param_dd')
   const dropdowns = {
     location:locations, module:modules, inventoryOrg:inventoryOrgs,
     subinventory:subinventoriesByOrg, locator:locatorsByOrgSub, itemMaster:itemsByOrg,
@@ -102,13 +103,15 @@ export default function ItemSubinvRestrictionPage() {
     legalEntity:legalEntities, operatingUnit:operatingUnits,
     securityProfile:securityProfiles, profileAccess:profileAccesses,
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
+    orgParameter: orgParameters
   }
 
   const filteredInventoryOrgs = dropdowns.inventoryOrg || []
   const hasValidInvOrg = !!formData.inv_org_id && filteredInventoryOrgs.some(r => String(r.inv_org_id) === String(formData.inv_org_id))
 
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true'
-  const locatorVisible = locatorFetchEnabled && (dropdowns.locator || []).length > 0
+  const selectedOrgParam = (orgParameters || []).find(p => String(p.inv_org_id) === String(formData.inv_org_id))
+  const locatorVisible = locatorFetchEnabled && !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
   const locatorRequired = locatorVisible
 
   // Filtered dropdowns
@@ -139,7 +142,7 @@ export default function ItemSubinvRestrictionPage() {
   }
 
   const handleCreate = () => {
-    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0] })
+    setFormData({ active_flag:'Y', effective_from:new Date().toISOString().split('T')[0], module_id: 'MOD01' })
     setErrors({})
     setView('create')
   }
@@ -161,11 +164,13 @@ export default function ItemSubinvRestrictionPage() {
         return toast.error('Please fix the highlighted errors');
       }
 
+    if (!locatorVisible) trimmedData.locator_id = null;
+
     try {
       if (view === 'edit') {
-        await table.update(selected['item_subinv_id'], formData)
+        await table.update(selected['item_subinv_id'], trimmedData)
       } else {
-        await table.create(formData)
+        await table.create(trimmedData)
       }
       handleBack()
     } catch (err) {
@@ -218,9 +223,10 @@ export default function ItemSubinvRestrictionPage() {
             disabled={!formData.subinventory_id} placeholder={!formData.subinventory_id ? "Select Subinventory first" : "Select Locator"} />
         </Field>
       )}
-      {/* <Field label="Module" required error={errors.module_id}>
-        <Select value={formData.module_id} onChange={v => setField('module_id',v)} options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} />
-      </Field> */}
+      <Field label="Module" required error={errors.module_id}>
+        <Select value={formData.module_id} onChange={v => setField('module_id',v)} onBlur={() => validateField('module_id', formData.module_id)} 
+          options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} disabled={view === 'view'} />
+      </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
       <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>
@@ -253,7 +259,7 @@ export default function ItemSubinvRestrictionPage() {
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete Record"
-        message={`Delete "${confirmDelete?.['{pk_field}']}"? This cannot be undone.`}
+        message={`Delete "${confirmDelete?.item_subinv_id}"? This cannot be undone.`}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
         loading={table.isDeleting}
