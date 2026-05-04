@@ -995,9 +995,9 @@ const db = {
   },
   {
     "org_param_id": "OPRM02",
-    "COMPANY_id": "C02",
+    "COMPANY_id": "C01",
     "inv_org_id": "INVORG02",
-    "business_type_id": "BT02",
+    "business_type_id": "BT01",
     "org_code": "ORG02",
     "item_master_org": "INVORG02",
     "workday_calendar_id": "CAL02",

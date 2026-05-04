@@ -174,7 +174,12 @@ export default function ItemSubinvRestrictionPage() {
       }
       handleBack()
     } catch (err) {
-      if (err.response?.data?.errors) setErrors(err.response.data.errors)
+      if (err.response?.data?.errors) {
+        setErrors(err.response.data.errors)
+        toast.error('Please fix the highlighted errors')
+      } else {
+        toast.error(err.response?.data?.message || 'Create failed')
+      }
     }
   }
 
@@ -223,10 +228,6 @@ export default function ItemSubinvRestrictionPage() {
             disabled={!formData.subinventory_id} placeholder={!formData.subinventory_id ? "Select Subinventory first" : "Select Locator"} />
         </Field>
       )}
-      <Field label="Module" required error={errors.module_id}>
-        <Select value={formData.module_id} onChange={v => setField('module_id',v)} onBlur={() => validateField('module_id', formData.module_id)} 
-          options={dropdowns.module?.map(r=>({value:r.module_id,label:r.module_name||r.module_id}))} disabled={view === 'view'} />
-      </Field>
       <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag',v)} /></Field>
       <Field label="Effective From" required error={errors.effective_from}><DateInput value={formData.effective_from} onChange={v => setField('effective_from',v)} onBlur={() => validateField('effective_from', formData.effective_from)} /></Field>
       <Field label="Effective To" error={errors.effective_to}><DateInput value={formData.effective_to} onChange={v => setField('effective_to',v)} onBlur={() => validateField('effective_to', formData.effective_to)} /></Field>
