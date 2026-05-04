@@ -301,8 +301,15 @@ const RULES = {
     else if (!isEmpty(d.min_qty) && Number(d.max_qty) <= Number(d.min_qty))
       e.max_qty = 'Invalid format';
 
-    if (isEmpty(d.safety_stock_qty)) e.safety_stock_qty = 'This field is required';
-    else if (!isNonNegativeNumber(d.safety_stock_qty)) e.safety_stock_qty = 'Invalid format';
+    if (isEmpty(d.safety_stock_qty)) {
+      e.safety_stock_qty = 'This field is required';
+    } else if (!isNonNegativeNumber(d.safety_stock_qty)) {
+      e.safety_stock_qty = 'Invalid format';
+    } else if (!isEmpty(d.min_qty) && Number(d.safety_stock_qty) < Number(d.min_qty)) {
+      e.safety_stock_qty = 'Safety stock must be ≥ Min qty';
+    } else if (!isEmpty(d.max_qty) && Number(d.safety_stock_qty) > Number(d.max_qty)) {
+      e.safety_stock_qty = 'Safety stock must be ≤ Max qty';
+    }
 
     if (isEmpty(d.module_id)) e.module_id = 'This field is required';
     validateDates(e, d);
