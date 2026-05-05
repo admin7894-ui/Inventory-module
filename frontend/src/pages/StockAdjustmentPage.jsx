@@ -157,7 +157,9 @@ export default function StockAdjustmentPage() {
         if (!active) return
 
         let rows = resp?.data || []
-        if (isSerialControlled) {
+        // Keep System Qty as full location on-hand for adjustments (IN/OUT).
+        // Only narrow by selected serials for transfer-style flows.
+        if (isSerialControlled && isTransfer) {
           const selectedSerials = formData.serial_ids?.length ? formData.serial_ids : (formData.serial_id ? [formData.serial_id] : [])
           if (selectedSerials.length) {
             rows = rows.filter(r => selectedSerials.includes(r.serial_id))
@@ -196,7 +198,8 @@ export default function StockAdjustmentPage() {
     formData.serial_id,
     formData.serial_ids,
     isLotControlled,
-    isSerialControlled
+    isSerialControlled,
+    isTransfer
   ])
 
   const validateField = useCallback((k, v) => {

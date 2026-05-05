@@ -13,9 +13,42 @@ function applyRLS(data, user) {
 exports.getAll = (req, res) => {
   try {
     let rawData = applyRLS([...(db[TABLE] || [])], req.user);
-    
+
+    // Summarize serial-level ledger rows into one movement row.
+    const grouped = new Map();
+    rawData.forEach((ledger) => {
+      const serialish = !!(ledger.serial_id || ledger.serial_number);
+      const key = (serialish && ledger.reference_no)
+        ? [
+            ledger.reference_no || '',
+            ledger.item_id || '',
+            ledger.inv_org_id || '',
+            ledger.subinventory_id || '',
+            ledger.locator_id || '',
+            ledger.txn_type_id || '',
+            ledger.transaction_date || ''
+          ].join('|')
+        : `LEDGER|${ledger.ledger_id}`;
+
+      const dr = parseFloat(ledger.dr_qty || 0);
+      const cr = parseFloat(ledger.cr_qty || 0);
+      const current = grouped.get(key);
+      if (!current) {
+        grouped.set(key, {
+          ...ledger,
+          dr_qty: dr,
+          cr_qty: cr
+        });
+        return;
+      }
+      current.dr_qty += dr;
+      current.cr_qty += cr;
+      // Keep latest running balance from the last row in sequence.
+      current.balance_qty = ledger.balance_qty;
+    });
+
     // Perform JOINs
-    const data = rawData.map(ledger => {
+    const data = [...grouped.values()].map(ledger => {
       const item = (db.item_master || []).find(i => i.item_id === ledger.item_id);
       const uom = (db.uom_unit_of_measure || []).find(u => u.uom_id === ledger.uom_id);
       const org = (db.inventory_org || []).find(o => o.inv_org_id === ledger.inv_org_id);
@@ -25,6 +58,8 @@ exports.getAll = (req, res) => {
 
       return {
         ...ledger,
+        dr_qty: parseFloat(ledger.dr_qty || 0),
+        cr_qty: parseFloat(ledger.cr_qty || 0),
         item_name: item ? item.item_name : (ledger.item_name || ''),
         item_code: item ? item.item_code : (ledger.item_code || ''),
         uom_name: uom ? uom.uom_name : (ledger.uom_name || ''),

@@ -11,9 +11,46 @@ function applyRLS(data, user) {
 exports.getAll = (req, res) => {
   try {
     let rawData = applyRLS([...(db.inventory_transaction || [])], req.user);
-    
+
+    // Summarize serial-level transactions into one header row.
+    const grouped = new Map();
+    rawData.forEach((txn) => {
+      const serialish = !!(txn.serial_id || txn.serial_number);
+      const key = (serialish && txn.reference_id)
+        ? [
+            txn.reference_type || '',
+            txn.reference_id || '',
+            txn.item_id || '',
+            txn.inv_org_id || '',
+            txn.subinventory_id || '',
+            txn.locator_id || '',
+            txn.txn_action || '',
+            txn.txn_type_id || '',
+            txn.txn_reason_id || '',
+            txn.txn_date || ''
+          ].join('|')
+        : `TXN|${txn.txn_id}`;
+
+      const qty = parseFloat(txn.txn_qty || 0);
+      const value = parseFloat(txn.txn_value || 0);
+      const current = grouped.get(key);
+      if (!current) {
+        grouped.set(key, {
+          ...txn,
+          txn_qty: qty,
+          txn_value: value,
+          display_serials: txn.serial_number ? [txn.serial_number] : (txn.serial_id ? [txn.serial_id] : [])
+        });
+        return;
+      }
+      current.txn_qty += qty;
+      current.txn_value += value;
+      if (txn.serial_number) current.display_serials.push(txn.serial_number);
+      else if (txn.serial_id) current.display_serials.push(txn.serial_id);
+    });
+
     // Perform JOINs for view screen
-    const data = rawData.map(txn => {
+    const data = [...grouped.values()].map(txn => {
       const item = (db.item_master || []).find(i => i.item_id === txn.item_id);
       const company = (db.company || []).find(c => c.company_id === txn.COMPANY_id || c.company_id === txn.company_id);
       const bg = (db.business_group || []).find(b => b.bg_id === txn.bg_id);
@@ -26,6 +63,8 @@ exports.getAll = (req, res) => {
       
       return {
         ...txn,
+        txn_qty: parseFloat(txn.txn_qty || 0),
+        txn_value: (parseFloat(txn.txn_value || 0)).toFixed(4),
         item_name: item ? item.item_name : (txn.item_id || ''),
         item_code: item ? item.item_code : '',
         company_name: company ? company.company_name : '',
@@ -39,7 +78,8 @@ exports.getAll = (req, res) => {
         uom_name: uom ? uom.uom_name : '',
         // Ensure lot/serial are displayed from whatever field they are in
         display_lot: txn.lot_number || txn.lot_id || '',
-        display_serial: txn.serial_number || txn.serial_id || ''
+        display_serial: txn.display_serials?.length ? txn.display_serials.join(', ') : (txn.serial_number || txn.serial_id || ''),
+        serial_count: txn.display_serials?.length || 0
       };
     });
 

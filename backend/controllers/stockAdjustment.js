@@ -208,10 +208,20 @@ exports.create = async (req, res) => {
       // Adjustment Logic (IN / OUT / etc)
       const physical = parseFloat(body.physical_qty || 0);
       const system = parseFloat(body.system_qty || 0);
-      const netAdj = physical - system;
+      let netAdj = physical - system;
+      const isSerialOut = isSerialControlled && body.txn_action === 'OUT';
 
       if (body.txn_action === 'OUT' && physical > system) {
         fieldErrors.physical_qty = 'Physical quantity cannot be greater than system quantity for OUT adjustment. Use Adjustment IN instead.';
+      }
+
+      if (isSerialOut) {
+        const serialCount = Array.isArray(body.serial_ids) ? body.serial_ids.filter(Boolean).length : 0;
+        if (serialCount > 0 && serialCount !== physical) {
+          fieldErrors.serial_ids = `Serial count (${serialCount}) must match quantity (${physical})`;
+        }
+        // For serial-controlled OUT adjustments, physical_qty represents issue qty.
+        netAdj = -physical;
       }
 
       if (netAdj < 0) {
@@ -226,7 +236,10 @@ exports.create = async (req, res) => {
       body.approval_status = body.approval_status || 'PENDING';
       if (body.approval_status === 'APPROVED') body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
 
-      if (netAdj < 0) validateIssueControls(body, controls, Math.abs(netAdj));
+      if (netAdj < 0) {
+        const outQty = isSerialOut ? physical : Math.abs(netAdj);
+        validateIssueControls(body, controls, outQty);
+      }
       if (netAdj > 0 && body.txn_action !== 'OUT') {
         // Scope-limited behavior: Stock Adjustment IN + serial-controlled items
         // should validate serial count against entered quantity.
@@ -268,7 +281,13 @@ exports.update = async (req, res) => {
     const updated = { ...prev, ...body, [PK]: req.params.id, updated_by: req.user?.username || MOCK_USER, updated_at: new Date().toISOString() };
     const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y';
     if (!isTransfer) {
-      updated.adjustment_qty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
+      const controls = getControlContext(updated, updated.adjustment_date || new Date());
+      const isSerialOut = controls.serialRequired && updated.txn_action === 'OUT';
+      if (isSerialOut) {
+        updated.adjustment_qty = -parseFloat(updated.physical_qty || 0);
+      } else {
+        updated.adjustment_qty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
+      }
     }
     updated.adjustment_value = (updated.adjustment_qty * parseFloat(updated.unit_cost || 0)).toFixed(4);
     if (updated.approval_status === 'APPROVED' && !updated.approved_by) {

@@ -13,9 +13,57 @@ function applyRLS(data, user) {
 exports.getAll = (req, res) => {
   try {
     let rawData = applyRLS([...(db[TABLE] || [])], req.user);
-    
+
+    // Aggregate serial-level rows into inventory summary rows.
+    const grouped = new Map();
+    rawData.forEach((stock) => {
+      const key = [
+        stock.COMPANY_id || stock.company_id || '',
+        stock.business_type_id || '',
+        stock.bg_id || '',
+        stock.item_id || '',
+        stock.inv_org_id || '',
+        stock.subinventory_id || '',
+        stock.locator_id || '',
+        stock.lot_id || ''
+      ].join('|');
+
+      const current = grouped.get(key);
+      const onhand = parseFloat(stock.onhand_qty || 0);
+      const available = parseFloat(stock.available_qty || 0);
+      const reserved = parseFloat(stock.reserved_qty || 0);
+      const inTransit = parseFloat(stock.in_transit_qty || 0);
+      const totalValue = parseFloat(stock.total_cost_value || 0);
+
+      if (!current) {
+        grouped.set(key, {
+          ...stock,
+          serial_id: '',
+          onhand_qty: onhand,
+          available_qty: available,
+          reserved_qty: reserved,
+          in_transit_qty: inTransit,
+          total_cost_value: totalValue,
+          detail_serial_ids: stock.serial_id ? [stock.serial_id] : []
+        });
+        return;
+      }
+
+      current.onhand_qty += onhand;
+      current.available_qty += available;
+      current.reserved_qty += reserved;
+      current.in_transit_qty += inTransit;
+      current.total_cost_value += totalValue;
+      if (stock.serial_id) current.detail_serial_ids.push(stock.serial_id);
+    });
+
+    // Hide empty quantity rows in summary view.
+    const aggregatedRows = [...grouped.values()].filter(
+      (r) => (parseFloat(r.onhand_qty || 0) > 0) || (parseFloat(r.available_qty || 0) > 0)
+    );
+
     // Perform JOINs
-    const data = rawData.map(stock => {
+    const data = aggregatedRows.map(stock => {
       const item = (db.item_master || []).find(i => i.item_id === stock.item_id);
       const company = (db.company || []).find(c => c.company_id === stock.COMPANY_id || c.company_id === stock.company_id);
       const bg = (db.business_group || []).find(b => b.bg_id === stock.bg_id);
@@ -24,8 +72,16 @@ exports.getAll = (req, res) => {
       const subinv = (db.subinventory || []).find(s => s.subinventory_id === stock.subinventory_id);
       const locator = (db.locator___bin || []).find(l => l.locator_id === stock.locator_id);
       const bt = (db.business_type || []).find(b => b.business_type_id === stock.business_type_id);
+      const detailSerialNumbers = (stock.detail_serial_ids || []).map((sid) =>
+        (db.serial_master || []).find((s) => String(s.serial_id) === String(sid))?.serial_number || sid
+      );
       return {
         ...stock,
+        onhand_qty: parseFloat(stock.onhand_qty || 0),
+        available_qty: parseFloat(stock.available_qty || 0),
+        reserved_qty: parseFloat(stock.reserved_qty || 0),
+        in_transit_qty: parseFloat(stock.in_transit_qty || 0),
+        total_cost_value: (parseFloat(stock.total_cost_value || 0)).toFixed(4),
         item_name: item ? item.item_name : (stock.item_name || ''),
         item_code: item ? item.item_code : (stock.item_code || ''),
         company_name: company ? company.company_name : (stock.company_name || ''),
@@ -36,6 +92,8 @@ exports.getAll = (req, res) => {
         subinventory_name: subinv ? subinv.subinventory_name : (stock.subinventory_name || ''),
         locator_name: locator ? locator.locator_name : (stock.locator_name || ''),
         business_type_name: bt ? bt.name : (stock.business_type_name || ''),
+        serial_count: detailSerialNumbers.length,
+        serial_numbers: detailSerialNumbers
       };
     });
 
