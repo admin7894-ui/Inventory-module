@@ -217,9 +217,10 @@ export default function StockAdjustmentPage() {
       setFormData(prev => ({
         ...prev,
         txn_type_id: tid,
+        txn_type_code: type.txn_type_code,
         txn_action: type.txn_action,
         transfer_flag: transfer ? 'Y' : 'N',
-        approval_status: transfer ? 'APPROVED' : 'PENDING'
+        approval_status: 'PENDING'
       }));
     }
   };
@@ -426,9 +427,21 @@ export default function StockAdjustmentPage() {
     filteredToOrgs, filteredToSubinventories, filteredDestLocators, setField])
 
   const currentAdjQty = useMemo(() => {
-    if (isTransfer) return parseFloat(formData.physical_qty || 0);
-    return parseFloat(formData.physical_qty || 0) - parseFloat(formData.system_qty || 0);
-  }, [isTransfer, formData.physical_qty, formData.system_qty]);
+    const physicalQty = parseFloat(formData.physical_qty || 0);
+    const systemQty = parseFloat(formData.system_qty || 0);
+    const action = String(formData.txn_action || '').toUpperCase();
+    const typeCode = String(formData.txn_type_code || '').toUpperCase();
+
+    if (isTransfer) return physicalQty;
+    if (action === 'IN' || typeCode === 'TXN_TYPE_INC') return physicalQty;
+    if (action === 'OUT' || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
+    return physicalQty - systemQty;
+  }, [isTransfer, formData.physical_qty, formData.system_qty, formData.txn_action, formData.txn_type_code]);
+
+  const projectedOnhand = useMemo(
+    () => parseFloat(formData.system_qty || 0) + parseFloat(currentAdjQty || 0),
+    [formData.system_qty, currentAdjQty]
+  );
 
   const handleCreate = () => {
     setFormData({
@@ -494,7 +507,8 @@ export default function StockAdjustmentPage() {
         ...formData,
         adjustment_qty: currentAdjQty,
         adjustment_value: (currentAdjQty * parseFloat(formData.unit_cost || 0)).toFixed(2),
-        approved_by: isTransfer ? (formData.created_by || 'system') : formData.approved_by,
+        approved_by: formData.approval_status === 'APPROVED' ? formData.approved_by : undefined,
+        approval_status: formData.approval_status || 'PENDING',
         active_flag: 'Y'
       }
       if (!locatorRequired) delete payload.locator_id;
@@ -623,6 +637,16 @@ export default function StockAdjustmentPage() {
                   <Field label="Net Adjustment">
                     <Input value={currentAdjQty} readOnly className="bg-white font-bold" />
                   </Field>
+                  {!isTransfer && (
+                    <>
+                      <Field label="Projected Onhand">
+                        <Input value={projectedOnhand} readOnly className="bg-white" />
+                      </Field>
+                      <Field label="Projected Available">
+                        <Input value={projectedOnhand} readOnly className="bg-white" />
+                      </Field>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

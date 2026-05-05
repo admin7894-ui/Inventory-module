@@ -102,7 +102,7 @@ const runDynamicValidation = (data, options) => {
   } else {
     if (locatorRequired && !data.locator_id) errors.locator_id = "Locator is required";
     if (data.txn_action === 'OUT' && physical > systemQty) {
-      errors.physical_qty = "Physical quantity cannot be greater than system quantity for OUT adjustment. Use Adjustment IN instead.";
+      errors.physical_qty = "Physical quantity cannot exceed available stock for OUT transaction";
     }
     // For OUT adjustments on this page, quantity rule is handled by
     // explicit OUT check (physical must not exceed system qty).

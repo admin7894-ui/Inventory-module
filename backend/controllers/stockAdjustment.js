@@ -198,8 +198,12 @@ exports.create = async (req, res) => {
 
       body.adjustment_qty = requested;
       body.transfer_flag = 'Y';
-      body.approval_status = 'APPROVED'; // Transfers are usually auto-approved or require different flow, keeping auto for now
-      body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+      body.approval_status = body.approval_status || 'PENDING';
+      if (body.approval_status === 'APPROVED') {
+        body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+      } else {
+        delete body.approved_by;
+      }
 
       validateIssueControls(body, controls, requested);
       const destControls = getControlContext({ ...body, inv_org_id: body.to_inv_org_id }, body.adjustment_date || new Date());
@@ -212,7 +216,7 @@ exports.create = async (req, res) => {
       const isSerialOut = isSerialControlled && body.txn_action === 'OUT';
 
       if (body.txn_action === 'OUT' && physical > system) {
-        fieldErrors.physical_qty = 'Physical quantity cannot be greater than system quantity for OUT adjustment. Use Adjustment IN instead.';
+        fieldErrors.physical_qty = 'Physical quantity cannot exceed available stock for OUT transaction';
       }
 
       if (isSerialOut) {
