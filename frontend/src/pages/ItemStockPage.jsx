@@ -10,8 +10,11 @@ const COLUMNS = [
   { key: 'company_name', label: 'Company' },
   { key: 'inv_org_name', label: 'Org' },
   { key: 'subinventory_id', label: 'Subinv' },
+  { key: 'locator_name', label: 'Locator' },
+  { key: 'lot_number', label: 'Lot' },
   { key: 'onhand_qty', label: 'Onhand', render: (v) => <span className="font-bold text-blue-600">{v}</span> },
   { key: 'available_qty', label: 'Available', render: (v) => <span className="font-bold text-emerald-600">{v}</span> },
+  { key: 'total_onhand_qty', label: 'Total Onhand (Item+Org)', render: (v) => <span className="font-bold text-indigo-600">{v}</span> },
   { key: 'uom_name', label: 'UOM' },
   { key: 'total_cost_value', label: 'Value' }
 ]
@@ -33,6 +36,19 @@ export default function ItemStockPage() {
   const table = useTableData(itemStockApi, 'item_stock_onhand')
   const [view, setView] = useState('list')
   const [selected, setSelected] = useState(null)
+
+  const itemOrgTotals = table.rows.reduce((acc, row) => {
+    const key = `${row.item_id || ''}|${row.inv_org_id || ''}`
+    if (!acc[key]) {
+      acc[key] = {
+        item: row.item_code || row.item_id,
+        org: row.inv_org_name || row.inv_org_id,
+        total: Number(row.total_onhand_qty || 0)
+      }
+    }
+    return acc
+  }, {})
+  const grandTotalOnhand = Object.values(itemOrgTotals).reduce((sum, r) => sum + Number(r.total || 0), 0)
 
   const handleView = (row) => { setSelected(row); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null) }
@@ -93,14 +109,34 @@ export default function ItemStockPage() {
   }
 
   return (
-    <DataTable
-      title="Onhand Stock"
-      subtitle="Current real-time inventory balances across all locations"
-      columns={COLUMNS} data={table.rows} total={table.total}
-      page={table.page} pages={table.pages} loading={table.isLoading}
-      onSearch={table.handleSearch} onPageChange={table.setPage}
-      onSort={table.handleSort} sortBy={table.sortBy} sortOrder={table.sortOrder}
-      actions={{ onView: handleView }}
-    />
+    <div className="space-y-4">
+      <div className="card p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Total Onhand Qty (All Item+Org)</p>
+            <p className="text-2xl font-bold text-indigo-700">{grandTotalOnhand}</p>
+          </div>
+          <div className="md:col-span-2">
+            <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">Item+Org Snapshot Totals</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.values(itemOrgTotals).map((row, idx) => (
+                <span key={`${row.item}-${row.org}-${idx}`} className="px-2 py-1 rounded-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {row.item} @ {row.org}: {row.total}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <DataTable
+        title="Onhand Stock"
+        subtitle="Current real-time inventory balances across all locations"
+        columns={COLUMNS} data={table.rows} total={table.total}
+        page={table.page} pages={table.pages} loading={table.isLoading}
+        onSearch={table.handleSearch} onPageChange={table.setPage}
+        onSort={table.handleSort} sortBy={table.sortBy} sortOrder={table.sortOrder}
+        actions={{ onView: handleView }}
+      />
+    </div>
   )
 }

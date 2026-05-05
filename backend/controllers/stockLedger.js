@@ -14,6 +14,14 @@ exports.getAll = (req, res) => {
   try {
     let rawData = applyRLS([...(db[TABLE] || [])], req.user);
 
+    // Snapshot totals from current onhand grouped by item + org.
+    const currentOnhandByItemOrg = new Map();
+    (db.item_stock_onhand || []).forEach((row) => {
+      const key = `${row.item_id || ''}|${row.inv_org_id || ''}`;
+      const prev = currentOnhandByItemOrg.get(key) || 0;
+      currentOnhandByItemOrg.set(key, prev + parseFloat(row.onhand_qty || 0));
+    });
+
     // Summarize serial-level ledger rows into one movement row.
     const grouped = new Map();
     rawData.forEach((ledger) => {
@@ -60,6 +68,8 @@ exports.getAll = (req, res) => {
         ...ledger,
         dr_qty: parseFloat(ledger.dr_qty || 0),
         cr_qty: parseFloat(ledger.cr_qty || 0),
+        running_balance: parseFloat(ledger.balance_qty || 0),
+        current_onhand_qty: currentOnhandByItemOrg.get(`${ledger.item_id || ''}|${ledger.inv_org_id || ''}`) || 0,
         item_name: item ? item.item_name : (ledger.item_name || ''),
         item_code: item ? item.item_code : (ledger.item_code || ''),
         uom_name: uom ? uom.uom_name : (ledger.uom_name || ''),

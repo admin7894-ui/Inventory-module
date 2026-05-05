@@ -62,6 +62,14 @@ exports.getAll = (req, res) => {
       (r) => (parseFloat(r.onhand_qty || 0) > 0) || (parseFloat(r.available_qty || 0) > 0)
     );
 
+    // Build item+org total onhand map for clarity in UI/reporting.
+    const itemOrgTotals = new Map();
+    aggregatedRows.forEach((row) => {
+      const key = `${row.item_id || ''}|${row.inv_org_id || ''}`;
+      const prev = itemOrgTotals.get(key) || 0;
+      itemOrgTotals.set(key, prev + parseFloat(row.onhand_qty || 0));
+    });
+
     // Perform JOINs
     const data = aggregatedRows.map(stock => {
       const item = (db.item_master || []).find(i => i.item_id === stock.item_id);
@@ -93,7 +101,8 @@ exports.getAll = (req, res) => {
         locator_name: locator ? locator.locator_name : (stock.locator_name || ''),
         business_type_name: bt ? bt.name : (stock.business_type_name || ''),
         serial_count: detailSerialNumbers.length,
-        serial_numbers: detailSerialNumbers
+        serial_numbers: detailSerialNumbers,
+        total_onhand_qty: itemOrgTotals.get(`${stock.item_id || ''}|${stock.inv_org_id || ''}`) || 0
       };
     });
 

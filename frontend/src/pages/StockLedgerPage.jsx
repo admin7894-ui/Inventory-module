@@ -11,7 +11,8 @@ const COLUMNS = [
   { key: 'inv_org_name', label: 'Org' },
   { key: 'dr_qty', label: 'In (+)', render: (v) => v > 0 ? <span className="text-emerald-600 font-bold">+{v}</span> : '--' },
   { key: 'cr_qty', label: 'Out (-)', render: (v) => v > 0 ? <span className="text-rose-600 font-bold">-{v}</span> : '--' },
-  { key: 'balance_qty', label: 'Balance', render: (v) => <span className="font-bold text-blue-600">{v}</span> },
+  { key: 'running_balance', label: 'Running Balance (Transaction)', render: (v) => <span className="font-bold text-blue-600">{v}</span> },
+  { key: 'current_onhand_qty', label: 'Current Onhand (Snapshot)', render: (v) => <span className="font-bold text-emerald-700">{v}</span> },
   { key: 'uom_name', label: 'UOM' },
   { key: 'transaction_date', label: 'Date' }
 ]
@@ -67,7 +68,8 @@ export default function StockLedgerPage() {
             <div className="grid grid-cols-1 gap-4">
               <Field label="Debit (In)"><Input value={selected.dr_qty} readOnly className="text-emerald-700 bg-emerald-50 font-bold" /></Field>
               <Field label="Credit (Out)"><Input value={selected.cr_qty} readOnly className="text-rose-700 bg-rose-50 font-bold" /></Field>
-              <Field label="Running Balance"><Input value={selected.balance_qty} readOnly className="text-blue-700 bg-blue-50 font-bold" /></Field>
+              <Field label="Running Balance (Transaction)"><Input value={selected.running_balance ?? selected.balance_qty} readOnly className="text-blue-700 bg-blue-50 font-bold" /></Field>
+              <Field label="Current Onhand (Snapshot)"><Input value={selected.current_onhand_qty ?? 0} readOnly className="text-emerald-700 bg-emerald-50 font-bold" /></Field>
             </div>
           </div>
 
