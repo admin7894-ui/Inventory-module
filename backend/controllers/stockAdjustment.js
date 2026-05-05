@@ -115,12 +115,21 @@ exports.create = async (req, res) => {
       fieldErrors.lot_id = 'Lot is required for this item';
     }
     if (isSerialControlled) {
-      const serials = Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id].filter(Boolean);
-      const numbers = Array.isArray(body.serial_numbers) ? body.serial_numbers : [];
+      // For stock adjustment IN, normalize serial payload before count validation:
+      // - trim whitespace
+      // - remove empty entries
+      // - preserve duplicates (duplicate check stays in core validator)
+      const serials = (Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id])
+        .map((s) => String(s || '').trim())
+        .filter(Boolean);
+      const numbers = (Array.isArray(body.serial_numbers) ? body.serial_numbers : [body.serial_number])
+        .map((s) => String(s || '').trim())
+        .filter(Boolean);
       if (serials.length === 0 && numbers.length === 0) {
         fieldErrors.serial_ids = 'Serials are required for this item';
       }
       body.serial_ids = serials;
+      body.serial_numbers = numbers;
     }
 
     // ── 3. Stock Sufficiency Check ──────────────────────────────
@@ -129,7 +138,9 @@ exports.create = async (req, res) => {
       String(s.item_id) === String(body.item_id) &&
       String(s.inv_org_id) === String(body.inv_org_id) &&
       String(s.subinventory_id) === String(body.subinventory_id) &&
-      (String(s.locator_id || '')) === (String(body.locator_id || '')) &&
+      (controls.locatorRequired
+        ? (String(s.locator_id || '') === String(body.locator_id || ''))
+        : true) &&
       (isLotControlled ? String(s.lot_id) === String(body.lot_id) : true)
     );
 
@@ -146,7 +157,7 @@ exports.create = async (req, res) => {
 
     if (isTransfer) {
       // Transfer Logic
-      if (body.inv_org_id && body.to_inv_org_id) {
+      if (body.inv_org_id && body.to_inv_org_id && String(body.inv_org_id) !== String(body.to_inv_org_id)) {
         const hasShipNetwork = (db.ship_network || []).some(sn => 
           (String(sn.from_inv_org_id) === String(body.inv_org_id) || String(sn['Dropdown from_inv_org_id']) === String(body.inv_org_id)) && 
           String(sn.to_inv_org_id) === String(body.to_inv_org_id) && 
@@ -199,6 +210,10 @@ exports.create = async (req, res) => {
       const system = parseFloat(body.system_qty || 0);
       const netAdj = physical - system;
 
+      if (body.txn_action === 'OUT' && physical > system) {
+        fieldErrors.physical_qty = 'Physical quantity cannot be greater than system quantity for OUT adjustment. Use Adjustment IN instead.';
+      }
+
       if (netAdj < 0) {
         // Reduction: ensure we have enough available
         const reduction = Math.abs(netAdj);
@@ -212,7 +227,15 @@ exports.create = async (req, res) => {
       if (body.approval_status === 'APPROVED') body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
 
       if (netAdj < 0) validateIssueControls(body, controls, Math.abs(netAdj));
-      if (netAdj > 0) validateReceiptControls(body, controls, netAdj);
+      if (netAdj > 0 && body.txn_action !== 'OUT') {
+        // Scope-limited behavior: Stock Adjustment IN + serial-controlled items
+        // should validate serial count against entered quantity.
+        const serialValidationQty =
+          (isSerialControlled && body.txn_action === 'IN')
+            ? parseFloat(body.physical_qty || 0)
+            : netAdj;
+        validateReceiptControls(body, controls, serialValidationQty);
+      }
     }
 
     if (Object.keys(fieldErrors).length > 0) {

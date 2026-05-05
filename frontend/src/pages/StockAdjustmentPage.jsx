@@ -40,6 +40,7 @@ export default function StockAdjustmentPage() {
   const [view, setView] = useState('list')
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [confirmApprove, setConfirmApprove] = useState(null)
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
   const [stockSnapshot, setStockSnapshot] = useState(null)
@@ -245,7 +246,7 @@ export default function StockAdjustmentPage() {
   const handleQtyChangeForSerials = useCallback((newQty) => {
     const qty = parseFloat(newQty) || 0;
     setField('physical_qty', newQty);
-    
+
     if (isSerialControlled && formData.txn_action === 'IN') {
       const count = Math.max(0, Math.floor(qty));
       setSerialInputs(prev => {
@@ -253,7 +254,29 @@ export default function StockAdjustmentPage() {
         return prev.slice(0, count);
       });
     }
-  }, [isSerialControlled, formData.txn_action, setField]);
+
+    const { errors: qtyErrors } = validateStockAdjustment(
+      { ...formData, physical_qty: newQty },
+      {
+        stockInfo: currentStockInfo,
+        isLotControlled,
+        isSerialControlled,
+        locatorRequired,
+        destLocatorRequired,
+        serialInputs
+      }
+    );
+    setErrors(prev => ({ ...prev, physical_qty: qtyErrors.physical_qty || null }));
+  }, [
+    isSerialControlled,
+    formData,
+    setField,
+    currentStockInfo,
+    isLotControlled,
+    locatorRequired,
+    destLocatorRequired,
+    serialInputs
+  ]);
 
   const handleAutoGenerateSerials = async () => {
     const qty = parseInt(formData.physical_qty) || 0;
@@ -425,6 +448,21 @@ export default function StockAdjustmentPage() {
     if (!confirmDelete) return
     await table.remove(confirmDelete['adjustment_id'])
     setConfirmDelete(null)
+  }
+
+  const handleApprove = async () => {
+    if (!confirmApprove) return
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('erp_user') || '{}')?.username || 'system'
+      await table.update(confirmApprove.adjustment_id, {
+        ...confirmApprove,
+        approval_status: 'APPROVED',
+        approved_by: confirmApprove.approved_by || currentUser
+      })
+      toast.success('Stock adjustment approved and posted')
+    } finally {
+      setConfirmApprove(null)
+    }
   }
 
   const handleSubmit = async (ev) => {
@@ -733,7 +771,27 @@ export default function StockAdjustmentPage() {
         onSearch={table.handleSearch} onPageChange={table.setPage}
         onSort={table.handleSort} sortBy={table.sortBy} sortOrder={table.sortOrder}
         onCreate={handleCreate}
-        actions={{ onView: handleView, onEdit: handleEdit, onDelete: setConfirmDelete }}
+        actions={{
+          onView: handleView,
+          onEdit: handleEdit,
+          onApprove: (row) => {
+            if (String(row.approval_status || '').toUpperCase() === 'APPROVED') {
+              toast('Already approved')
+              return
+            }
+            setConfirmApprove(row)
+          },
+          onDelete: setConfirmDelete
+        }}
+      />
+      <ConfirmDialog
+        open={!!confirmApprove}
+        title="Approve Stock Adjustment"
+        message={`Approve and post adjustment ${confirmApprove?.adjustment_id}? This will update inventory balances.`}
+        onConfirm={handleApprove}
+        onCancel={() => setConfirmApprove(null)}
+        confirmText="Approve"
+        loading={table.isUpdating}
       />
       <ConfirmDialog open={!!confirmDelete} title="Delete Adjustment"
         message={`Delete adjustment record ${confirmDelete?.adjustment_id}?`}

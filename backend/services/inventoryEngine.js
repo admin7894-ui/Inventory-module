@@ -365,6 +365,7 @@ class InventoryEngine {
       txn_reason_id,
       txn_action: action,
       txn_qty: qty,
+      signed_txn_qty: action === 'OUT' ? -qty : qty,
       unit_cost: cost,
       txn_value: (qty * cost).toFixed(4),
       txn_date: new Date().toISOString().split('T')[0],
@@ -397,11 +398,17 @@ class InventoryEngine {
       qty,
       cost,
       action,
-      txn_id: txnRecord.txn_id
+      txn_id: txnRecord.txn_id,
+      locatorRequired: controls.locatorRequired
     });
 
     // 5. Create Stock Ledger Entry
     this.createLedgerEntry(txnRecord, user);
+
+    // OUT only: keep lot master quantity/status in sync with on-hand balance.
+    if (action === 'OUT' && effectiveLotId) {
+      this.updateLotMasterForOut(txnRecord, user);
+    }
 
     // 6. Update Batch/Serial Tracking & Serial Master
     if (effectiveLotId || effectiveSerialId || txnRecord.lot_number || txnRecord.serial_number) {
@@ -422,14 +429,14 @@ class InventoryEngine {
   }
 
   updateStock(params) {
-    const { COMPANY_id, business_type_id, bg_id, item_id, inv_org_id, subinventory_id, locator_id, lot_id, serial_id, lot_number, uom_id, qty, cost, action, txn_id } = params;
+    const { COMPANY_id, business_type_id, bg_id, item_id, inv_org_id, subinventory_id, locator_id, lot_id, serial_id, lot_number, uom_id, qty, cost, action, txn_id, locatorRequired = true } = params;
 
     const stockMatch = (s) => 
       s.COMPANY_id === COMPANY_id &&
       s.item_id === item_id &&
       s.inv_org_id === inv_org_id &&
       (s.subinventory_id || '') === (subinventory_id || '') &&
-      (s.locator_id || '') === (locator_id || '') &&
+      (locatorRequired ? ((s.locator_id || '') === (locator_id || '')) : true) &&
       (s.lot_id || '') === (lot_id || '') &&
       (s.serial_id || '') === (serial_id || '');
 
@@ -487,6 +494,7 @@ class InventoryEngine {
     const prevBal = parseFloat(lastEntry?.balance_qty || 0);
     const dr = txn.txn_action === 'IN' ? txn.txn_qty : 0;
     const cr = txn.txn_action === 'OUT' ? txn.txn_qty : 0;
+    const nextBal = prevBal + dr - cr;
 
     const ledgerEntry = {
       ledger_id: generateId('stock_ledger'),
@@ -506,9 +514,12 @@ class InventoryEngine {
       txn_reason_id: txn.txn_reason_id || '',
       transaction_date: txn.txn_date,
       txn_type_id: txn.txn_type_id,
+      movement_type: txn.txn_action,
+      before_qty: prevBal,
       dr_qty: dr,
       cr_qty: cr,
-      balance_qty: prevBal + dr - cr,
+      after_qty: nextBal,
+      balance_qty: nextBal,
       unit_cost: txn.unit_cost,
       transaction_value: txn.txn_value,
       reference_no: txn.reference_no,
@@ -518,6 +529,29 @@ class InventoryEngine {
       created_at: new Date().toISOString()
     };
     db.stock_ledger.push(ledgerEntry);
+  }
+
+  updateLotMasterForOut(txn, user) {
+    if (!txn?.lot_id) return;
+
+    const lotIdx = (db.lot_master || []).findIndex(l =>
+      String(l.lot_id) === String(txn.lot_id) &&
+      String(l.item_id) === String(txn.item_id)
+    );
+    if (lotIdx === -1) return;
+
+    const lotQty = (db.item_stock_onhand || [])
+      .filter(s =>
+        String(s.item_id) === String(txn.item_id) &&
+        String(s.inv_org_id) === String(txn.inv_org_id) &&
+        String(s.lot_id || '') === String(txn.lot_id || '')
+      )
+      .reduce((sum, row) => sum + (parseFloat(row.onhand_qty) || 0), 0);
+
+    db.lot_master[lotIdx].current_qty = lotQty;
+    db.lot_master[lotIdx].status = lotQty <= 0 ? 'DEPLETED' : 'ACTIVE';
+    db.lot_master[lotIdx].updated_by = user?.username || 'system';
+    db.lot_master[lotIdx].updated_at = new Date().toISOString();
   }
 
   updateTracking(txn, user) {
@@ -545,6 +579,9 @@ class InventoryEngine {
       manufacture_date: txn.txn_date, // Default to txn_date if not known
       tracking_type: txn.serial_id ? 'SERIAL' : 'BATCH',
       status: txn.txn_action === 'IN' ? 'AVAILABLE' : 'ISSUED',
+      reference_type: txn.reference_type,
+      reference_id: txn.reference_id,
+      reference_no: txn.reference_no,
       remarks: txn.remarks,
       active_flag: 'Y',
       created_by: user?.username || 'system',
@@ -621,7 +658,7 @@ class InventoryEngine {
           serial_ids: undefined,
           serial_numbers: undefined,
           allow_existing_serial_receipt: true,
-          reference_type: 'ADJUSTMENT',
+          reference_type: action === 'OUT' ? 'ADJUSTMENT_OUT' : 'ADJUSTMENT',
           reference_id: adj.adjustment_id,
           reference_no: adj.adjustment_id
         }, user);
@@ -634,7 +671,7 @@ class InventoryEngine {
         txn_action: action,
         txn_qty: Math.abs(qty),
         lot_id,
-        reference_type: 'ADJUSTMENT',
+        reference_type: action === 'OUT' ? 'ADJUSTMENT_OUT' : 'ADJUSTMENT',
         reference_id: adj.adjustment_id,
         reference_no: adj.adjustment_id
       }, user);

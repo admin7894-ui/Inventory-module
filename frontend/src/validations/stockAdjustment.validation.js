@@ -101,7 +101,13 @@ const runDynamicValidation = (data, options) => {
     }
   } else {
     if (locatorRequired && !data.locator_id) errors.locator_id = "Locator is required";
-    if (physical < systemQty) {
+    if (data.txn_action === 'OUT' && physical > systemQty) {
+      errors.physical_qty = "Physical quantity cannot be greater than system quantity for OUT adjustment. Use Adjustment IN instead.";
+    }
+    // For OUT adjustments on this page, quantity rule is handled by
+    // explicit OUT check (physical must not exceed system qty).
+    // Avoid showing "Insufficient stock" from available-qty logic here.
+    if (data.txn_action !== 'OUT' && physical < systemQty) {
       const reduction = systemQty - physical;
       if (reduction > availableQty) {
         errors.physical_qty = `Insufficient available stock for reduction (Need: ${reduction}, Avail: ${availableQty})`;
