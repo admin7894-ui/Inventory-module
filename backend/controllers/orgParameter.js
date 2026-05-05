@@ -54,6 +54,12 @@ exports.create = (req, res) => {
     if (!body[PK]) body[PK] = generateId(TABLE);
     if ((db[TABLE]||[]).find(r => r[PK] === body[PK]))
       return res.status(409).json({ success:false, message:`${body[PK]} already exists` });
+      
+    // Prevent duplicate org parameter for the same inventory org
+    if (body.inv_org_id && (db[TABLE]||[]).find(r => r.inv_org_id === body.inv_org_id)) {
+      return res.status(400).json({ success:false, message: `Org Parameter already exists for Inventory Org "${body.inv_org_id}"` });
+    }
+
     body.created_by = body.created_by || req.user?.username || MOCK_USER;
     body.updated_by = body.updated_by || req.user?.username || MOCK_USER;
     body.created_at = new Date().toISOString();
@@ -68,7 +74,49 @@ exports.update = (req, res) => {
   try {
     const idx = (db[TABLE]||[]).findIndex(r => r[PK] === req.params.id);
     if (idx===-1) return res.status(404).json({ success:false, message:'Not found' });
-    db[TABLE][idx] = { ...cleanPayload(db[TABLE][idx]), ...cleanPayload(req.body), [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
+
+    const currentParam = db[TABLE][idx];
+    const incomingPayload = cleanPayload(req.body);
+    
+    // Prevent duplicate org parameter for the same inventory org on update
+    if (incomingPayload.inv_org_id && incomingPayload.inv_org_id !== currentParam.inv_org_id) {
+      if ((db[TABLE]||[]).find(r => r.inv_org_id === incomingPayload.inv_org_id && r[PK] !== req.params.id)) {
+        return res.status(400).json({ success:false, message: `Org Parameter already exists for Inventory Org "${incomingPayload.inv_org_id}"` });
+      }
+    }
+    
+    // Check for locator control enabling
+    const incomingLocatorControl = incomingPayload.locator_control === true || incomingPayload.locator_control === 'Y' || incomingPayload.locator_control === 'true';
+    const currentLocatorControl = currentParam.locator_control === true || currentParam.locator_control === 'Y' || currentParam.locator_control === 'true';
+    
+    if (incomingLocatorControl && !currentLocatorControl) {
+      // Find non-locator stock for this inventory org
+      const nonLocatorStock = (db.item_stock_onhand || []).filter(stock => {
+        return stock.inv_org_id === currentParam.inv_org_id &&
+               (!stock.locator_id || stock.locator_id === 'null' || String(stock.locator_id).trim() === '') &&
+               Number(stock.onhand_qty || 0) > 0;
+      });
+      
+      if (nonLocatorStock.length > 0) {
+        if (req.body.migrate_locator_id) {
+          // Perform one-time migration
+          nonLocatorStock.forEach(stock => {
+            stock.locator_id = req.body.migrate_locator_id;
+            stock.updated_at = new Date().toISOString();
+          });
+        } else {
+          // Block and return warning + migration option
+          return res.status(400).json({
+            success: false,
+            message: 'Existing non-locator stock found. Cannot enable Locator Control without migrating stock.',
+            requiresMigration: true,
+            affectedStockCount: nonLocatorStock.length
+          });
+        }
+      }
+    }
+
+    db[TABLE][idx] = { ...cleanPayload(db[TABLE][idx]), ...incomingPayload, [PK]:req.params.id, updated_by:req.user?.username||MOCK_USER, updated_at:new Date().toISOString() };
     res.json({ success:true, data:db[TABLE][idx], message:'Updated' });
   } catch(e) { res.status(500).json({ success:false, message:e.message }); }
 };

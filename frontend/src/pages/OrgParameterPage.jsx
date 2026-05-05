@@ -7,7 +7,7 @@ import { useFormValidation } from '../validations/useFormValidation'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields } from '../components/ui/index'
 import {
-  orgParameterApi, moduleApi, inventoryOrgApi, costMethodApi, costTypeApi, workdayCalendarApi
+  orgParameterApi, moduleApi, inventoryOrgApi, costMethodApi, costTypeApi, workdayCalendarApi, locatorApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -36,6 +36,10 @@ export default function OrgParameterPage() {
   const [codeEdited, setCodeEdited] = useState(false)
   const [showLocatorWarning, setShowLocatorWarning] = useState(false)
   const [pendingLocatorChange, setPendingLocatorChange] = useState(null)
+  const [migrationModalOpen, setMigrationModalOpen] = useState(false)
+  const [migrationLocatorId, setMigrationLocatorId] = useState('')
+  const [affectedStockCount, setAffectedStockCount] = useState(0)
+  const [locators, setLocators] = useState([])
 
   const { options: modules }          = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs }    = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -44,6 +48,17 @@ export default function OrgParameterPage() {
   const { options: workdayCalendars } = useDropdownData(workdayCalendarApi, 'wc_dd')
 
   const existingCodes = table.rows.map(r => r.org_code)
+
+  // Collect all inv_org_ids that already have an org_parameter record
+  const usedInvOrgIds = new Set(table.rows.map(r => r.inv_org_id).filter(Boolean))
+
+  // In create mode: exclude already-used orgs.
+  // In edit/view mode: always include the currently selected org (even if it's "used").
+  const availableInvOrgs = inventoryOrgs?.filter(r => {
+    if (view === 'create') return !usedInvOrgIds.has(r.inv_org_id)
+    // edit / view: keep all, the backend guards against re-assignment
+    return true
+  })
   const setField = (k, val) => {
     if (k === 'locator_control' && val === false && view === 'edit') {
       const checkLocators = async () => {
@@ -91,15 +106,30 @@ export default function OrgParameterPage() {
   const handleView = (row) => { setSelected(row); setFormData(cleanFormData(row)); v.reset(); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null); v.reset() }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (e, migrationLocator = null) => {
+    if (e) e.preventDefault()
     const payload = cleanFormData(formData)
+    if (migrationLocator) {
+      payload.migrate_locator_id = migrationLocator;
+    }
     if (!v.runValidation(payload)) return toast.error('Please fix the highlighted errors')
     try {
       if (view === 'edit') await table.update(selected['org_param_id'], payload)
       else await table.create(payload)
+      setMigrationModalOpen(false)
       handleBack()
     } catch (err) {
+      if (err.response?.data?.requiresMigration) {
+        setAffectedStockCount(err.response.data.affectedStockCount || 0)
+        setMigrationModalOpen(true)
+        try {
+          const resp = await locatorApi.getAll({ inv_org_id: formData.inv_org_id, limit: 100 })
+          setLocators(resp.data || [])
+        } catch (e) {
+          console.error('Failed to fetch locators', e)
+        }
+        return
+      }
       if (err.response?.data?.errors) {
         if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
         else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
@@ -134,7 +164,7 @@ export default function OrgParameterPage() {
               <Select value={formData.inv_org_id} onChange={val => setField('inv_org_id', val)}
                 onBlur={() => v.handleBlur('inv_org_id', formData)}
                 error={v.errors.inv_org_id}
-                options={inventoryOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
+                options={availableInvOrgs?.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
             </Field>
 
             <Field label="Org Code" required error={v.errors.org_code}>
@@ -203,6 +233,41 @@ export default function OrgParameterPage() {
             <AuditFields formData={formData} setField={setField} />
           </div>
         </div>
+
+        {migrationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Locator Migration Required</h3>
+                <button type="button" onClick={() => setMigrationModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+                <p className="mb-2">There are <strong>{affectedStockCount}</strong> existing stock records without a locator.</p>
+                <p>To enable Locator Control, you must migrate this stock to a default locator.</p>
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Select Default Locator</label>
+                <Select value={migrationLocatorId} onChange={setMigrationLocatorId}
+                  options={locators.map(r => ({ value: r.locator_id, label: r.locator_name || r.locator_id }))}
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setMigrationModalOpen(false)} className="btn-secondary">Cancel</button>
+                <button type="button" 
+                  onClick={() => {
+                    if (!migrationLocatorId) return toast.error('Please select a locator');
+                    handleSubmit(null, migrationLocatorId);
+                  }} 
+                  className="btn-primary flex items-center gap-2"
+                  disabled={!migrationLocatorId}>
+                  Migrate & Enable
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </FormPage>
     )
   }

@@ -56,14 +56,8 @@ exports.create = (req, res) => {
     if (!invOrgId) {
       return res.status(400).json({ success: false, message: 'Inventory Organization could not be resolved for this subinventory' });
     }
-    const orgParam = getActiveOrgParameter(invOrgId, new Date());
-    if (!orgParam || !isYes(orgParam.locator_control)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Locator control is not enabled for this Inventory Org. Cannot create locator for this subinventory.'
-      });
-    }
-    
+    // Locator creation is allowed regardless of Locator Control status
+    // so locators can act as master data until control is enabled.
     // Uniqueness check for locator_code
     if ((db[TABLE]||[]).find(r => r.locator_code === body.locator_code))
       return res.status(400).json({ success:false, message:`Locator Code "${body.locator_code}" already exists` });

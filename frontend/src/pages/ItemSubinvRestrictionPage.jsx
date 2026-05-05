@@ -106,7 +106,17 @@ export default function ItemSubinvRestrictionPage() {
     orgParameter: orgParameters
   }
 
-  const filteredInventoryOrgs = dropdowns.inventoryOrg || []
+  // ── Page-specific filter: only Inv Orgs with an active Org Parameter record ──
+  const orgsWithActiveParam = new Set(
+    (orgParameters || [])
+      .filter(p => p.active_flag === true || p.active_flag === 'Y' || p.active_flag === 'True' || p.active_flag === 'true')
+      .map(p => p.inv_org_id)
+      .filter(Boolean)
+  )
+
+  const filteredInventoryOrgs = (dropdowns.inventoryOrg || []).filter(r =>
+    orgsWithActiveParam.has(r.inv_org_id)
+  )
   const hasValidInvOrg = !!formData.inv_org_id && filteredInventoryOrgs.some(r => String(r.inv_org_id) === String(formData.inv_org_id))
 
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true'
