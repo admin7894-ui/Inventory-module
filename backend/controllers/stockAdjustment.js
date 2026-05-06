@@ -7,6 +7,7 @@ const {
   validateIssueControls,
   validateReceiptControls,
   validateLocator,
+  availableQty,
   applyStandardCost
 } = require('../utils/inventoryControls');
 const MOCK_USER = 'admin';
@@ -134,25 +135,24 @@ exports.create = async (req, res) => {
 
     // ── 3. Stock Sufficiency Check ──────────────────────────────
     // Get current stock info
-    const stocks = (db.item_stock_onhand || []).filter(s =>
-      String(s.item_id) === String(body.item_id) &&
-      String(s.inv_org_id) === String(body.inv_org_id) &&
-      String(s.subinventory_id) === String(body.subinventory_id) &&
-      (controls.locatorRequired
-        ? (String(s.locator_id || '') === String(body.locator_id || ''))
-        : true) &&
-      (isLotControlled ? String(s.lot_id) === String(body.lot_id) : true)
-    );
+    let onhandQty = 0;
+    let availableQtyVal = 0;
 
-    let onhandQty = 0, availableQty = 0;
     if (isSerialControlled) {
-      const validStock = stocks.filter(s => body.serial_ids.includes(s.serial_id));
-      onhandQty = validStock.length;
-      availableQty = validStock.filter(s => parseFloat(s.available_qty) > 0).length;
+      // For serial controlled items, we check availability of specifically selected serials
+      const stocks = (db.item_stock_onhand || []).filter(s =>
+        String(s.item_id) === String(body.item_id) &&
+        String(s.inv_org_id) === String(body.inv_org_id) &&
+        String(s.subinventory_id) === String(body.subinventory_id) &&
+        (controls.locatorRequired ? (String(s.locator_id || '') === String(body.locator_id || '')) : true) &&
+        body.serial_ids.includes(s.serial_id)
+      );
+      onhandQty = stocks.length;
+      availableQtyVal = stocks.filter(s => parseFloat(s.available_qty || 0) > 0).length;
     } else {
-      const s = stocks[0]; // Lot filtered above
-      onhandQty = s ? parseFloat(s.onhand_qty || 0) : 0;
-      availableQty = s ? parseFloat(s.available_qty || 0) : 0;
+      // For non-serial (Lot or None), we sum the available quantity across all matching records
+      onhandQty = availableQty(body, controls);
+      availableQtyVal = onhandQty;
     }
 
     if (isTransfer) {
@@ -175,8 +175,8 @@ exports.create = async (req, res) => {
 
       const requested = parseFloat(body.physical_qty || body.adjustment_qty || 0);
       if (requested <= 0) fieldErrors.physical_qty = 'Transfer quantity must be > 0';
-      if (requested > availableQty) {
-        fieldErrors.physical_qty = 'Insufficient stock';
+      if (requested > availableQtyVal) {
+        fieldErrors.physical_qty = `Insufficient stock (Available: ${availableQtyVal})`;
       }
 
       // Block same loc
@@ -231,8 +231,8 @@ exports.create = async (req, res) => {
       if (netAdj < 0) {
         // Reduction: ensure we have enough available
         const reduction = Math.abs(netAdj);
-        if (reduction > availableQty) {
-          fieldErrors.physical_qty = 'Insufficient stock';
+        if (reduction > availableQtyVal) {
+          fieldErrors.physical_qty = `Insufficient stock (Available: ${availableQtyVal})`;
         }
       }
 

@@ -34,14 +34,28 @@ export function Toggle({ value, onChange, disabled }) {
 }
 
 // ?????? Select Dropdown ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-export function Select({ value, onChange, options = [], placeholder = '-- Select --', disabled, error, className }) {
+export function Select({ value, onChange, options = [], placeholder = '-- Select --', disabled, error, className, onBlur }) {
   const { mode } = useFormMode()
   const isView = mode === 'view'
+  const currentValue = value ?? ''
+  const normalizedCurrent = String(currentValue)
+
+  // Ensure saved value remains visible while LOV options are still loading.
+  const hasCurrentInOptions = options.some(opt => {
+    const optValue = typeof opt === 'object' ? opt.value : opt
+    return String(optValue ?? '') === normalizedCurrent
+  })
+
+  const resolvedOptions =
+    normalizedCurrent !== '' && !hasCurrentInOptions
+      ? [{ value: currentValue, label: String(currentValue) }, ...options]
+      : options
+
   return (
-    <select value={value || ''} onChange={e => onChange(e.target.value)} disabled={disabled || isView}
+    <select value={currentValue} onChange={e => onChange(e.target.value)} onBlur={onBlur} disabled={disabled || isView}
       className={clsx(error ? 'input-error' : 'input', 'cursor-pointer', className)}>
       <option value="">{placeholder}</option>
-      {options.map(opt => {
+      {resolvedOptions.map(opt => {
         const v = typeof opt === 'object' ? opt.value : opt
         const l = typeof opt === 'object' ? opt.label : opt
         return <option key={v} value={v}>{l}</option>

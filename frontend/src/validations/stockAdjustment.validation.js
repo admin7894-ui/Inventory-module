@@ -91,7 +91,7 @@ const runDynamicValidation = (data, options) => {
     if (physical <= 0) {
       errors.physical_qty = "Transfer quantity must be > 0";
     } else if (physical > availableQty) {
-      errors.physical_qty = "Insufficient stock";
+      errors.physical_qty = `Insufficient stock (Available: ${availableQty})`;
     }
     const src = `${data.inv_org_id}-${data.subinventory_id}-${data.locator_id || ''}`;
     const dest = `${data.to_inv_org_id}-${data.to_subinventory_id}-${data.to_locator_id || ''}`;

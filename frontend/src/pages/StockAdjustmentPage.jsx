@@ -703,7 +703,11 @@ export default function StockAdjustmentPage() {
                       options={lots?.filter(r => {
                         if (!isTransfer) return true
                         return itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
-                      }).map(r => ({ value: r.lot_id, label: r.lot_number }))} />
+                      }).map(r => {
+                        const stock = itemStock.find(s => String(s.lot_id) === String(r.lot_id));
+                        const qtyStr = stock ? ` (${stock.available_qty} available)` : '';
+                        return { value: r.lot_id, label: `${r.lot_number}${qtyStr}` }
+                      })} />
                   )}
                 </Field>
               )}
