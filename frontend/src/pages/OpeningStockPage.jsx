@@ -4,11 +4,11 @@ import { useTableData, useDropdownData } from '../hooks/useTableData'
 import { validate } from '../validations/validationEngine'
 import { CompanyGroup } from '../components/CompanyGroup'
 import { DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog, Input, AuditFields, SectionHeader, ErrorBanner } from '../components/ui/index'
-import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X, Loader2, CheckCircle2 } from 'lucide-react'
+import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react'
 import {
   openingStockApi, moduleApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, itemTypeApi, transactionReasonApi,
-  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi
+  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi, uomConvApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -31,8 +31,6 @@ const COLUMNS = [
   },
 ]
 
-
-
 export default function OpeningStockPage() {
   const table = useTableData(openingStockApi, 'opening_stock')
   const [view, setView] = useState('list')
@@ -42,6 +40,8 @@ export default function OpeningStockPage() {
   const [errors, setErrors] = useState({})
   const [serialInputs, setSerialInputs] = useState([])
   const [serialMode, setSerialMode] = useState('manual')
+  const [conversionRate, setConversionRate] = useState(1)
+  const [isConverting, setIsConverting] = useState(false)
 
   // Dropdowns
   const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
@@ -107,16 +107,34 @@ export default function OpeningStockPage() {
   const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled)
 
   const canSave = !lotConflict && !serialConflict;
-  const isExpirable = selectedItem && isYes(selectedItem.is_expirable)
   const shelfLifeDays = selectedItem ? parseInt(selectedItem.shelf_life_days || 0) : 0
+  const isExpirable = selectedItem && isYes(selectedItem.is_expirable)
+
+  const convertedQtyPreview = useMemo(() => {
+    try {
+      const qty = parseFloat(formData.opening_qty || 0)
+      if (conversionRate === null || isNaN(qty)) return null
+      return (qty * conversionRate).toFixed(4)
+    } catch (err) {
+      console.error('Calculation Error:', err)
+      return null
+    }
+  }, [formData.opening_qty, conversionRate])
+
+  const totalValue = useMemo(() => {
+    const qty = parseFloat(convertedQtyPreview || 0)
+    const cost = parseFloat(formData.unit_cost || 0)
+    return (isNaN(qty * cost)) ? '0.00' : (qty * cost).toFixed(2)
+  }, [convertedQtyPreview, formData.unit_cost])
 
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
     const { errors: newErrors } = validate('opening_stock', { ...formData, [k]: val }, {
-      isLotControlled, isSerialControlled, serialMode, serialInputs, locatorRequired
+      isLotControlled, isSerialControlled, serialMode, serialInputs, locatorRequired,
+      convertedQty: k === 'opening_qty' ? (parseFloat(val) * (conversionRate || 1)) : convertedQtyPreview
     })
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
-  }, [formData, isLotControlled, isSerialControlled, serialMode, serialInputs])
+  }, [formData, isLotControlled, isSerialControlled, serialMode, serialInputs, conversionRate, convertedQtyPreview])
 
   const setField = useCallback((k, v) => {
     setFormData(p => ({ ...p, [k]: v }))
@@ -193,13 +211,6 @@ export default function OpeningStockPage() {
     setErrors({})
   }, [allItems])
 
-  // Auto-calc total value
-  const totalValue = useMemo(() => {
-    const qty = parseFloat(formData.opening_qty || 0)
-    const cost = parseFloat(formData.unit_cost || 0)
-    return (qty * cost).toFixed(2)
-  }, [formData.opening_qty, formData.unit_cost])
-
   // Auto-calc expiry date from shelf life
   const computedExpiry = useMemo(() => {
     if (!isExpirable || !shelfLifeDays || !formData.opening_date) return ''
@@ -211,14 +222,53 @@ export default function OpeningStockPage() {
   // Serial input management
   const handleQtyChangeForSerials = useCallback((newQty) => {
     setField('opening_qty', newQty)
-    if (isSerialControlled) {
-      const count = parseInt(newQty) || 0
+  }, [setField])
+
+  useEffect(() => {
+    if (isSerialControlled && view === 'create') {
+      const qty = parseFloat(formData.opening_qty || 0);
+      const rate = conversionRate !== null ? conversionRate : 1;
+      const count = Math.max(0, Math.floor(qty * rate));
+      
       setSerialInputs(prev => {
-        if (count > prev.length) return [...prev, ...Array(count - prev.length).fill('')]
-        return prev.slice(0, count)
+        if (count === prev.length) return prev;
+        if (count > prev.length) return [...prev, ...Array(count - prev.length).fill('')];
+        return prev.slice(0, count);
+      });
+    }
+  }, [formData.opening_qty, conversionRate, isSerialControlled, view]);
+
+  // UOM Conversion Preview logic
+  useEffect(() => {
+    let active = true
+    if (formData.item_id && formData.uom_id && selectedItem) {
+      const baseUomId = selectedItem.primary_uom_id
+      if (formData.uom_id === baseUomId) {
+        setConversionRate(1)
+        return
+      }
+      setIsConverting(true)
+      uomConvApi.getAll({ 
+        item_id: formData.item_id, 
+        from_uom_id: formData.uom_id, 
+        to_uom_id: baseUomId 
+      }).then(resp => {
+        if (!active) return
+        const conv = resp.data?.[0]
+        if (!conv) {
+          toast.error(`No UOM conversion defined for ${selectedItem.item_code} to base UOM.`)
+        }
+        setConversionRate(conv ? parseFloat(conv.conversion_rate) : null)
+      }).catch((err) => {
+        if (!active) return
+        console.error('UOM Conv Error:', err)
+        setConversionRate(null)
+      }).finally(() => {
+        if (active) setIsConverting(false)
       })
     }
-  }, [isSerialControlled, setField])
+    return () => { active = false }
+  }, [formData.item_id, formData.uom_id, selectedItem])
 
   const handleCreate = () => {
     setFormData({
@@ -242,7 +292,8 @@ export default function OpeningStockPage() {
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     );
     const { errors: valErrors, isValid } = validate('opening_stock', trimmedData, {
-      isLotControlled, isSerialControlled, serialMode, serialInputs, locatorRequired
+      isLotControlled, isSerialControlled, serialMode, serialInputs, locatorRequired,
+      convertedQty: convertedQtyPreview
     })
 
     setErrors(valErrors)
@@ -266,8 +317,7 @@ export default function OpeningStockPage() {
       handleBack()
     } catch (err) {
       if (err.response?.data?.errors) {
-        if (typeof v !== 'undefined' && v.setErrors) v.setErrors(err.response.data.errors)
-        else if (typeof setErrors === 'function') setErrors(err.response.data.errors)
+        setErrors(err.response.data.errors)
         toast.error('Please fix the highlighted errors')
       } else {
         toast.error(err.response?.data?.message || 'Action failed')
@@ -369,8 +419,41 @@ export default function OpeningStockPage() {
                   options={uoms?.map(r => ({ value: r.uom_id, label: `${r.uom_code || ''} - ${r.uom_name || r.uom_id}` }))} />
               </Field>
               <Field label="Opening Qty" required error={errors.opening_qty}>
-                <Input type="number" value={formData.opening_qty} error={errors.opening_qty} disabled={view === 'view' || view === 'edit'}
-                  onChange={e => handleQtyChangeForSerials(e.target.value)} onBlur={() => validateField('opening_qty', formData.opening_qty)} />
+                <div className="relative">
+                  <Input type="number" value={formData.opening_qty} error={errors.opening_qty} disabled={view === 'view' || view === 'edit'}
+                    onChange={e => handleQtyChangeForSerials(e.target.value)} onBlur={() => validateField('opening_qty', formData.opening_qty)} />
+                  
+                  {formData.uom_id && selectedItem?.primary_uom_id && formData.uom_id !== selectedItem.primary_uom_id && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {isConverting ? (
+                        <span className="text-[10px] text-gray-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Converting...</span>
+                      ) : conversionRate !== null ? (
+                        <>
+                          <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                            <ShieldCheck size={10} />
+                            1 {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'} = {conversionRate} {(uoms || []).find(u => u.uom_id === selectedItem.primary_uom_id)?.uom_code || 'Base Units'}
+                          </div>
+                          <div className="text-[10px] text-emerald-700 font-medium">
+                            ≈ {convertedQtyPreview} {(uoms || []).find(u => u.uom_id === selectedItem.primary_uom_id)?.uom_code || 'Base UOM'}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-rose-500 font-medium flex items-center gap-1">
+                          <AlertTriangle size={10} /> No conversion defined
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {isSerialControlled && (
+                    <div className="mt-2">
+                      <div className="text-[10px] bg-blue-50 text-blue-700 p-2 rounded border border-blue-100 flex items-center gap-2">
+                        <Hash size={12} />
+                        <span>Required Serial Count: <strong>{Math.floor(parseFloat(convertedQtyPreview || 0))}</strong> (based on {formData.opening_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'})</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </Field>
               <Field label="Unit Cost" required error={errors.unit_cost}>
                 <Input type="number" value={formData.unit_cost} error={errors.unit_cost} disabled={view === 'view'}
@@ -414,6 +497,14 @@ export default function OpeningStockPage() {
                   <Input key={idx} value={val} placeholder={`Serial #${idx + 1}`}
                     onChange={e => { const a = [...serialInputs]; a[idx] = e.target.value; setSerialInputs(a) }} />
                 ))}
+              </div>
+            )}
+            {isSerialControlled && (
+              <div className="col-span-full mt-3">
+                <div className="text-[10px] bg-blue-50 text-blue-700 p-2 rounded border border-blue-100 flex items-center gap-2">
+                  <Hash size={12} />
+                  <span>Required Serial Count: <strong>{Math.floor(parseFloat(convertedQtyPreview || 0))}</strong> (based on {formData.opening_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'})</span>
+                </div>
               </div>
             )}
 
@@ -466,4 +557,3 @@ export default function OpeningStockPage() {
     </>
   )
 }
-

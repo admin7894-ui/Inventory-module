@@ -83,7 +83,7 @@ const runDynamicValidation = (data, options) => {
 
   const systemQty = parseFloat(stockInfo?.onhand_qty || 0);
   const availableQty = parseFloat(stockInfo?.available_qty || 0);
-  const physical = parseFloat(data.physical_qty || 0);
+  const physical = parseFloat(options.convertedQty !== undefined ? options.convertedQty : data.physical_qty || 0);
 
   if (isTransfer) {
     if (locatorRequired && !data.locator_id) errors.locator_id = "Locator is required";
@@ -113,7 +113,12 @@ const runDynamicValidation = (data, options) => {
         errors.physical_qty = `Insufficient available stock for reduction (Need: ${reduction}, Avail: ${availableQty})`;
       }
     }
-    if (physical === systemQty && !isNaN(physical) && data.physical_qty !== "") {
+    // Only flag "no change" when using base UOM AND txn_action is not OUT/TRANSFER
+    // (For OUT, physical_qty = qty removed, not target qty; for converted UOM, raw entry differs from system)
+    const usingConversion = options.convertedQty !== undefined && 
+      Math.abs(parseFloat(options.convertedQty || 0) - parseFloat(data.physical_qty || 0)) > 0.0001;
+    if (!usingConversion && data.txn_action !== 'OUT' && data.txn_action !== 'TRANSFER' &&
+        physical === systemQty && !isNaN(physical) && data.physical_qty !== "") {
       errors.physical_qty = "Physical qty must differ from system qty";
     }
   }
@@ -130,12 +135,13 @@ const runDynamicValidation = (data, options) => {
     if (data.txn_action === 'IN') {
       const serials = options.serialInputs || [];
       const validSerials = serials.filter(s => s && s.trim());
-      const physical = parseFloat(data.physical_qty || 0);
+      const physical = parseFloat(options.convertedQty !== undefined ? options.convertedQty : data.physical_qty || 0);
+      const qtyInt = Math.max(0, Math.floor(physical));
 
       if (validSerials.length === 0) {
         errors.serial_ids = "Serial numbers are required";
-      } else if (validSerials.length !== physical) {
-        errors.serial_ids = `Serial count (${validSerials.length}) must match quantity (${physical})`;
+      } else if (validSerials.length !== qtyInt) {
+        errors.serial_ids = `Serial count (${validSerials.length}) must match quantity in Base UOM (${qtyInt})`;
       } else {
         // Check for duplicates in form
         const seen = new Set();
@@ -149,12 +155,16 @@ const runDynamicValidation = (data, options) => {
         }
       }
     } else {
-      const serials = data.serial_ids || [];
-      const physical = parseFloat(data.physical_qty || 0);
+      // OUT / TRANSFER: validate serial_ids array (selected from dropdown)
+      const serials = Array.isArray(data.serial_ids) ? data.serial_ids : [];
+      // Compare against converted base qty (e.g., 1 BOX = 10 NOS → need 10 serials)
+      const requiredQty = options.convertedQty !== undefined
+        ? Math.max(0, Math.floor(parseFloat(options.convertedQty)))
+        : Math.max(0, Math.floor(parseFloat(data.physical_qty || 0)));
       if (serials.length === 0) {
-        errors.serial_ids = "Serials are required";
-      } else if (serials.length !== physical) {
-        errors.serial_ids = `Serial count (${serials.length}) must match quantity (${physical})`;
+        errors.serial_ids = "Serial numbers are required";
+      } else if (serials.length !== requiredQty) {
+        errors.serial_ids = `Serial count (${serials.length}) must match quantity in Base UOM (${requiredQty})`;
       }
     }
   }

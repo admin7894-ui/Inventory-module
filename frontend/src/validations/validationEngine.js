@@ -151,7 +151,7 @@ const RULES = {
     if (opts.isSerialControlled && opts.serialMode === 'manual') {
       const serials = opts.serialInputs || [];
       const validSerials = serials.filter(s => s && s.trim());
-      const qty = parseInt(d.opening_qty) || 0;
+      const qty = parseInt(opts.convertedQty !== undefined ? opts.convertedQty : d.opening_qty) || 0;
       if (validSerials.length > 0 && validSerials.length !== qty) {
         e.serial_numbers = `Need exactly ${qty} serial numbers (or leave all blank for auto-generation)`;
       }

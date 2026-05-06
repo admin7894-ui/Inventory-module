@@ -3,6 +3,7 @@ const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
 const inventoryEngine = require('../services/inventoryEngine');
 const { getControlContext, applyStandardCost } = require('../utils/inventoryControls');
+const { convertToBaseUOM, getItemBaseUOM } = require('../utils/uomHelper');
 const MOCK_USER = 'admin';
 
 const TABLE = 'opening_stock';
@@ -125,8 +126,23 @@ exports.create = async (req, res) => {
     if (!body.subinventory_id) return res.status(400).json({ success: false, message: 'Subinventory is required' });
 
     // Qty validation
-    const qty = parseFloat(body.opening_qty || 0);
-    if (qty <= 0) return res.status(400).json({ success: false, message: 'Opening quantity must be greater than 0' });
+    const rawQty = parseFloat(body.opening_qty || 0);
+    if (rawQty <= 0) return res.status(400).json({ success: false, message: 'Opening quantity must be greater than 0' });
+
+    // UOM Conversion Logic
+    const baseUomId = getItemBaseUOM(body.item_id);
+    const enteredUomId = body.uom_id || item.primary_uom_id;
+    const convertedQty = convertToBaseUOM(body.item_id, enteredUomId, rawQty);
+
+    body.entered_qty = rawQty;
+    body.entered_uom = enteredUomId;
+    body.converted_qty = convertedQty;
+    body.base_uom = baseUomId;
+    
+    // Internal fields for processing
+    body.opening_qty = convertedQty;
+    body.uom_id = baseUomId;
+    const qty = convertedQty;
 
     const controls = getControlContext(body, body.opening_date || new Date());
     applyStandardCost(body, controls);
@@ -153,6 +169,15 @@ exports.create = async (req, res) => {
       (r.locator_id || '') === (body.locator_id || '')
     );
     if (existing) return res.status(400).json({ success: false, message: 'Opening stock already exists for this item/location' });
+
+    // Serial Validation
+    if (isYes(item.is_serial_controlled)) {
+      const serials = (body.serial_numbers || []).filter(s => String(s).trim());
+      const requiredCount = Math.max(0, Math.floor(convertedQty));
+      if (serials.length > 0 && serials.length !== requiredCount) {
+        return res.status(400).json({ success: false, message: `Need exactly ${requiredCount} serial numbers for the opening quantity in Base UOM` });
+      }
+    }
 
     // Auto-calculate total value
     body.total_value = (qty * parseFloat(body.unit_cost || 0)).toFixed(2);

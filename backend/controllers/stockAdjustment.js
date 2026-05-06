@@ -10,6 +10,7 @@ const {
   availableQty,
   applyStandardCost
 } = require('../utils/inventoryControls');
+const { convertToBaseUOM, getItemBaseUOM } = require('../utils/uomHelper');
 const MOCK_USER = 'admin';
 
 const TABLE = 'stock_adjustment';
@@ -107,6 +108,28 @@ exports.create = async (req, res) => {
     const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
     const controls = getControlContext(body, body.adjustment_date || new Date());
     applyStandardCost(body, controls);
+
+    // UOM Conversion Logic
+    const baseUomId = getItemBaseUOM(body.item_id);
+    const enteredUomId = body.uom_id;
+    
+    // For Stock Adjustment, physical_qty is often the input
+    const rawInputQty = parseFloat(body.physical_qty || 0);
+    const convertedInputQty = convertToBaseUOM(body.item_id, enteredUomId, rawInputQty);
+
+    body.entered_qty = rawInputQty;
+    body.entered_uom = enteredUomId;
+    body.converted_qty = convertedInputQty;
+    body.base_uom = baseUomId;
+
+    // Use converted quantity for internal logic
+    body.physical_qty = convertedInputQty;
+    body.uom_id = baseUomId;
+
+    // Also need to convert system_qty for comparison if it's not already in base UOM
+    // But system_qty is usually fetched from onhand_qty which IS already in base UOM.
+    // Let's assume system_qty is in base UOM.
+
     const isLotControlled = controls.lotRequired;
     const isSerialControlled = controls.serialRequired;
     const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
@@ -116,21 +139,26 @@ exports.create = async (req, res) => {
       fieldErrors.lot_id = 'Lot is required for this item';
     }
     if (isSerialControlled) {
-      // For stock adjustment IN, normalize serial payload before count validation:
-      // - trim whitespace
-      // - remove empty entries
-      // - preserve duplicates (duplicate check stays in core validator)
-      const serials = (Array.isArray(body.serial_ids) ? body.serial_ids : [body.serial_id])
-        .map((s) => String(s || '').trim())
-        .filter(Boolean);
-      const numbers = (Array.isArray(body.serial_numbers) ? body.serial_numbers : [body.serial_number])
-        .map((s) => String(s || '').trim())
-        .filter(Boolean);
-      if (serials.length === 0 && numbers.length === 0) {
-        fieldErrors.serial_ids = 'Serials are required for this item';
+      const requiredCount = Math.max(0, Math.floor(convertedInputQty));
+      if (body.txn_action === 'IN') {
+        // IN: serials are submitted as serial_numbers (text entries from serial inputs)
+        const serials = (body.serial_numbers || []).filter(s => String(s).trim());
+        if (serials.length !== requiredCount) {
+          fieldErrors.serial_numbers = `Need exactly ${requiredCount} serial numbers for the adjusted quantity in Base UOM`;
+        }
+        body.serial_ids = serials;
+        body.serial_numbers = serials;
+      } else {
+        // OUT / TRANSFER: serials are submitted as serial_ids (IDs from the MultiSelect dropdown)
+        const serialIds = (Array.isArray(body.serial_ids) ? body.serial_ids : []).filter(s => String(s).trim());
+        if (serialIds.length === 0) {
+          fieldErrors.serial_ids = 'Serial numbers are required for this transaction';
+        } else if (serialIds.length !== requiredCount) {
+          fieldErrors.serial_ids = `Serial count (${serialIds.length}) must match quantity in Base UOM (${requiredCount})`;
+        }
+        // Preserve the frontend serial_ids (do not overwrite)
+        body.serial_ids = serialIds;
       }
-      body.serial_ids = serials;
-      body.serial_numbers = numbers;
     }
 
     // ── 3. Stock Sufficiency Check ──────────────────────────────

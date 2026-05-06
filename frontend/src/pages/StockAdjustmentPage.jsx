@@ -8,12 +8,12 @@ import {
   DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog,
   Input, AuditFields, MultiSelect, SectionHeader
 } from '../components/ui/index'
-import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react'
 import {
   stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
   lotMasterApi, serialMasterApi, itemStockApi,
-  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi
+  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi, uomConvApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -46,6 +46,8 @@ export default function StockAdjustmentPage() {
   const [stockSnapshot, setStockSnapshot] = useState(null)
   const [serialInputs, setSerialInputs] = useState([])
   const [serialMode, setSerialMode] = useState('manual')
+  const [conversionRate, setConversionRate] = useState(1)
+  const [isConverting, setIsConverting] = useState(false)
 
   // Dropdowns
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -58,6 +60,8 @@ export default function StockAdjustmentPage() {
   const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
   const { options: lots } = useDropdownData(lotMasterApi, 'lot_dd')
   const { options: serials } = useDropdownData(serialMasterApi, 'ser_dd')
+  const { rows: serialRows } = useTableData(serialMasterApi, 'serial_master', { limit: 2000 })
+  const { rows: lotRows } = useTableData(lotMasterApi, 'lot_master', { limit: 1000 })
   const { options: assignments } = useDropdownData(itemOrgAssignmentApi, 'item_org_assign_dd')
   const { options: restrictions } = useDropdownData(itemSubinvRestrictionApi, 'item_subinv_restr_dd')
   const { options: orgParameters } = useDropdownData(orgParameterApi, 'org_param_dd')
@@ -115,9 +119,36 @@ export default function StockAdjustmentPage() {
   }, [items, assignments, restrictions, formData.COMPANY_id])
 
   const itemStock = useMemo(() => {
-    if (!formData.item_id || !allStock) return []
-    return allStock.filter(s => String(s.item_id) === String(formData.item_id))
-  }, [formData.item_id, allStock])
+    if (!formData.item_id || !formData.inv_org_id || !formData.subinventory_id || !allStock) return []
+    return allStock.filter(s => 
+      String(s.item_id) === String(formData.item_id) &&
+      String(s.inv_org_id) === String(formData.inv_org_id) &&
+      String(s.subinventory_id) === String(formData.subinventory_id) &&
+      (!locatorRequired || String(s.locator_id || '') === String(formData.locator_id || ''))
+    )
+  }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, formData.locator_id, locatorRequired, allStock])
+
+  const filteredAvailableSerials = useMemo(() => {
+    if (!formData.item_id || !serialRows?.length) return []
+
+    return serialRows.filter(r => {
+      // 1. Must match selected item
+      if (String(r.item_id) !== String(formData.item_id)) return false
+
+      // 2. Must be AVAILABLE status
+      const status = String(r.status || '').toUpperCase()
+      if (status !== 'AVAILABLE' && status !== 'IN_STOCK') return false
+
+      // 3. If subinventory selected, match the serial's current location
+      //    (Serials track their own location via current_subinventory_id —
+      //     same data the Serial Master table uses to show serials)
+      if (formData.subinventory_id) {
+        if (String(r.current_subinventory_id || '') !== String(formData.subinventory_id)) return false
+      }
+
+      return true
+    })
+  }, [formData.item_id, formData.subinventory_id, serialRows])
 
   const currentStockInfo = useMemo(() => {
     return stockSnapshot
@@ -157,14 +188,7 @@ export default function StockAdjustmentPage() {
         if (!active) return
 
         let rows = resp?.data || []
-        // Keep System Qty as full location on-hand for adjustments (IN/OUT).
-        // Only narrow by selected serials for transfer-style flows.
-        if (isSerialControlled && isTransfer) {
-          const selectedSerials = formData.serial_ids?.length ? formData.serial_ids : (formData.serial_id ? [formData.serial_id] : [])
-          if (selectedSerials.length) {
-            rows = rows.filter(r => selectedSerials.includes(r.serial_id))
-          }
-        }
+        // Remove serial filtering for stock info - onhand is for the entire location.
 
         const onhand_qty = rows.reduce((sum, r) => sum + parseFloat(r.onhand_qty || 0), 0)
         const reserved_qty = rows.reduce((sum, r) => sum + parseFloat(r.reserved_qty || 0), 0)
@@ -195,20 +219,60 @@ export default function StockAdjustmentPage() {
     formData.locator_id,
     locatorRequired,
     formData.lot_id,
-    formData.serial_id,
-    formData.serial_ids,
-    isLotControlled,
-    isSerialControlled,
-    isTransfer
+    isLotControlled
   ])
+
+  // UOM Conversion Preview logic
+  useEffect(() => {
+    let active = true
+    if (formData.item_id && formData.uom_id && selectedItem) {
+      const baseUomId = selectedItem.primary_uom_id
+      if (formData.uom_id === baseUomId) {
+        setConversionRate(1)
+        return
+      }
+      setIsConverting(true)
+      uomConvApi.getAll({ 
+        item_id: formData.item_id, 
+        from_uom_id: formData.uom_id, 
+        to_uom_id: baseUomId 
+      }).then(resp => {
+        if (!active) return
+        const conv = resp.data?.[0]
+        if (!conv) {
+          toast.error(`No UOM conversion defined for ${selectedItem.item_code} from current UOM to base UOM.`)
+        }
+        setConversionRate(conv ? parseFloat(conv.conversion_rate) : null)
+      }).catch((err) => {
+        if (!active) return
+        console.error('UOM Conversion Error:', err)
+        setConversionRate(null)
+      }).finally(() => {
+        if (active) setIsConverting(false)
+      })
+    }
+    return () => { active = false }
+  }, [formData.item_id, formData.uom_id, selectedItem])
+
+  const convertedQtyPreview = useMemo(() => {
+    try {
+      const qty = parseFloat(formData.physical_qty || 0)
+      if (conversionRate === null || isNaN(qty)) return null
+      return (qty * conversionRate).toFixed(4)
+    } catch (err) {
+      console.error('Calculation Error:', err)
+      return null
+    }
+  }, [formData.physical_qty, conversionRate])
 
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
     const { errors: newErrors } = validateStockAdjustment({ ...formData, [k]: val }, {
-      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, serialInputs
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, serialInputs,
+      convertedQty: k === 'physical_qty' ? (parseFloat(val) * (conversionRate || 1)) : convertedQtyPreview
     })
     setErrors(prev => ({ ...prev, [k]: newErrors[k] }))
-  }, [formData, currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired])
+  }, [formData, currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, conversionRate, convertedQtyPreview])
 
   const handleTxnTypeChange = (tid) => {
     const type = (txnTypes || []).find(t => String(t.txn_type_id) === String(tid));
@@ -248,53 +312,38 @@ export default function StockAdjustmentPage() {
   };
 
   const handleQtyChangeForSerials = useCallback((newQty) => {
-    const qty = parseFloat(newQty) || 0;
     setField('physical_qty', newQty);
+  }, [setField]);
 
-    if (isSerialControlled && formData.txn_action === 'IN') {
-      const count = Math.max(0, Math.floor(qty));
+  useEffect(() => {
+    if (isSerialControlled && formData.txn_action === 'IN' && view === 'create') {
+      const qty = parseFloat(formData.physical_qty || 0);
+      const rate = conversionRate !== null ? conversionRate : 1;
+      const count = Math.max(0, Math.floor(qty * rate));
+      
       setSerialInputs(prev => {
+        if (count === prev.length) return prev;
         if (count > prev.length) return [...prev, ...Array(count - prev.length).fill('')];
         return prev.slice(0, count);
       });
     }
-
-    const { errors: qtyErrors } = validateStockAdjustment(
-      { ...formData, physical_qty: newQty },
-      {
-        stockInfo: currentStockInfo,
-        isLotControlled,
-        isSerialControlled,
-        locatorRequired,
-        destLocatorRequired,
-        serialInputs
-      }
-    );
-    setErrors(prev => ({ ...prev, physical_qty: qtyErrors.physical_qty || null }));
-  }, [
-    isSerialControlled,
-    formData,
-    setField,
-    currentStockInfo,
-    isLotControlled,
-    locatorRequired,
-    destLocatorRequired,
-    serialInputs
-  ]);
+  }, [formData.physical_qty, conversionRate, isSerialControlled, formData.txn_action, view]);
 
   const handleAutoGenerateSerials = async () => {
-    const qty = parseInt(formData.physical_qty) || 0;
-    if (!qty) return toast.error('Enter physical quantity first');
+    const rate = conversionRate !== null ? conversionRate : 1;
+    const baseQty = Math.max(0, Math.floor(parseFloat(formData.physical_qty || 0) * rate));
+    
+    if (!baseQty) return toast.error('Enter valid physical quantity first');
     if (!formData.item_id) return toast.error('Select item first');
     
     try {
       const resp = await serialMasterApi.generateSerials({ 
         item_id: formData.item_id, 
-        qty: qty 
+        qty: baseQty 
       });
-      if (resp.success) {
+      if (resp.success && Array.isArray(resp.data)) {
         setSerialInputs(resp.data);
-        toast.success('Serials auto-generated');
+        toast.success(`Generated ${resp.data.length} serial numbers`);
       }
     } catch (err) {
       toast.error('Failed to generate serials');
@@ -427,7 +476,7 @@ export default function StockAdjustmentPage() {
     filteredToOrgs, filteredToSubinventories, filteredDestLocators, setField])
 
   const currentAdjQty = useMemo(() => {
-    const physicalQty = parseFloat(formData.physical_qty || 0);
+    const physicalQty = parseFloat(convertedQtyPreview || 0);
     const systemQty = parseFloat(formData.system_qty || 0);
     const action = String(formData.txn_action || '').toUpperCase();
     const typeCode = String(formData.txn_type_code || '').toUpperCase();
@@ -436,7 +485,7 @@ export default function StockAdjustmentPage() {
     if (action === 'IN' || typeCode === 'TXN_TYPE_INC') return physicalQty;
     if (action === 'OUT' || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
     return physicalQty - systemQty;
-  }, [isTransfer, formData.physical_qty, formData.system_qty, formData.txn_action, formData.txn_type_code]);
+  }, [isTransfer, convertedQtyPreview, formData.system_qty, formData.txn_action, formData.txn_type_code]);
 
   const projectedOnhand = useMemo(
     () => parseFloat(formData.system_qty || 0) + parseFloat(currentAdjQty || 0),
@@ -488,13 +537,21 @@ export default function StockAdjustmentPage() {
       Object.entries(formData).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     )
     const { errors: valErrors, isValid } = validateStockAdjustment(trimmedData, {
-      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, serialInputs
+      stockInfo: currentStockInfo, isLotControlled, isSerialControlled, locatorRequired, destLocatorRequired, serialInputs,
+      convertedQty: convertedQtyPreview
     })
 
     setErrors(valErrors)
 
     if (!isValid) {
-      toast.error('Please fix the highlighted errors')
+      // Specific toast for serial mismatch to satisfy user requirement
+      if (valErrors.serial_ids && isSerialControlled && formData.txn_action === 'IN') {
+        const req = Math.floor(parseFloat(convertedQtyPreview || 0));
+        const has = serialInputs.filter(s => s.trim()).length;
+        toast.error(`Serial mismatch: Need ${req}, found ${has}`);
+      } else {
+        toast.error('Please fix the highlighted errors');
+      }
       setTimeout(() => {
         const firstError = document.querySelector('[data-error="true"], .border-red-500, .input-error')
         if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -632,7 +689,32 @@ export default function StockAdjustmentPage() {
                     </Field>
                   )}
                   <Field label={isTransfer ? "Transfer Qty" : "Physical Qty"} required error={errors.physical_qty}>
-                    <Input type="number" value={formData.physical_qty} onChange={e => handleQtyChangeForSerials(e.target.value)} disabled={view === 'view'} />
+                    <div className="relative">
+                      <Input type="number" value={formData.physical_qty} error={errors.physical_qty} disabled={view === 'view'}
+                        onChange={e => handleQtyChangeForSerials(e.target.value)} onBlur={() => validateField('physical_qty', formData.physical_qty)} />
+                      
+                      {formData.uom_id && selectedItem?.primary_uom_id && formData.uom_id !== selectedItem.primary_uom_id && (
+                        <div className="mt-1 flex flex-col gap-1">
+                          {isConverting ? (
+                            <span className="text-[10px] text-gray-400 flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Converting...</span>
+                          ) : conversionRate !== null ? (
+                            <>
+                              <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                <ShieldCheck size={10} />
+                                1 {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'} = {conversionRate} {(uoms || []).find(u => u.uom_id === selectedItem.primary_uom_id)?.uom_code || 'Base Units'}
+                              </div>
+                              <div className="text-[10px] text-emerald-700 font-medium">
+                                ≈ {convertedQtyPreview} {(uoms || []).find(u => u.uom_id === selectedItem.primary_uom_id)?.uom_code || 'Base UOM'}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-rose-500 font-medium flex items-center gap-1">
+                              <AlertTriangle size={10} /> No conversion defined
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </Field>
                   <Field label="Net Adjustment">
                     <Input value={currentAdjQty} readOnly className="bg-white font-bold" />
@@ -699,11 +781,11 @@ export default function StockAdjustmentPage() {
                       )}
                     </div>
                   ) : (
-                    <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
-                      options={lots?.filter(r => {
-                        if (!isTransfer) return true
-                        return itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
-                      }).map(r => {
+                      <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
+                        options={lotRows?.filter(r => 
+                          String(r.item_id) === String(formData.item_id) &&
+                          itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
+                        ).map(r => {
                         const stock = itemStock.find(s => String(s.lot_id) === String(r.lot_id));
                         const qtyStr = stock ? ` (${stock.available_qty} available)` : '';
                         return { value: r.lot_id, label: `${r.lot_number}${qtyStr}` }
@@ -729,6 +811,15 @@ export default function StockAdjustmentPage() {
                     )}
                   </div>
 
+                  {isSerialControlled && formData.txn_action === 'IN' && (
+                    <div className="col-span-full mb-3">
+                      <div className="text-[10px] bg-blue-50 text-blue-700 p-2 rounded border border-blue-100 flex items-center gap-2">
+                        <Hash size={12} />
+                        <span>Required Serial Count: <strong>{Math.floor(parseFloat(convertedQtyPreview || 0))}</strong> (based on {formData.physical_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'})</span>
+                      </div>
+                    </div>
+                  )}
+
                   {formData.txn_action === 'IN' ? (
                     view === 'create' ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto pr-2 p-3 bg-amber-50/30 rounded-lg border border-amber-100/50">
@@ -750,10 +841,10 @@ export default function StockAdjustmentPage() {
                     <Field error={errors.serial_ids}>
                       <MultiSelect value={formData.serial_ids} onChange={v => {
                         setField('serial_ids', v);
-                        setField('physical_qty', v.length);
+                        // NOTE: Do NOT set physical_qty here — serial selection must NOT change the quantity.
+                        // Qty is controlled only by user input and UOM conversion.
                       }} disabled={view === 'view'}
-                        options={serials?.filter(r => itemStock.some(s => String(s.serial_id) === String(r.serial_id) && parseFloat(s.available_qty) > 0))
-                          .map(r => ({ value: r.serial_id, label: r.serial_number }))} />
+                        options={filteredAvailableSerials.map(r => ({ value: r.serial_id, label: r.serial_number }))} />
                     </Field>
                   )}
                 </div>
