@@ -257,8 +257,43 @@ exports.create = async (req, res) => {
       validateIssueControls(body, controls, requested);
       const destControls = getControlContext({ ...body, inv_org_id: body.to_inv_org_id }, body.adjustment_date || new Date());
       if (destControls.locatorRequired) validateLocator(body.to_subinventory_id, body.to_locator_id);
+
+      // --- Damaged Inventory Validations ---
+      const srcStatus = inventoryEngine.getLocationStatus({ inv_org_id: body.inv_org_id, subinventory_id: body.subinventory_id, locator_id: body.locator_id });
+      const destStatus = inventoryEngine.getLocationStatus({ inv_org_id: body.to_inv_org_id, subinventory_id: body.to_subinventory_id, locator_id: body.to_locator_id });
+
+      if (srcStatus.allow_transfer === 'N') {
+        fieldErrors.subinventory_id = `Transfer not allowed from location with status: ${srcStatus.status_code}`;
+      }
+      if (destStatus.allow_transfer === 'N') {
+        fieldErrors.to_subinventory_id = `Transfer not allowed to location with status: ${destStatus.status_code}`;
+      }
+
+      // If source is NOT damaged and destination IS damaged, it's a "Damage Transfer"
+      const isSrcDamaged = srcStatus.is_saleable === 'N';
+      const isDestDamaged = destStatus.is_saleable === 'N';
+
+      if (!isSrcDamaged && isDestDamaged) {
+        // Moving good stock to damaged area
+        if (!body.txn_reason_id || !body.txn_reason_id.includes('DMG')) {
+          fieldErrors.txn_reason_id = 'A damage-related reason is required when moving stock to a Damaged location';
+        }
+      } else if (isSrcDamaged && !isDestDamaged) {
+        // Moving damaged stock back to good area (Repair/Recovery)
+        if (!body.txn_reason_id || !body.txn_reason_id.includes('REP')) {
+          fieldErrors.txn_reason_id = 'A repair-related reason is required when moving stock from a Damaged location';
+        }
+      }
     } else {
       // Adjustment Logic (IN / OUT / etc)
+      const locStatus = inventoryEngine.getLocationStatus({ inv_org_id: body.inv_org_id, subinventory_id: body.subinventory_id, locator_id: body.locator_id });
+      
+      if (body.txn_action === 'OUT') {
+        if (locStatus.is_saleable === 'Y' && locStatus.allow_pick === 'N') {
+          fieldErrors.subinventory_id = `Picking/Issue not allowed from location with status: ${locStatus.status_code}`;
+        }
+      }
+
       if (body.txn_action === 'OUT' && physical > system) {
         fieldErrors.physical_qty = 'Physical quantity cannot exceed available stock for OUT transaction';
       }

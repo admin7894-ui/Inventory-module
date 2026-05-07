@@ -12,9 +12,11 @@ const COLUMNS = [
   { key: 'subinventory_id', label: 'Subinv' },
   { key: 'locator_name', label: 'Locator' },
   { key: 'lot_number', label: 'Lot' },
-  { key: 'onhand_qty', label: 'Onhand', render: (v) => <span className="font-bold text-blue-600">{v}</span> },
+  { key: 'onhand_qty', label: 'Total Onhand', render: (v) => <span className="font-bold text-blue-600">{v}</span> },
   { key: 'available_qty', label: 'Available', render: (v) => <span className="font-bold text-emerald-600">{v}</span> },
-  { key: 'total_onhand_qty', label: 'Total Onhand (Item+Org)', render: (v) => <span className="font-bold text-indigo-600">{v}</span> },
+  { key: 'damaged_qty', label: 'Damaged', render: (v) => <span className="font-bold text-rose-600">{v}</span> },
+  { key: 'hold_qty', label: 'Hold', render: (v) => <span className="font-bold text-amber-600">{v}</span> },
+  { key: 'total_onhand_qty', label: 'Org Total', render: (v) => <span className="font-bold text-indigo-600">{v}</span> },
   { key: 'uom_name', label: 'UOM' },
   { key: 'total_cost_value', label: 'Value' }
 ]
@@ -70,8 +72,10 @@ export default function ItemStockPage() {
           <div className="card p-6">
             <SectionHeader icon={BarChart3} title="Inventory Balances" color="emerald" />
             <div className="grid grid-cols-1 gap-4">
-              <Field label="Onhand Qty"><Input value={selected.onhand_qty} readOnly className="font-bold text-blue-700 bg-blue-50" /></Field>
-              <Field label="Available Qty"><Input value={selected.available_qty} readOnly className="font-bold text-emerald-700 bg-emerald-50" /></Field>
+              <Field label="Total Onhand Qty"><Input value={selected.onhand_qty} readOnly className="font-bold text-blue-700 bg-blue-50" /></Field>
+              <Field label="Available Qty (Saleable)"><Input value={selected.available_qty} readOnly className="font-bold text-emerald-700 bg-emerald-50" /></Field>
+              <Field label="Damaged Qty"><Input value={selected.damaged_qty || 0} readOnly className="font-bold text-rose-700 bg-rose-50" /></Field>
+              <Field label="Hold Qty"><Input value={selected.hold_qty || 0} readOnly className="font-bold text-amber-700 bg-amber-50" /></Field>
               <Field label="Reserved Qty"><Input value={selected.reserved_qty || 0} readOnly /></Field>
               <Field label="In Transit Qty"><Input value={selected.in_transit_qty || 0} readOnly /></Field>
             </div>

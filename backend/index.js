@@ -68,6 +68,7 @@ app.use('/api/brand',                     require('./routes/brand'));
 app.use('/api/item-type',                 require('./routes/itemType'));
 app.use('/api/item-master',               require('./routes/itemMaster'));
 app.use('/api/zone',                      require('./routes/zone'));
+app.use('/api/material-status',           require('./routes/materialStatus'));
 app.use('/api/subinventory',              require('./routes/subinventory'));
 app.use('/api/locator',                   require('./routes/locator'));
 app.use('/api/item-subinv-restriction',   require('./routes/itemSubinvRestriction'));

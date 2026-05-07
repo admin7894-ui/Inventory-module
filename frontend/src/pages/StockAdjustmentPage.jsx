@@ -103,6 +103,30 @@ export default function StockAdjustmentPage() {
     if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
   }, [errors])
 
+  const getLocationStatus = useCallback((subinvId, locId) => {
+    let statusText = 'Available';
+    let statusId = 'MS01';
+    
+    if (locId) {
+      const locator = (locators || []).find(l => String(l.locator_id) === String(locId));
+      if (locator) {
+        statusText = locator.material_status || statusText;
+        statusId = locator.material_status_id || statusId;
+      }
+    } else {
+      const subinv = (subinventories || []).find(s => String(s.subinventory_id) === String(subinvId));
+      if (subinv) {
+        statusText = subinv.material_status || statusText;
+        statusId = subinv.material_status_id || statusId;
+      }
+    }
+
+    return { statusText, statusId };
+  }, [locators, subinventories]);
+
+  const srcStatus = useMemo(() => getLocationStatus(formData.subinventory_id, formData.locator_id), [getLocationStatus, formData.subinventory_id, formData.locator_id]);
+  const destStatus = useMemo(() => getLocationStatus(formData.to_subinventory_id, formData.to_locator_id), [getLocationStatus, formData.to_subinventory_id, formData.to_locator_id]);
+
   const filteredItems = useMemo(() => {
     if (!items?.length || !assignments?.length || !restrictions?.length || !formData.COMPANY_id) return []
     return items.filter(item => {
@@ -642,6 +666,12 @@ export default function StockAdjustmentPage() {
                         options={filteredSourceLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
                     </Field>
                   )}
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Status</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${srcStatus.statusText.toUpperCase().includes('DAMAGE') ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {srcStatus.statusText}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -664,7 +694,33 @@ export default function StockAdjustmentPage() {
                           options={filteredDestLocators.map(r => ({ value: r.locator_id, label: r.locator_name }))} />
                       </Field>
                     )}
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-gray-400">Status</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${destStatus.statusText.toUpperCase().includes('DAMAGE') ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {destStatus.statusText}
+                      </span>
+                    </div>
                   </div>
+                </div>
+              )}
+
+              {/* Damaged Transfer Warning */}
+              {isTransfer && !srcStatus.statusText.toUpperCase().includes('DAMAGE') && destStatus.statusText.toUpperCase().includes('DAMAGE') && (
+                <div className="col-span-full bg-rose-50 border border-rose-200 p-3 rounded-lg flex items-center gap-3 animate-pulse">
+                  <AlertTriangle className="text-rose-500" size={16} />
+                  <p className="text-[11px] text-rose-800 font-medium">
+                    Warning: You are moving good stock to a <span className="font-bold">Damaged Inventory</span> location. 
+                    Ensure a "Damaged Goods" reason is selected.
+                  </p>
+                </div>
+              )}
+              {isTransfer && srcStatus.statusText.toUpperCase().includes('DAMAGE') && !destStatus.statusText.toUpperCase().includes('DAMAGE') && (
+                <div className="col-span-full bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex items-center gap-3 animate-pulse">
+                  <ShieldCheck className="text-emerald-500" size={16} />
+                  <p className="text-[11px] text-emerald-800 font-medium">
+                    Recovery: Moving stock out of <span className="font-bold">Damaged Inventory</span>. 
+                    Ensure a "Repaired Goods" reason is selected.
+                  </p>
                 </div>
               )}
 

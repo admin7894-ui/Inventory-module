@@ -66,6 +66,44 @@ class InventoryEngine {
     return isYes(val);
   }
 
+  /** Gets material status properties for a location (Locator > Subinventory) */
+  getLocationStatus(params) {
+    const { inv_org_id, subinventory_id, locator_id } = params;
+    let statusText = 'Available';
+    let statusId = 'MS01';
+
+    // 1. Try Locator
+    if (locator_id) {
+      const locator = (db.locator___bin || []).find(l => l.locator_id === locator_id);
+      if (locator && (locator.material_status || locator.material_status_id)) {
+        statusText = locator.material_status || statusText;
+        statusId = locator.material_status_id || statusId;
+      }
+    } else {
+      // 2. Try Subinventory
+      const subinv = (db.subinventory || []).find(s => s.subinventory_id === subinventory_id);
+      if (subinv && (subinv.material_status || subinv.material_status_id)) {
+        statusText = subinv.material_status || statusText;
+        statusId = subinv.material_status_id || statusId;
+      }
+    }
+
+    // 3. Fetch full status details
+    const master = (db.material_status_master || []).find(m => 
+      String(m.material_status_id) === String(statusId) || 
+      String(m.status_code).toUpperCase() === String(statusText).toUpperCase()
+    );
+
+    return master || {
+      material_status_id: statusId,
+      status_code: statusText,
+      is_saleable: 'Y',
+      allow_transfer: 'Y',
+      allow_reservation: 'Y',
+      allow_pick: 'Y'
+    };
+  }
+
   // ─── OPENING STOCK (FULL ENGINE) ─────────────────────────────
 
   /**
@@ -417,9 +455,17 @@ class InventoryEngine {
       if (effectiveSerialId) {
         const serialIdx = db.serial_master.findIndex(s => s.serial_id === effectiveSerialId);
         if (serialIdx !== -1) {
-          db.serial_master[serialIdx].status = action === 'IN' ? 'AVAILABLE' : 'ISSUED';
-          db.serial_master[serialIdx].current_subinventory_id = action === 'IN' ? subinventory_id : '';
-          db.serial_master[serialIdx].current_locator_id = action === 'IN' ? locator_id : '';
+          const locStatus = this.getLocationStatus({ inv_org_id, subinventory_id, locator_id });
+          
+          if (action === 'IN') {
+            db.serial_master[serialIdx].status = locStatus.is_saleable === 'N' ? 'DAMAGED' : 'AVAILABLE';
+            db.serial_master[serialIdx].current_subinventory_id = subinventory_id;
+            db.serial_master[serialIdx].current_locator_id = locator_id;
+          } else {
+            db.serial_master[serialIdx].status = 'ISSUED';
+            db.serial_master[serialIdx].current_subinventory_id = '';
+            db.serial_master[serialIdx].current_locator_id = '';
+          }
           db.serial_master[serialIdx].updated_at = new Date().toISOString();
         }
       }
@@ -470,16 +516,28 @@ class InventoryEngine {
     }
 
     if (stock) {
+      const locStatus = this.getLocationStatus({ inv_org_id, subinventory_id, locator_id });
+      const isDamaged = locStatus.status_code.toUpperCase().includes('DAMAGE') || locStatus.is_saleable === 'N';
+      const isHold = locStatus.status_code.toUpperCase().includes('HOLD');
+
       if (action === 'IN') {
         stock.onhand_qty = (parseFloat(stock.onhand_qty) || 0) + qty;
+        if (isDamaged) stock.damaged_qty = (parseFloat(stock.damaged_qty) || 0) + qty;
+        else if (isHold) stock.hold_qty = (parseFloat(stock.hold_qty) || 0) + qty;
       } else if (action === 'OUT') {
         stock.onhand_qty = Math.max(0, (parseFloat(stock.onhand_qty) || 0) - qty);
+        if (isDamaged) stock.damaged_qty = Math.max(0, (parseFloat(stock.damaged_qty) || 0) - qty);
+        else if (isHold) stock.hold_qty = Math.max(0, (parseFloat(stock.hold_qty) || 0) - qty);
       }
       
       // Recalculate derived fields
-      stock.reserved_qty = stock.reserved_qty || 0;
-      stock.in_transit_qty = stock.in_transit_qty || 0;
-      stock.available_qty = Math.max(0, stock.onhand_qty - (parseFloat(stock.reserved_qty) || 0));
+      stock.reserved_qty = parseFloat(stock.reserved_qty) || 0;
+      stock.damaged_qty = parseFloat(stock.damaged_qty) || 0;
+      stock.hold_qty = parseFloat(stock.hold_qty) || 0;
+      stock.in_transit_qty = parseFloat(stock.in_transit_qty) || 0;
+      
+      // available_qty excludes reserved, damaged, and hold stock
+      stock.available_qty = Math.max(0, stock.onhand_qty - stock.reserved_qty - stock.damaged_qty - stock.hold_qty);
       stock.total_cost_value = (stock.onhand_qty * (parseFloat(stock.unit_cost) || cost)).toFixed(4);
       stock.last_transaction_id = txn_id;
       stock.updated_at = new Date().toISOString();

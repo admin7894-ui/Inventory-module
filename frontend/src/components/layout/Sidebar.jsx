@@ -56,6 +56,7 @@ const NAV = [
   ]},
   { group: '🏭 Warehouse', items: [
     { label: 'Zone',               path: '/zone' },
+    { label: 'Material Status',    path: '/material-status' },
     { label: 'Subinventory',       path: '/subinventory' },
     { label: 'Locator / Bin',      path: '/locator' },
     { label: 'Item Org Assign',    path: '/item-org-assignment' },

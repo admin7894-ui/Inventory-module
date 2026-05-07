@@ -14,7 +14,7 @@ import {
   lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
   categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
-  departmentsApi, rolesApi, designationApi,
+  departmentsApi, rolesApi, designationApi, materialStatusApi,
 } from '../services/api'
 
 const COLUMNS = [
@@ -69,6 +69,7 @@ export default function SubinventoryPage() {
   const { options: depts }            = useDropdownData(departmentsApi, 'dept_dd')
   const { options: rolesList }        = useDropdownData(rolesApi, 'roles_dd')
   const { options: designations }     = useDropdownData(designationApi, 'desig_dd')
+  const { options: materialStatuses } = useDropdownData(materialStatusApi, 'ms_dd')
 
   const dropdowns = {
     company:companies, businessGroup:businessGroups, businessType:businessTypes,
@@ -81,6 +82,7 @@ export default function SubinventoryPage() {
     legalEntity:legalEntities, operatingUnit:operatingUnits,
     securityProfile:securityProfiles, profileAccess:profileAccesses,
     securityRoles:securityRolesList, departments:depts, roles:rolesList, designation:designations,
+    materialStatus: materialStatuses
   }
 
   const filteredInventoryOrgs = dropdowns.inventoryOrg || []
@@ -193,15 +195,13 @@ export default function SubinventoryPage() {
             </Field>
 
             <Field label="Material Status" required error={v.errors.material_status}>
-              <Select value={formData.material_status} 
-                onChange={v_val => setField('material_status', v_val)} 
-                options={[
-                  { value: 'AVAILABLE', label: 'Available' },
-                  { value: 'BLOCKED', label: 'Blocked' },
-                  { value: 'QUARANTINE', label: 'Quarantine' },
-                  { value: 'DAMAGED', label: 'Damaged' },
-                  { value: 'HOLD', label: 'Hold' }
-                ]} 
+              <Select value={formData.material_status_id} 
+                onChange={v_id => {
+                  const label = dropdowns.materialStatus.find(r => String(r.material_status_id) === String(v_id))?.status_name;
+                  setFormData(p => ({ ...p, material_status_id: v_id, material_status: label }));
+                  v.clearError('material_status');
+                }} 
+                options={dropdowns.materialStatus?.map(r => ({ value: r.material_status_id, label: r.status_name }))} 
                 disabled={view === 'view'}
               />
             </Field>

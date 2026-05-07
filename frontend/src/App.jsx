@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ScopeProvider } from './context/ScopeContext'
@@ -7,7 +7,7 @@ import { Layout } from './components/layout/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 
-// All 46 pages
+// All pages
 import DepartmentsPage          from './pages/DepartmentsPage'
 import RolesPage                 from './pages/RolesPage'
 import DesignationPage           from './pages/DesignationPage'
@@ -39,6 +39,7 @@ import BrandPage                 from './pages/BrandPage'
 import ItemTypePage              from './pages/ItemTypePage'
 import ItemMasterPage            from './pages/ItemMasterPage'
 import ZonePage                  from './pages/ZonePage'
+import MaterialStatusPage        from './pages/MaterialStatusPage'
 import SubinventoryPage          from './pages/SubinventoryPage'
 import LocatorPage               from './pages/LocatorPage'
 import ItemSubinvRestrictionPage from './pages/ItemSubinvRestrictionPage'
@@ -113,6 +114,7 @@ function AppRoutes() {
 
       {/* Warehouse */}
       <Route path="/zone"                    element={<ProtectedRoute><ZonePage /></ProtectedRoute>} />
+      <Route path="/material-status"         element={<ProtectedRoute><MaterialStatusPage /></ProtectedRoute>} />
       <Route path="/subinventory"            element={<ProtectedRoute><SubinventoryPage /></ProtectedRoute>} />
       <Route path="/locator"                 element={<ProtectedRoute><LocatorPage /></ProtectedRoute>} />
       <Route path="/item-subinv-restriction" element={<ProtectedRoute><ItemSubinvRestrictionPage /></ProtectedRoute>} />

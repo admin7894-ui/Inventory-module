@@ -88,6 +88,10 @@ export const brandApi                 = crud('/brand')
 export const itemTypeApi              = crud('/item-type')
 export const itemMasterApi            = crud('/item-master')
 export const zoneApi                  = crud('/zone')
+export const materialStatusApi        = {
+  ...crud('/material-status'),
+  toggleStatus: (id) => api.patch(`/material-status/status/${id}`).then(r => r.data)
+}
 export const subinventoryApi          = crud('/subinventory')
 export const locatorApi               = crud('/locator')
 export const itemSubinvRestrictionApi = crud('/item-subinv-restriction')

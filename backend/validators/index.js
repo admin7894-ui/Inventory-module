@@ -28,6 +28,7 @@ const { validateTransactionType } = require('./transactionTypeValidator');
 const { validateTransactionReason } = require('./transactionReasonValidator');
 const { validateItemSubinvRestriction } = require('./itemSubinvRestrictionValidator');
 const { validateItemOrgAssignment } = require('./itemOrgAssignmentValidator');
+const { validateMaterialStatus } = require('./materialStatusValidator');
 
 /**
  * Express validation middleware factory
@@ -74,5 +75,6 @@ module.exports = {
   validateTransactionType,
   validateTransactionReason,
   validateItemSubinvRestriction,
-  validateItemOrgAssignment
+  validateItemOrgAssignment,
+  validateMaterialStatus
 };

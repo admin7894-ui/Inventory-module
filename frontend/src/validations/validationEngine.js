@@ -636,6 +636,15 @@ const RULES = {
     return e;
   },
 
+  material_status: (d) => {
+    const e = {};
+    if (isEmpty(d.status_name)) e.status_name = 'This field is required';
+    else if (!REGEX.NAME.test(String(d.status_name).trim())) e.status_name = 'Invalid format';
+    if (isEmpty(d.status_code)) e.status_code = 'This field is required';
+    else if (!REGEX.CODE.test(String(d.status_code).trim())) e.status_code = 'Invalid format';
+    return e;
+  },
+
   // ━━━━━━━━━━━━━━ GENERIC FALLBACK ━━━━━━━━━━━━━━
   // For simple master pages that just need company group + dates
   _generic: (d, opts = {}) => {
