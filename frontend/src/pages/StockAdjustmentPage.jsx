@@ -311,15 +311,34 @@ export default function StockAdjustmentPage() {
     }
   };
 
+  const currentAdjQty = useMemo(() => {
+    const physicalQty = parseFloat(convertedQtyPreview || 0);
+    const systemQty = parseFloat(formData.system_qty || 0);
+    const action = String(formData.txn_action || '').toUpperCase();
+    const typeCode = String(formData.txn_type_code || '').toUpperCase();
+
+    if (isTransfer) return physicalQty;
+    if (action === 'IN' || typeCode === 'TXN_TYPE_INC') return physicalQty;
+    if (action === 'OUT' || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
+    return physicalQty - systemQty;
+  }, [isTransfer, convertedQtyPreview, formData.system_qty, formData.txn_action, formData.txn_type_code]);
+
+  const projectedOnhand = useMemo(
+    () => parseFloat(formData.system_qty || 0) + parseFloat(currentAdjQty || 0),
+    [formData.system_qty, currentAdjQty]
+  );
+
+  const isPositiveAdj = formData.txn_action === 'IN' || (!isTransfer && currentAdjQty > 0);
+  const isNegativeAdj = formData.txn_action === 'OUT' || (!isTransfer && currentAdjQty < 0);
+  const requiredSerialCount = Math.floor(Math.abs(currentAdjQty || 0));
+
   const handleQtyChangeForSerials = useCallback((newQty) => {
     setField('physical_qty', newQty);
   }, [setField]);
 
   useEffect(() => {
-    if (isSerialControlled && formData.txn_action === 'IN' && view === 'create') {
-      const qty = parseFloat(formData.physical_qty || 0);
-      const rate = conversionRate !== null ? conversionRate : 1;
-      const count = Math.max(0, Math.floor(qty * rate));
+    if (isSerialControlled && isPositiveAdj && view === 'create') {
+      const count = requiredSerialCount;
       
       setSerialInputs(prev => {
         if (count === prev.length) return prev;
@@ -327,11 +346,10 @@ export default function StockAdjustmentPage() {
         return prev.slice(0, count);
       });
     }
-  }, [formData.physical_qty, conversionRate, isSerialControlled, formData.txn_action, view]);
+  }, [requiredSerialCount, isSerialControlled, isPositiveAdj, view]);
 
   const handleAutoGenerateSerials = async () => {
-    const rate = conversionRate !== null ? conversionRate : 1;
-    const baseQty = Math.max(0, Math.floor(parseFloat(formData.physical_qty || 0) * rate));
+    const baseQty = requiredSerialCount;
     
     if (!baseQty) return toast.error('Enter valid physical quantity first');
     if (!formData.item_id) return toast.error('Select item first');
@@ -475,22 +493,7 @@ export default function StockAdjustmentPage() {
     filteredOrgs, filteredSubinventories, filteredSourceLocators,
     filteredToOrgs, filteredToSubinventories, filteredDestLocators, setField])
 
-  const currentAdjQty = useMemo(() => {
-    const physicalQty = parseFloat(convertedQtyPreview || 0);
-    const systemQty = parseFloat(formData.system_qty || 0);
-    const action = String(formData.txn_action || '').toUpperCase();
-    const typeCode = String(formData.txn_type_code || '').toUpperCase();
 
-    if (isTransfer) return physicalQty;
-    if (action === 'IN' || typeCode === 'TXN_TYPE_INC') return physicalQty;
-    if (action === 'OUT' || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
-    return physicalQty - systemQty;
-  }, [isTransfer, convertedQtyPreview, formData.system_qty, formData.txn_action, formData.txn_type_code]);
-
-  const projectedOnhand = useMemo(
-    () => parseFloat(formData.system_qty || 0) + parseFloat(currentAdjQty || 0),
-    [formData.system_qty, currentAdjQty]
-  );
 
   const handleCreate = () => {
     setFormData({
@@ -545,8 +548,8 @@ export default function StockAdjustmentPage() {
 
     if (!isValid) {
       // Specific toast for serial mismatch to satisfy user requirement
-      if (valErrors.serial_ids && isSerialControlled && formData.txn_action === 'IN') {
-        const req = Math.floor(parseFloat(convertedQtyPreview || 0));
+      if (valErrors.serial_ids && isSerialControlled && isPositiveAdj) {
+        const req = requiredSerialCount;
         const has = serialInputs.filter(s => s.trim()).length;
         toast.error(`Serial mismatch: Need ${req}, found ${has}`);
       } else {
@@ -570,7 +573,7 @@ export default function StockAdjustmentPage() {
       }
       if (!locatorRequired) delete payload.locator_id;
       if (!destLocatorRequired) delete payload.to_locator_id;
-      if (isSerialControlled && formData.txn_action === 'IN') {
+      if (isSerialControlled && isPositiveAdj) {
         payload.serial_numbers = serialInputs.filter(s => s.trim());
         payload.serial_ids = undefined; // Clear old field
       }
@@ -800,10 +803,10 @@ export default function StockAdjustmentPage() {
                       <Hash className="w-4 h-4 text-amber-500" />
                       Serial Numbers
                       <span className="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded ml-2">
-                        {formData.txn_action === 'IN' ? 'Enter one serial per unit' : 'Select existing serials'}
+                        {isPositiveAdj ? 'Enter one serial per unit' : 'Select existing serials'}
                       </span>
                     </h4>
-                    {formData.txn_action === 'IN' && view === 'create' && (
+                    {isPositiveAdj && view === 'create' && (
                       <button type="button" onClick={handleAutoGenerateSerials}
                         className="text-[10px] font-bold uppercase tracking-wider text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 px-3 py-1 rounded-full transition-all">
                         Auto-Generate Serials
@@ -811,16 +814,16 @@ export default function StockAdjustmentPage() {
                     )}
                   </div>
 
-                  {isSerialControlled && formData.txn_action === 'IN' && (
+                  {isSerialControlled && isPositiveAdj && (
                     <div className="col-span-full mb-3">
                       <div className="text-[10px] bg-blue-50 text-blue-700 p-2 rounded border border-blue-100 flex items-center gap-2">
                         <Hash size={12} />
-                        <span>Required Serial Count: <strong>{Math.floor(parseFloat(convertedQtyPreview || 0))}</strong> (based on {formData.physical_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'})</span>
+                        <span>Required Serial Count: <strong>{requiredSerialCount}</strong> (based on {formData.physical_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'} net adjustment)</span>
                       </div>
                     </div>
                   )}
 
-                  {formData.txn_action === 'IN' ? (
+                  {isPositiveAdj ? (
                     view === 'create' ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto pr-2 p-3 bg-amber-50/30 rounded-lg border border-amber-100/50">
                         {serialInputs.map((val, idx) => (
@@ -841,8 +844,6 @@ export default function StockAdjustmentPage() {
                     <Field error={errors.serial_ids}>
                       <MultiSelect value={formData.serial_ids} onChange={v => {
                         setField('serial_ids', v);
-                        // NOTE: Do NOT set physical_qty here — serial selection must NOT change the quantity.
-                        // Qty is controlled only by user input and UOM conversion.
                       }} disabled={view === 'view'}
                         options={filteredAvailableSerials.map(r => ({ value: r.serial_id, label: r.serial_number }))} />
                     </Field>

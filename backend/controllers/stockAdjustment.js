@@ -134,13 +134,34 @@ exports.create = async (req, res) => {
     const isSerialControlled = controls.serialRequired;
     const isTransfer = body.txn_action === 'TRANSFER' || body.transfer_flag === 'Y' || body.txn_type_id === 'TT03';
 
+    const physical = parseFloat(convertedInputQty || 0);
+    const system = parseFloat(body.system_qty || 0);
+    
+    let netAdj = 0;
+    if (isTransfer) {
+      netAdj = physical;
+    } else if (body.txn_action === 'IN' || body.txn_type_code === 'TXN_TYPE_INC') {
+      netAdj = physical;
+    } else if (body.txn_action === 'OUT' || body.txn_type_code === 'TXN_TYPE_OUT') {
+      netAdj = -physical;
+    } else {
+      netAdj = physical - system;
+    }
+
+    const isPositiveAdj = body.txn_action === 'IN' || (!isTransfer && netAdj > 0);
+    const isNegativeAdj = body.txn_action === 'OUT' || (!isTransfer && netAdj < 0);
+
     // ── 2. Lot/Serial Validation ────────────────────────────────
-    if (isLotControlled && !body.lot_id && !body.lot_number) {
-      fieldErrors.lot_id = 'Lot is required for this item';
+    if (isLotControlled) {
+      if (isPositiveAdj) {
+        if (!body.lot_id && !body.lot_number) fieldErrors.lot_id = 'Lot is required for this item';
+      } else {
+        if (!body.lot_id) fieldErrors.lot_id = 'Lot is required for this item';
+      }
     }
     if (isSerialControlled) {
-      const requiredCount = Math.max(0, Math.floor(convertedInputQty));
-      if (body.txn_action === 'IN') {
+      const requiredCount = Math.floor(Math.abs(netAdj));
+      if (isPositiveAdj) {
         // IN: serials are submitted as serial_numbers (text entries from serial inputs)
         const serials = (body.serial_numbers || []).filter(s => String(s).trim());
         if (serials.length !== requiredCount) {
@@ -148,7 +169,7 @@ exports.create = async (req, res) => {
         }
         body.serial_ids = serials;
         body.serial_numbers = serials;
-      } else {
+      } else if (isNegativeAdj || isTransfer) {
         // OUT / TRANSFER: serials are submitted as serial_ids (IDs from the MultiSelect dropdown)
         const serialIds = (Array.isArray(body.serial_ids) ? body.serial_ids : []).filter(s => String(s).trim());
         if (serialIds.length === 0) {
@@ -238,22 +259,17 @@ exports.create = async (req, res) => {
       if (destControls.locatorRequired) validateLocator(body.to_subinventory_id, body.to_locator_id);
     } else {
       // Adjustment Logic (IN / OUT / etc)
-      const physical = parseFloat(body.physical_qty || 0);
-      const system = parseFloat(body.system_qty || 0);
-      let netAdj = physical - system;
-      const isSerialOut = isSerialControlled && body.txn_action === 'OUT';
-
       if (body.txn_action === 'OUT' && physical > system) {
         fieldErrors.physical_qty = 'Physical quantity cannot exceed available stock for OUT transaction';
       }
 
-      if (isSerialOut) {
+
+      if (isSerialControlled && isNegativeAdj) {
         const serialCount = Array.isArray(body.serial_ids) ? body.serial_ids.filter(Boolean).length : 0;
-        if (serialCount > 0 && serialCount !== physical) {
-          fieldErrors.serial_ids = `Serial count (${serialCount}) must match quantity (${physical})`;
+        const requiredCount = Math.floor(Math.abs(netAdj));
+        if (serialCount > 0 && serialCount !== requiredCount) {
+          fieldErrors.serial_ids = `Serial count (${serialCount}) must match quantity (${requiredCount})`;
         }
-        // For serial-controlled OUT adjustments, physical_qty represents issue qty.
-        netAdj = -physical;
       }
 
       if (netAdj < 0) {
@@ -269,17 +285,20 @@ exports.create = async (req, res) => {
       if (body.approval_status === 'APPROVED') body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
 
       if (netAdj < 0) {
-        const outQty = isSerialOut ? physical : Math.abs(netAdj);
+        const outQty = Math.abs(netAdj);
         validateIssueControls(body, controls, outQty);
       }
-      if (netAdj > 0 && body.txn_action !== 'OUT') {
-        // Scope-limited behavior: Stock Adjustment IN + serial-controlled items
-        // should validate serial count against entered quantity.
-        const serialValidationQty =
-          (isSerialControlled && body.txn_action === 'IN')
-            ? parseFloat(body.physical_qty || 0)
-            : netAdj;
-        validateReceiptControls(body, controls, serialValidationQty);
+      
+      if (isSerialControlled && isPositiveAdj) {
+        const serialValidationQty = Math.floor(Math.abs(netAdj));
+        const serialCount = Array.isArray(body.serial_numbers) ? body.serial_numbers.filter(Boolean).length : 0;
+        if (serialCount > 0 && serialCount !== serialValidationQty) {
+          fieldErrors.serial_ids = `Serial count (${serialCount}) must match quantity (${serialValidationQty})`;
+        }
+      }
+
+      if (isPositiveAdj) {
+        validateReceiptControls(body, controls, Math.floor(Math.abs(netAdj)));
       }
     }
 

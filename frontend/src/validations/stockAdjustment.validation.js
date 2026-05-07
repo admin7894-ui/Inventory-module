@@ -85,6 +85,20 @@ const runDynamicValidation = (data, options) => {
   const availableQty = parseFloat(stockInfo?.available_qty || 0);
   const physical = parseFloat(options.convertedQty !== undefined ? options.convertedQty : data.physical_qty || 0);
 
+  let netAdj = 0;
+  if (isTransfer) {
+    netAdj = physical;
+  } else if (data.txn_action === 'IN' || data.txn_type_code === 'TXN_TYPE_INC') {
+    netAdj = physical;
+  } else if (data.txn_action === 'OUT' || data.txn_type_code === 'TXN_TYPE_OUT') {
+    netAdj = -physical;
+  } else {
+    netAdj = physical - systemQty;
+  }
+
+  const isPositiveAdjustment = data.txn_action === 'IN' || (!isTransfer && netAdj > 0);
+  const isNegativeAdjustment = data.txn_action === 'OUT' || (!isTransfer && netAdj < 0);
+
   if (isTransfer) {
     if (locatorRequired && !data.locator_id) errors.locator_id = "Locator is required";
     if (destLocatorRequired && !data.to_locator_id) errors.to_locator_id = "Destination Locator is required";
@@ -124,19 +138,19 @@ const runDynamicValidation = (data, options) => {
   }
 
   if (isLotControlled) {
-    if (data.txn_action === 'IN') {
-      if (!data.lot_number) errors.lot_number = "Lot is required";
+    if (isPositiveAdjustment) {
+      if (!data.lot_number && !data.lot_id) errors.lot_number = "Lot is required";
     } else {
       if (!data.lot_id) errors.lot_id = "Lot is required";
     }
   }
 
   if (isSerialControlled) {
-    if (data.txn_action === 'IN') {
+    const qtyInt = Math.floor(Math.abs(netAdj || 0));
+
+    if (isPositiveAdjustment) {
       const serials = options.serialInputs || [];
       const validSerials = serials.filter(s => s && s.trim());
-      const physical = parseFloat(options.convertedQty !== undefined ? options.convertedQty : data.physical_qty || 0);
-      const qtyInt = Math.max(0, Math.floor(physical));
 
       if (validSerials.length === 0) {
         errors.serial_ids = "Serial numbers are required";
@@ -154,17 +168,13 @@ const runDynamicValidation = (data, options) => {
           errors.serial_ids = `Duplicate serials found: ${duplicates.join(', ')}`;
         }
       }
-    } else {
+    } else if (isNegativeAdjustment || isTransfer) {
       // OUT / TRANSFER: validate serial_ids array (selected from dropdown)
       const serials = Array.isArray(data.serial_ids) ? data.serial_ids : [];
-      // Compare against converted base qty (e.g., 1 BOX = 10 NOS → need 10 serials)
-      const requiredQty = options.convertedQty !== undefined
-        ? Math.max(0, Math.floor(parseFloat(options.convertedQty)))
-        : Math.max(0, Math.floor(parseFloat(data.physical_qty || 0)));
       if (serials.length === 0) {
         errors.serial_ids = "Serial numbers are required";
-      } else if (serials.length !== requiredQty) {
-        errors.serial_ids = `Serial count (${serials.length}) must match quantity in Base UOM (${requiredQty})`;
+      } else if (serials.length !== qtyInt) {
+        errors.serial_ids = `Serial count (${serials.length}) must match quantity in Base UOM (${qtyInt})`;
       }
     }
   }
