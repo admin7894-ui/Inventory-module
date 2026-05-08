@@ -489,9 +489,32 @@ const RULES = {
 
     if (isEmpty(d.transfer_type)) e.transfer_type = reqDrop(d.transfer_type, 'Transfer Type');
     if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = reqDrop(d.default_ship_method_id, 'Ship Method');
+
+    const transferText = String(d.transfer_type_name || d.transfer_type || '').toUpperCase();
+    const isIntransit = transferText.includes('INTRANSIT');
+    if (isIntransit && isEmpty(d.intransit_lead_time_days)) {
+      e.intransit_lead_time_days = 'Lead time is required for Intransit transfer type';
+    } else {
+      const ltErr = nonNeg(d.intransit_lead_time_days, 'Lead time'); if (ltErr) e.intransit_lead_time_days = ltErr;
+    }
     
-    const ltErr = nonNeg(d.intransit_lead_time_days, 'Lead time'); if (ltErr) e.intransit_lead_time_days = ltErr;
-    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
+    validateDates(e, d);
+    return e;
+  },
+
+  transfer_type: (d) => {
+    const e = {};
+    validateCompanyGroup(e, {
+      ...d,
+      bg_id: d.bg_id || d.business_group_id,
+      COMPANY_id: d.COMPANY_id || d.company_id,
+    });
+    if (isEmpty(d.transfer_type_name)) e.transfer_type_name = MSG.REQ;
+    if (isEmpty(d.transfer_type_code)) e.transfer_type_code = MSG.REQ;
+    if (!isEmpty(d.transfer_type_code) && !/^TT-[A-Z0-9]+$/.test(String(d.transfer_type_code).trim().toUpperCase())) {
+      e.transfer_type_code = 'Transfer Type Code must be in TT-XXXXX format';
+    }
     if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;

@@ -1097,6 +1097,100 @@ const db = {
   }
 ],
 
+  // ── transfer_types (pk: id) ──
+  transfer_types: [
+  {
+    "id": "TTM01",
+    "transfer_type_code": "TT-DIRECT",
+    "transfer_type_name": "Direct",
+    "description": "Direct transfer type",
+    "business_group_id": "BG01",
+    "company_id": "C01",
+    "business_type_id": "BT01",
+    "bg_id": "BG01",
+    "COMPANY_id": "C01",
+    "is_active": "Y",
+    "active_flag": "Y",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "created_at": "2024-01-01 00:00:00",
+    "updated_at": "2024-01-01 00:00:00"
+  },
+  {
+    "id": "TTM02",
+    "transfer_type_code": "TT-INTRANSIT",
+    "transfer_type_name": "Intransit",
+    "description": "Intransit transfer type",
+    "business_group_id": "BG01",
+    "company_id": "C01",
+    "business_type_id": "BT01",
+    "bg_id": "BG01",
+    "COMPANY_id": "C01",
+    "is_active": "Y",
+    "active_flag": "Y",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "created_at": "2024-01-01 00:00:00",
+    "updated_at": "2024-01-01 00:00:00"
+  },
+  {
+    "id": "TTM03",
+    "transfer_type_code": "TT-DROPSHIP",
+    "transfer_type_name": "Dropship",
+    "description": "Dropship transfer type",
+    "business_group_id": "BG01",
+    "company_id": "C01",
+    "business_type_id": "BT01",
+    "bg_id": "BG01",
+    "COMPANY_id": "C01",
+    "is_active": "Y",
+    "active_flag": "Y",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "created_at": "2024-01-01 00:00:00",
+    "updated_at": "2024-01-01 00:00:00"
+  },
+  {
+    "id": "TTM04",
+    "transfer_type_code": "TT-CROSSDOCK",
+    "transfer_type_name": "Cross-Dock",
+    "description": "Cross-Dock transfer type",
+    "business_group_id": "BG01",
+    "company_id": "C01",
+    "business_type_id": "BT01",
+    "bg_id": "BG01",
+    "COMPANY_id": "C01",
+    "is_active": "Y",
+    "active_flag": "Y",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "created_at": "2024-01-01 00:00:00",
+    "updated_at": "2024-01-01 00:00:00"
+  },
+  {
+    "id": "TTM05",
+    "transfer_type_code": "TT-INTERNALTRANSFER",
+    "transfer_type_name": "Internal Transfer",
+    "description": "Internal transfer type",
+    "business_group_id": "BG01",
+    "company_id": "C01",
+    "business_type_id": "BT01",
+    "bg_id": "BG01",
+    "COMPANY_id": "C01",
+    "is_active": "Y",
+    "active_flag": "Y",
+    "effective_from": "2024-01-01 00:00:00",
+    "effective_to": "",
+    "created_by": "admin",
+    "created_at": "2024-01-01 00:00:00",
+    "updated_at": "2024-01-01 00:00:00"
+  }
+],
+
   // ── ship_network (pk: ship_network_id) ──
   ship_network: [
   {

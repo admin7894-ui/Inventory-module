@@ -11,7 +11,7 @@ import {
   inventoryOrgApi, subinventoryApi, locatorApi, itemMasterApi, uomApi, uomTypeApi,
   itemCategoryApi, itemSubCategoryApi, brandApi, itemTypeApi, zoneApi,
   lotMasterApi, serialMasterApi, transactionTypeApi, transactionReasonApi,
-  categorySetApi, costMethodApi, costTypeApi, shipMethodApi, legalEntityApi,
+  categorySetApi, costMethodApi, costTypeApi, shipMethodApi, transferTypesApi, legalEntityApi,
   operatingUnitApi, securityProfileApi, profileAccessApi, securityRolesApi,
   departmentsApi, rolesApi, designationApi,
 } from '../services/api'
@@ -122,6 +122,7 @@ export default function ShipNetworkPage() {
   const { options: costMethods } = useDropdownData(costMethodApi, 'cm_dd')
   const { options: costTypes } = useDropdownData(costTypeApi, 'ct_dd')
   const { options: shipMethods } = useDropdownData(shipMethodApi, 'sm_dd')
+  const { options: transferTypes } = useDropdownData(transferTypesApi, 'tt_dd', { is_active: 'Y' })
   const { options: legalEntities } = useDropdownData(legalEntityApi, 'le_dd')
   const { options: operatingUnits } = useDropdownData(operatingUnitApi, 'ou_dd')
   const { options: securityProfiles } = useDropdownData(securityProfileApi, 'sp_dd')
@@ -139,6 +140,7 @@ export default function ShipNetworkPage() {
     brand: brands, itemType: itemTypes, zone: zones, lotMaster: lots, serialMaster: serials,
     transactionType: txnTypes, transactionReason: txnReasons, categorySet: categorySets,
     costMethod: costMethods, costType: costTypes, shipMethod: shipMethods,
+    transferType: transferTypes,
     legalEntity: legalEntities, operatingUnit: operatingUnits,
     securityProfile: securityProfiles, profileAccess: profileAccesses,
     securityRoles: securityRolesList, departments: depts, roles: rolesList, designation: designations,
@@ -183,10 +185,17 @@ export default function ShipNetworkPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!v.runValidation(formData, orgValidateOpts)) return toast.error('Please fix the highlighted errors')
+    const selectedTransferType = (dropdowns.transferType || []).find(
+      (r) => String(r.transfer_type_code) === String(formData.transfer_type || '')
+    )
+    const payload = {
+      ...formData,
+      transfer_type_name: selectedTransferType?.transfer_type_name || formData.transfer_type_name || '',
+    }
+    if (!v.runValidation(payload, orgValidateOpts)) return toast.error('Please fix the highlighted errors')
     try {
-      if (view === 'edit') await table.update(selected['ship_network_id'], formData)
-      else await table.create(formData)
+      if (view === 'edit') await table.update(selected['ship_network_id'], payload)
+      else await table.create(payload)
       handleBack()
     } catch (err) {
       if (err.response?.data?.errors) {
@@ -237,10 +246,19 @@ export default function ShipNetworkPage() {
             </Field>
 
             <Field label="Transfer Type" required error={v.errors.transfer_type}>
-              <Input value={formData.transfer_type} 
-                onChange={e => setField('transfer_type', e.target.value)}
+              <Select value={formData.transfer_type}
+                onChange={val => {
+                  const chosen = (dropdowns.transferType || []).find((r) => String(r.transfer_type_code) === String(val))
+                  setField('transfer_type', val)
+                  setField('transfer_type_name', chosen?.transfer_type_name || '')
+                  if (!String(chosen?.transfer_type_name || '').toUpperCase().includes('INTRANSIT')) {
+                    setField('intransit_lead_time_days', '')
+                  }
+                }}
                 onBlur={() => v.handleBlur('transfer_type', formData)}
-                error={v.errors.transfer_type} />
+                error={v.errors.transfer_type}
+                options={dropdowns.transferType?.map(r => ({ value: r.transfer_type_code, label: r.transfer_type_name || r.transfer_type_code }))}
+              />
             </Field>
 
             <Field label="Default Ship Method" required error={v.errors.default_ship_method_id}>
@@ -251,11 +269,12 @@ export default function ShipNetworkPage() {
                 options={dropdowns.shipMethod?.map(r => ({ value: r.ship_method_id, label: r.ship_method_name || r.ship_method_id }))} />
             </Field>
 
-            <Field label="Intransit Lead Time Days" required error={v.errors.intransit_lead_time_days}>
+            <Field label="Intransit Lead Time Days" required={String(formData.transfer_type_name || formData.transfer_type || '').toUpperCase().includes('INTRANSIT')} error={v.errors.intransit_lead_time_days}>
               <Input type="number" value={formData.intransit_lead_time_days} 
                 onChange={e => setField('intransit_lead_time_days', e.target.value)}
                 onBlur={() => v.handleBlur('intransit_lead_time_days', formData)}
-                error={v.errors.intransit_lead_time_days} />
+                error={v.errors.intransit_lead_time_days}
+                disabled={!String(formData.transfer_type_name || formData.transfer_type || '').toUpperCase().includes('INTRANSIT')} />
             </Field>
 
             <Field label="Active"><Toggle value={formData.active_flag} onChange={v => setField('active_flag', v)} /></Field>

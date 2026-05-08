@@ -50,10 +50,12 @@ const validateShipNetwork = (data) => {
   // Default Ship Method
   requireDropdown(errors, data, 'default_ship_method_id', 'Default Ship Method');
 
+  const transferText = String(data.transfer_type_name || data.transfer_type || '').toUpperCase();
+  const isIntransit = transferText.includes('INTRANSIT');
   // Intransit Lead Time
-  if (isEmpty(data.intransit_lead_time_days)) {
-    errors.intransit_lead_time_days = 'Lead Time is required';
-  } else if (!isNonNegativeNumber(data.intransit_lead_time_days)) {
+  if (isIntransit && isEmpty(data.intransit_lead_time_days)) {
+    errors.intransit_lead_time_days = 'Lead Time is required for Intransit transfer type';
+  } else if (!isEmpty(data.intransit_lead_time_days) && !isNonNegativeNumber(data.intransit_lead_time_days)) {
     errors.intransit_lead_time_days = 'Lead Time must be ≥ 0';
   }
 

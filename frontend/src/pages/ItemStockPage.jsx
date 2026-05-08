@@ -65,7 +65,7 @@ export default function ItemStockPage() {
               <Field label="Item Code"><Input value={selected.item_code} readOnly /></Field>
               <Field label="Item Name"><Input value={selected.item_name} readOnly /></Field>
               <Field label="UOM"><Input value={selected.uom_name} readOnly /></Field>
-              <Field label="Lot Number"><Input value={selected.lot_number || '--'} readOnly /></Field>
+              <Field label="Lot Number"><Input value={selected.lot_number} readOnly /></Field>
             </div>
           </div>
 
@@ -86,7 +86,7 @@ export default function ItemStockPage() {
             <div className="grid grid-cols-1 gap-4">
               <Field label="Organization"><Input value={selected.inv_org_name} readOnly /></Field>
               <Field label="Subinventory"><Input value={selected.subinventory_name} readOnly /></Field>
-              <Field label="Locator"><Input value={selected.locator_name || '--'} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_name} readOnly /></Field>
             </div>
           </div>
 

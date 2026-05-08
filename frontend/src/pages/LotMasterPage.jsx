@@ -52,8 +52,8 @@ export default function LotMasterPage() {
             <Field label="Damaged Qty"><Input value={selected.damaged_qty} readOnly className="font-bold text-rose-600" /></Field>
             <Field label="Reserved Qty"><Input value={selected.reserved_qty} readOnly className="font-bold text-amber-600" /></Field>
             <Field label="Hold Qty"><Input value={selected.hold_qty} readOnly className="font-bold text-gray-600" /></Field>
-            <Field label="Manufacture Date"><Input value={selected.manufacture_date || '--'} readOnly /></Field>
-            <Field label="Expiry Date"><Input value={selected.expiry_date || '--'} readOnly /></Field>
+            <Field label="Manufacture Date"><Input value={selected.manufacture_date} readOnly /></Field>
+            <Field label="Expiry Date"><Input value={selected.expiry_date} readOnly /></Field>
             <Field label="Status">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                 selected.status === 'AVAILABLE' || selected.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
@@ -63,11 +63,11 @@ export default function LotMasterPage() {
                 {selected.status || 'ACTIVE'}
               </span>
             </Field>
-            <Field label="Active"><Input value={selected.active_flag || '--'} readOnly /></Field>
-            <Field label="Effective From"><Input value={selected.effective_from || '--'} readOnly /></Field>
-            <Field label="Effective To"><Input value={selected.effective_to || '--'} readOnly /></Field>
-            <Field label="Created By"><Input value={selected.created_by || '--'} readOnly /></Field>
-            <Field label="Updated By"><Input value={selected.updated_by || '--'} readOnly /></Field>
+            <Field label="Active"><Input value={selected.active_flag} readOnly /></Field>
+            <Field label="Effective From"><Input value={selected.effective_from} readOnly /></Field>
+            <Field label="Effective To"><Input value={selected.effective_to} readOnly /></Field>
+            <Field label="Created By"><Input value={selected.created_by} readOnly /></Field>
+            <Field label="Updated By"><Input value={selected.updated_by} readOnly /></Field>
           </div>
         </div>
       </FormPage>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { ChevronUp, ChevronDown, Search, X, ChevronLeft, ChevronRight, Eye, Edit2, Trash2, CheckCircle2, ToggleLeft, ToggleRight, AlertTriangle, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
 import { createContext, useContext } from 'react'
+import { displayValue as formatDisplayValue, isDisplayEmpty, resolveDisplayValue, EMPTY_PLACEHOLDER } from '../../utils/displayValue'
 
 const FormContext = createContext({ mode: 'edit' })
 export const useFormMode = () => useContext(FormContext)
@@ -16,7 +17,8 @@ export function StatusBadge({ value }) {
     ['IN','INTRA'].includes(v) ? 'badge-blue' :
     ['OUT','INTER'].includes(v) ? 'badge-red' :
     ['TRANSFER'].includes(v) ? 'badge-purple' : 'badge-gray'
-  return <span className={cls}>{value || '???'}</span>
+  const display = formatDisplayValue(value)
+  return <span className={clsx(cls, display === EMPTY_PLACEHOLDER && 'text-gray-500 dark:text-gray-400')}>{display}</span>
 }
 
 // ?????? Toggle Switch ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -51,9 +53,11 @@ export function Select({ value, onChange, options = [], placeholder = '-- Select
     : (displayValue || normalizedCurrent)
 
   if (isView) {
+    const viewDisplay = formatDisplayValue(currentValue === '' ? label : currentValue)
+    const isPlaceholder = viewDisplay === EMPTY_PLACEHOLDER
     return (
-      <div className={clsx('input bg-gray-100 dark:bg-gray-800 opacity-80 cursor-default truncate', className)}>
-        {currentValue === '' ? '' : label}
+      <div className={clsx('input bg-gray-100 dark:bg-gray-800 opacity-80 cursor-default truncate', isPlaceholder && 'text-gray-500 dark:text-gray-400', className)}>
+        {viewDisplay}
       </div>
     )
   }
@@ -167,9 +171,17 @@ export function MultiSelect({ value = [], onChange, options = [], placeholder = 
 export function DateInput({ value, onChange, required, error, min, max, disabled }) {
   const { mode } = useFormMode()
   const isView = mode === 'view'
+  if (isView) {
+    const display = formatDisplayValue(value)
+    return (
+      <div className={clsx('input bg-gray-100 dark:bg-gray-800 opacity-80 cursor-default', display === EMPTY_PLACEHOLDER && 'text-gray-500 dark:text-gray-400')}>
+        {display}
+      </div>
+    )
+  }
   return (
     <input type="date" value={value || ''} onChange={e => onChange(e.target.value)}
-      className={error ? 'input-error' : 'input'} required={required} min={min} max={max} disabled={disabled || isView} />
+      className={error ? 'input-error' : 'input'} required={required} min={min} max={max} disabled={disabled} />
   )
 }
 
@@ -177,15 +189,17 @@ export function DateInput({ value, onChange, required, error, min, max, disabled
 export function Input({ value, onChange, type = 'text', placeholder, disabled, readOnly, error, className, ...props }) {
   const { mode } = useFormMode()
   const isView = mode === 'view'
+  const shouldShowPlaceholder = (readOnly || isView) && isDisplayEmpty(value)
+  const display = shouldShowPlaceholder ? EMPTY_PLACEHOLDER : (value ?? '')
   return (
     <input
       type={type}
-      value={value || ''}
+      value={display}
       onChange={onChange}
       placeholder={placeholder}
       disabled={disabled || isView}
       readOnly={readOnly}
-      className={clsx(error ? 'input-error' : 'input', (readOnly || isView) && 'bg-gray-100 dark:bg-gray-800', className)}
+      className={clsx(error ? 'input-error' : 'input', (readOnly || isView) && 'bg-gray-100 dark:bg-gray-800', shouldShowPlaceholder && 'text-gray-500 dark:text-gray-400', className)}
       {...props}
     />
   )
@@ -214,14 +228,10 @@ export function ConfirmDialog({ open, title, message, onConfirm, onCancel, loadi
 }
 
 // ?????? Data Table ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-function displayValue(row, col, index) {
+function getColumnDisplayValue(row, col, index) {
   if (!row || index === 0) return row?.[col.key]
   const candidates = [`${col.key}_display`, `${col.key}_name`, col.displayKey].filter(Boolean)
-  for (const key of candidates) {
-    const value = row[key]
-    if (value !== undefined && value !== null && String(value).trim() !== '') return value
-  }
-  return row[col.key]
+  return resolveDisplayValue([...candidates.map(key => row[key]), row[col.key]])
 }
 
 export function DataTable({ title, subtitle, columns, data, total, page, pages, limit, onSearch, onPageChange, onSort, sortBy, sortOrder, loading, onCreate, actions = {}, renderCell, filterBar }) {
@@ -297,11 +307,17 @@ export function DataTable({ title, subtitle, columns, data, total, page, pages, 
                     {columns.map((col, colIndex) => (
                       <td key={col.key} className="td">
                         {renderCell ? renderCell(col, row) : (
-                          col.render ? col.render(displayValue(row, col, colIndex), row) :
-                          col.type === 'badge' ? <StatusBadge value={displayValue(row, col, colIndex)} /> :
+                          col.render ? col.render(getColumnDisplayValue(row, col, colIndex), row) :
+                          col.type === 'badge' ? <StatusBadge value={getColumnDisplayValue(row, col, colIndex)} /> :
                           col.type === 'toggle' ? <Toggle value={row[col.key]} disabled /> :
-                          col.type === 'currency' ? <span className="font-medium text-emerald-700">???{parseFloat(row[col.key]||0).toLocaleString()}</span> :
-                          <span className="text-gray-700 dark:text-gray-300">{String(displayValue(row, col, colIndex) || '?')}</span>
+                          col.type === 'currency' ? (
+                            isDisplayEmpty(row[col.key])
+                              ? <span className="text-gray-500 dark:text-gray-400">{EMPTY_PLACEHOLDER}</span>
+                              : <span className="font-medium text-emerald-700">₹{parseFloat(row[col.key]).toLocaleString()}</span>
+                          ) :
+                          <span className={clsx('text-gray-700 dark:text-gray-300', getColumnDisplayValue(row, col, colIndex) === EMPTY_PLACEHOLDER && 'text-gray-500 dark:text-gray-400')}>
+                            {String(formatDisplayValue(getColumnDisplayValue(row, col, colIndex)))}
+                          </span>
                         )}
                       </td>
                     ))}

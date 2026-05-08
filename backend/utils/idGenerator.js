@@ -22,6 +22,7 @@ const PREFIXES = {
   cost_type: 'CT',
   org_parameter: 'OPRM',
   ship_method: 'SM',
+  transfer_types: 'TTM',
   ship_network: 'SN',
   intercompany: 'IC',
   uom_type: 'UT',

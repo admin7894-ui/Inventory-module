@@ -38,6 +38,7 @@ const NAV = [
   ]},
   { group: '🚢 Shipping', items: [
     { label: 'Ship Method',  path: '/ship-method' },
+    { label: 'Transfer Type', path: '/transfer-type' },
     { label: 'Ship Network', path: '/ship-network' },
     { label: 'Intercompany', path: '/intercompany' },
   ]},

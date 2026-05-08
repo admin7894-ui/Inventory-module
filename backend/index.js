@@ -57,6 +57,7 @@ app.use('/api/cost-method',               require('./routes/costMethod'));
 app.use('/api/cost-type',                 require('./routes/costType'));
 app.use('/api/org-parameter',             require('./routes/orgParameter'));
 app.use('/api/ship-method',               require('./routes/shipMethod'));
+app.use('/api/transfer-types',            require('./routes/transferTypes'));
 app.use('/api/ship-network',              require('./routes/shipNetwork'));
 app.use('/api/intercompany',              require('./routes/intercompany'));
 app.use('/api/uom-type',                  require('./routes/uomType'));

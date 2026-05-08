@@ -71,8 +71,8 @@ export default function InventoryTransactionPage() {
           <div className="card p-6">
             <SectionHeader icon={Hash} title="Tracking" color="amber" />
             <div className="grid grid-cols-1 gap-4">
-              <Field label="Lot Number"><Input value={selected.display_lot || selected.lot_number || '--'} readOnly /></Field>
-              <Field label="Serial Number"><Input value={selected.display_serial || selected.serial_number || '--'} readOnly /></Field>
+              <Field label="Lot Number"><Input value={selected.display_lot || selected.lot_number} readOnly /></Field>
+              <Field label="Serial Number"><Input value={selected.display_serial || selected.serial_number} readOnly /></Field>
               <Field label="Reference"><Input value={`${selected.reference_type}: ${selected.reference_no}`} readOnly /></Field>
             </div>
           </div>

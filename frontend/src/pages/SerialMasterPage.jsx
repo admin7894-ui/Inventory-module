@@ -62,14 +62,14 @@ export default function SerialMasterPage() {
                 {selected.status || 'UNKNOWN'}
               </span>
             </Field>
-            <Field label="Current Subinventory"><Input value={selected.current_subinventory_id || '--'} readOnly /></Field>
-            <Field label="Current Locator"><Input value={selected.current_locator_id || '--'} readOnly /></Field>
-            <Field label="Lot"><Input value={selected.lot_number || selected.lot_id || '--'} readOnly /></Field>
-            <Field label="Active"><Input value={selected.active_flag || '--'} readOnly /></Field>
-            <Field label="Effective From"><Input value={selected.effective_from || '--'} readOnly /></Field>
-            <Field label="Effective To"><Input value={selected.effective_to || '--'} readOnly /></Field>
-            <Field label="Created By"><Input value={selected.created_by || '--'} readOnly /></Field>
-            <Field label="Updated By"><Input value={selected.updated_by || '--'} readOnly /></Field>
+            <Field label="Current Subinventory"><Input value={selected.current_subinventory_id} readOnly /></Field>
+            <Field label="Current Locator"><Input value={selected.current_locator_id} readOnly /></Field>
+            <Field label="Lot"><Input value={selected.lot_number || selected.lot_id} readOnly /></Field>
+            <Field label="Active"><Input value={selected.active_flag} readOnly /></Field>
+            <Field label="Effective From"><Input value={selected.effective_from} readOnly /></Field>
+            <Field label="Effective To"><Input value={selected.effective_to} readOnly /></Field>
+            <Field label="Created By"><Input value={selected.created_by} readOnly /></Field>
+            <Field label="Updated By"><Input value={selected.updated_by} readOnly /></Field>
           </div>
         </div>
       </FormPage>

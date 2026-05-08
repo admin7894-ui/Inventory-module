@@ -60,9 +60,9 @@ export default function BatchSerialTrackingPage() {
               <Field label="Tracking ID"><Input value={selected.tracking_id} readOnly /></Field>
               <Field label="Type"><Input value={selected.tracking_type} readOnly /></Field>
               <Field label="Status"><Input value={selected.status} readOnly className="font-bold text-emerald-700 uppercase" /></Field>
-              <Field label="Lot Number"><Input value={selected.lot_number || '--'} readOnly /></Field>
-              <Field label="Serial Number"><Input value={selected.serial_number || '--'} readOnly /></Field>
-              <Field label="Quantity"><Input value={selected.tracking_qty || '--'} readOnly className="font-bold" /></Field>
+              <Field label="Lot Number"><Input value={selected.lot_number} readOnly /></Field>
+              <Field label="Serial Number"><Input value={selected.serial_number} readOnly /></Field>
+              <Field label="Quantity"><Input value={selected.tracking_qty} readOnly className="font-bold" /></Field>
             </div>
           </div>
 
@@ -80,8 +80,8 @@ export default function BatchSerialTrackingPage() {
             <SectionHeader icon={Calendar} title="Dates & Lifecycle" color="purple" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Receipt Date"><Input value={selected.receipt_date} readOnly /></Field>
-              <Field label="Manufacture Date"><Input value={selected.manufacture_date || '--'} readOnly /></Field>
-              <Field label="Expiry Date"><Input value={selected.expiry_date || '--'} readOnly className={selected.expiry_date ? 'text-rose-600' : ''} /></Field>
+              <Field label="Manufacture Date"><Input value={selected.manufacture_date} readOnly /></Field>
+              <Field label="Expiry Date"><Input value={selected.expiry_date} readOnly className={selected.expiry_date ? 'text-rose-600' : ''} /></Field>
             </div>
           </div>
 
@@ -90,7 +90,7 @@ export default function BatchSerialTrackingPage() {
             <div className="grid grid-cols-1 gap-4">
               <Field label="Organization"><Input value={selected.inv_org_name || selected.inv_org_id} readOnly /></Field>
               <Field label="Subinventory"><Input value={selected.subinventory_name || selected.subinventory_id} readOnly /></Field>
-              <Field label="Locator"><Input value={selected.locator_name || selected.locator_id || '--'} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_name || selected.locator_id} readOnly /></Field>
             </div>
           </div>
 

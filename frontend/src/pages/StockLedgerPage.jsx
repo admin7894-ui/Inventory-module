@@ -61,7 +61,7 @@ export default function StockLedgerPage() {
               <Field label="Item Code"><Input value={selected.item_code} readOnly /></Field>
               <Field label="Item Name"><Input value={selected.item_name} readOnly /></Field>
               <Field label="UOM"><Input value={selected.uom_name} readOnly /></Field>
-              <Field label="Lot/Serial"><Input value={selected.lot_number || selected.serial_number || '--'} readOnly /></Field>
+              <Field label="Lot/Serial"><Input value={selected.lot_number || selected.serial_number} readOnly /></Field>
             </div>
           </div>
 

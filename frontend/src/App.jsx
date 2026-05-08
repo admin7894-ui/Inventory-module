@@ -28,6 +28,7 @@ import CostMethodPage            from './pages/CostMethodPage'
 import CostTypePage              from './pages/CostTypePage'
 import OrgParameterPage          from './pages/OrgParameterPage'
 import ShipMethodPage            from './pages/ShipMethodPage'
+import TransferTypePage          from './pages/TransferTypePage'
 import ShipNetworkPage           from './pages/ShipNetworkPage'
 import IntercompanyPage          from './pages/IntercompanyPage'
 import UomTypePage               from './pages/UomTypePage'
@@ -96,6 +97,7 @@ function AppRoutes() {
 
       {/* Shipping */}
       <Route path="/ship-method"             element={<ProtectedRoute><ShipMethodPage /></ProtectedRoute>} />
+      <Route path="/transfer-type"           element={<ProtectedRoute><TransferTypePage /></ProtectedRoute>} />
       <Route path="/ship-network"            element={<ProtectedRoute><ShipNetworkPage /></ProtectedRoute>} />
       <Route path="/intercompany"            element={<ProtectedRoute><IntercompanyPage /></ProtectedRoute>} />
 

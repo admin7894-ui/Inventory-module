@@ -12,6 +12,7 @@ const { validateCostType } = require('./costTypeValidator');
 const { validateOrgParameter } = require('./orgParameterValidator');
 const { validateShipMethod } = require('./shipMethodValidator');
 const { validateShipNetwork } = require('./shipNetworkValidator');
+const { validateTransferType } = require('./transferTypesValidator');
 const { validateIntercompany } = require('./intercompanyValidator');
 const { validateUomType } = require('./uomTypeValidator');
 const { validateUom } = require('./uomValidator');
@@ -60,6 +61,7 @@ module.exports = {
   validateOrgParameter,
   validateShipMethod,
   validateShipNetwork,
+  validateTransferType,
   validateIntercompany,
   validateUomType,
   validateUom,

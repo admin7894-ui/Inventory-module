@@ -77,6 +77,10 @@ export const costMethodApi            = crud('/cost-method')
 export const costTypeApi              = crud('/cost-type')
 export const orgParameterApi          = crud('/org-parameter')
 export const shipMethodApi            = crud('/ship-method')
+export const transferTypesApi         = {
+  ...crud('/transfer-types'),
+  updateStatus: (id, data) => api.patch(`/transfer-types/${id}/status`, data).then(r => r.data),
+}
 export const shipNetworkApi           = {
   ...crud('/ship-network'),
   validate: (params) => api.get('/ship-network/validate', { params }).then(r => r.data)
