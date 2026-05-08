@@ -183,37 +183,70 @@ exports.create = async (req, res) => {
     body.total_value = (qty * parseFloat(body.unit_cost || 0)).toFixed(2);
     body.opening_date = body.opening_date || new Date().toISOString().split('T')[0];
     body.uom_id = body.uom_id || item.primary_uom_id;
-    body.active_flag = 'Y';
-    body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+    body.active_flag = body.active_flag || 'Y';
+    body.approval_status = body.approval_status || 'PENDING';
+    
     body.created_by = body.created_by || req.user?.username || MOCK_USER;
+    body.created_date = new Date().toISOString();
     body.created_at = new Date().toISOString();
     body.updated_at = new Date().toISOString();
     body.txn_type_id = body.txn_type_id || 'TT06';
 
-    // ── PROCESS VIA INVENTORY ENGINE ────────────────────────────
-    const engineResult = await inventoryEngine.processOpeningStock(body, req.user);
+    // ── PROCESS VIA INVENTORY ENGINE ONLY IF APPROVED ────────────
+    if (body.approval_status === 'APPROVED') {
+      body.approved_by = body.approved_by || req.user?.username || MOCK_USER;
+      body.approved_date = new Date().toISOString();
+      await inventoryEngine.processOpeningStock(body, req.user);
+    } else {
+      delete body.approved_by;
+      delete body.approved_date;
+    }
 
     if (!db[TABLE]) db[TABLE] = [];
     db[TABLE].push(body);
 
-    res.status(201).json({ success: true, data: body, engine: engineResult, message: 'Opening stock processed successfully' });
+    res.status(201).json({ success: true, data: body, message: body.approval_status === 'APPROVED' ? 'Opening stock processed successfully' : 'Opening stock saved as PENDING' });
   } catch (e) { res.status(400).json({ success: false, message: e.message }); }
 };
 
-exports.update = (req, res) => {
+exports.update = async (req, res) => {
   try {
     const idx = (db[TABLE] || []).findIndex(r => r[PK] === req.params.id);
     if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
+    
+    const prev = db[TABLE][idx];
+
+    // Rules: If STATUS = APPROVED: Disable Edit
+    if (prev.approval_status === 'APPROVED' && req.body.approval_status !== 'APPROVED') {
+       // Only allow updating if it's NOT changing the approval status or if it's already approved.
+       // Actually, the user says "Disable Edit" if APPROVED.
+       // But we might need to allow updating active_flag? 
+       // User said: "Only PENDING records can be: Edited, Deleted, Approved"
+       // This implies once APPROVED, it's locked.
+       return res.status(400).json({ success: false, message: 'Approved records cannot be edited' });
+    }
+
+    // Special case for approval
+    const isApproving = prev.approval_status !== 'APPROVED' && req.body.approval_status === 'APPROVED';
+
     const updated = {
-      ...db[TABLE][idx],
+      ...prev,
       ...req.body,
       [PK]: req.params.id,
-      COMPANY_id: req.body.COMPANY_id || req.body.company_id || db[TABLE][idx].COMPANY_id,
+      COMPANY_id: req.body.COMPANY_id || req.body.company_id || prev.COMPANY_id,
       updated_by: req.user?.username || MOCK_USER,
+      updated_date: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
+    if (isApproving) {
+      updated.approved_by = updated.approved_by || req.user?.username || MOCK_USER;
+      updated.approved_date = new Date().toISOString();
+      await inventoryEngine.processOpeningStock(updated, req.user);
+    }
+
     db[TABLE][idx] = updated;
-    res.json({ success: true, data: updated, message: 'Updated' });
+    res.json({ success: true, data: updated, message: isApproving ? 'Opening stock approved and posted' : 'Updated' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
@@ -221,6 +254,12 @@ exports.remove = (req, res) => {
   try {
     const idx = (db[TABLE] || []).findIndex(r => r[PK] === req.params.id);
     if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
+    
+    const prev = db[TABLE][idx];
+    if (prev.approval_status === 'APPROVED') {
+      return res.status(400).json({ success: false, message: 'Approved records cannot be deleted' });
+    }
+
     const [del] = db[TABLE].splice(idx, 1);
     res.json({ success: true, data: del, message: 'Deleted' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

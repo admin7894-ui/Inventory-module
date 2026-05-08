@@ -12,31 +12,53 @@ const isValidDate = (v) => !isEmpty(v) && !isNaN(new Date(v).getTime());
 const isFutureDate = (v) => isValidDate(v) && new Date(v) > new Date();
 
 const REGEX = {
+  // Must be 3–100 characters (letters, numbers, space, &, -, ())
   NAME: /^[A-Za-z0-9 &()\-]{3,100}$/,
+  // Only validate manually entered code fields if editable
   CODE: /^[A-Z0-9_-]{2,20}$/,
+  // Enter valid 15-character GST number
   GST: /^[0-9A-Z]{15}$/,
+  // Use 3-letter currency code (e.g., INR, USD)
   CURRENCY: /^[A-Z]{3}$/,
   HSN: /^[0-9]{4,8}$/,
 };
 
-// Require a field; returns error string or null
-const req = (val, label) => isEmpty(val) ? 'This field is required' : null;
-const reqDrop = (val, label) => isEmpty(val) ? 'This field is required' : null;
-const posNum = (val, label) => !isEmpty(val) && !isPositiveNumber(val) ? 'Invalid format' : null;
-const nonNeg = (val, label) => !isEmpty(val) && !isNonNegativeNumber(val) ? 'Invalid format' : null;
+// Error Messages Constants
+const MSG = {
+  REQ: 'This field is required',
+  DATE_REQ: 'Date is required',
+  DATE_RANGE: 'End date cannot be before start date',
+  TRANSFER: 'Source and destination cannot be the same',
+  GST: 'Enter valid 15-character GST number',
+  CURRENCY: 'Use 3-letter currency code (e.g., INR, USD)',
+  PRECISION: 'Decimal precision must be between 0 and 6',
+  DESC_LIMIT: 'Description cannot exceed 250 characters',
+  ORG_NOT_CONFIG: 'This Inventory Org is not configured in Org Parameter',
+  ITEM_CONTROL: 'Item cannot be both Serial and Lot controlled',
+  OU_SAME: 'Sell OU and Ship OU cannot be the same',
+  MIN_MAX_QTY: 'Maximum quantity cannot be less than minimum quantity',
+  NAME_FORMAT: 'Must be 3–100 characters (letters, numbers, space, &, -, ())',
+};
+
+// ── Shared Validation Functions ──────────────────────────────
+
+const req = (val) => isEmpty(val) ? MSG.REQ : null;
+const reqDrop = (val, l) => isEmpty(val) ? `Please select ${l}` : null;
+const posNum = (val, l) => !isEmpty(val) && !isPositiveNumber(val) ? `${l} must be greater than 0` : null;
+const nonNeg = (val, l) => !isEmpty(val) && !isNonNegativeNumber(val) ? `${l} cannot be negative` : null;
 
 // Common: Company Group cascade
 function validateCompanyGroup(e, d) {
-  if (isEmpty(d.bg_id)) e.bg_id = 'This field is required';
-  if (isEmpty(d.COMPANY_id)) e.COMPANY_id = 'This field is required';
-  if (isEmpty(d.business_type_id)) e.business_type_id = 'This field is required';
+  if (isEmpty(d.bg_id)) e.bg_id = MSG.REQ;
+  if (isEmpty(d.COMPANY_id)) e.COMPANY_id = MSG.REQ;
+  if (isEmpty(d.business_type_id)) e.business_type_id = MSG.REQ;
 }
 
 // Common: Date range
 function validateDates(e, d) {
-  if (isEmpty(d.effective_from)) e.effective_from = 'This field is required';
+  if (isEmpty(d.effective_from)) e.effective_from = MSG.REQ;
   if (d.effective_from && d.effective_to && new Date(d.effective_to) < new Date(d.effective_from)) {
-    e.effective_to = 'Invalid format';
+    e.effective_to = MSG.DATE_RANGE;
   }
 }
 
@@ -48,49 +70,63 @@ const RULES = {
   legal_entity: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.le_name)) e.le_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.le_name).trim())) e.le_name = 'Invalid format';
-    if (isEmpty(d.tax_registration_no)) e.tax_registration_no = 'This field is required';
-    else if (!REGEX.GST.test(String(d.tax_registration_no).trim())) e.tax_registration_no = 'Invalid format';
-    if (isEmpty(d.location_id)) e.location_id = 'This field is required';
-    if (isEmpty(d.currency_code)) e.currency_code = 'This field is required';
-    else if (!REGEX.CURRENCY.test(String(d.currency_code).trim())) e.currency_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.le_name)) e.le_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.le_name).trim())) e.le_name = MSG.NAME_FORMAT;
+    
+    if (isEmpty(d.tax_registration_no)) e.tax_registration_no = MSG.REQ;
+    else if (!REGEX.GST.test(String(d.tax_registration_no).trim())) e.tax_registration_no = MSG.GST;
+    
+    if (isEmpty(d.location_id)) e.location_id = reqDrop(d.location_id, 'Location');
+    
+    if (isEmpty(d.currency_code)) e.currency_code = MSG.REQ;
+    else if (!REGEX.CURRENCY.test(String(d.currency_code).trim())) e.currency_code = MSG.CURRENCY;
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ OPERATING UNIT ━━━━━━━━━━━━━━
-  operating_unit: (d) => {
+  operating_unit: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.le_id)) e.le_id = 'This field is required';
-    if (isEmpty(d.ou_name)) e.ou_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.ou_name).trim())) e.ou_name = 'Invalid format';
-    if (isEmpty(d.ou_short_code)) e.ou_short_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.ou_short_code).trim())) e.ou_short_code = 'Invalid format';
-    if (isEmpty(d.location_id)) e.location_id = 'This field is required';
-    if (isEmpty(d.currency_code)) e.currency_code = 'This field is required';
-    else if (!REGEX.CURRENCY.test(String(d.currency_code).trim())) e.currency_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.le_id)) e.le_id = reqDrop(d.le_id, 'Legal Entity');
+    if (isEmpty(d.ou_name)) e.ou_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.ou_name).trim())) e.ou_name = MSG.NAME_FORMAT;
+    
+    // Only validate manual code if not auto-generated/view mode
+    if (!opts.isAutoGenerated && !isEmpty(d.ou_short_code)) {
+       if (!REGEX.CODE.test(String(d.ou_short_code).trim())) e.ou_short_code = 'Invalid format';
+    } else if (isEmpty(d.ou_short_code) && !opts.isAutoGenerated) {
+       e.ou_short_code = MSG.REQ;
+    }
+
+    if (isEmpty(d.location_id)) e.location_id = reqDrop(d.location_id, 'Location');
+    if (isEmpty(d.currency_code)) e.currency_code = MSG.REQ;
+    else if (!REGEX.CURRENCY.test(String(d.currency_code).trim())) e.currency_code = MSG.CURRENCY;
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ INVENTORY ORGANIZATION ━━━━━━━━━━━━━━
-  inventory_org: (d) => {
+  inventory_org: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.inv_org_name)) {
-      e.inv_org_name = 'This field is required';
+      e.inv_org_name = MSG.REQ;
     } else if (!REGEX.NAME.test(String(d.inv_org_name).trim())) {
-      e.inv_org_name = 'Invalid format';
+      e.inv_org_name = MSG.NAME_FORMAT;
     }
-    if (isEmpty(d.inv_org_code)) e.inv_org_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.inv_org_code).trim())) e.inv_org_code = 'Invalid format';
-    if (isEmpty(d.le_id)) e.le_id = 'This field is required';
-    if (isEmpty(d.location_id)) e.location_id = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.inv_org_code)) e.inv_org_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.inv_org_code).trim())) e.inv_org_code = 'Invalid format';
+    }
+
+    if (isEmpty(d.le_id)) e.le_id = reqDrop(d.le_id, 'Legal Entity');
+    if (isEmpty(d.location_id)) e.location_id = reqDrop(d.location_id, 'Location');
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -99,33 +135,38 @@ const RULES = {
   item_master: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_name)) e.item_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.item_name).trim())) e.item_name = 'Invalid format';
-    if (isEmpty(d.item_type_id)) e.item_type_id = 'This field is required';
-    if (!isEmpty(d.item_code) && !REGEX.CODE.test(String(d.item_code).trim())) e.item_code = 'Invalid format';
+    if (isEmpty(d.item_name)) e.item_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.item_name).trim())) e.item_name = MSG.NAME_FORMAT;
+    
+    if (isEmpty(d.item_type_id)) e.item_type_id = reqDrop(d.item_type_id, 'Item Type');
+    
+    if (!opts.isAutoGenerated && !isEmpty(d.item_code)) {
+       if (!REGEX.CODE.test(String(d.item_code).trim())) e.item_code = 'Invalid format';
+    }
 
     const isPhysical = opts.isPhysical;
     if (isPhysical === true) {
-      if (isEmpty(d.primary_uom_id)) e.primary_uom_id = 'This field is required';
-      if (isEmpty(d.category_id)) e.category_id = 'This field is required';
-      if (d.is_serial_controlled === 'Y' && d.is_lot_controlled === 'Y')
-        e.is_lot_controlled = 'Invalid format';
+      if (isEmpty(d.primary_uom_id)) e.primary_uom_id = reqDrop(d.primary_uom_id, 'Primary UOM');
+      if (isEmpty(d.category_id)) e.category_id = reqDrop(d.category_id, 'Category');
+      
+      // Item control rule: Cannot be both Serial and Lot controlled
+      if ((d.is_serial_controlled === 'Y' || d.is_serial_controlled === true) && (d.is_lot_controlled === 'Y' || d.is_lot_controlled === true)) {
+        e.is_lot_controlled = MSG.ITEM_CONTROL;
+        e.is_serial_controlled = MSG.ITEM_CONTROL;
+      }
+
       if ((d.is_expirable === 'Y' || d.is_expirable === true) && isEmpty(d.shelf_life_days))
-        e.shelf_life_days = 'This field is required';
+        e.shelf_life_days = MSG.REQ;
+        
       const wErr = nonNeg(d.weight_kg, 'Weight'); if (wErr) e.weight_kg = wErr;
       const vErr = nonNeg(d.volume_cbm, 'Volume'); if (vErr) e.volume_cbm = vErr;
-      const minErr = posNum(d.min_order_qty, 'Min qty'); if (minErr) e.min_order_qty = minErr;
-      const maxErr = posNum(d.max_order_qty, 'Max qty'); if (maxErr) e.max_order_qty = maxErr;
+      const minErr = posNum(d.min_order_qty, 'Minimum order quantity'); if (minErr) e.min_order_qty = minErr;
+      const maxErr = posNum(d.max_order_qty, 'Maximum order quantity'); if (maxErr) e.max_order_qty = maxErr;
+      
       if (!isEmpty(d.min_order_qty) && !isEmpty(d.max_order_qty) && Number(d.min_order_qty) > Number(d.max_order_qty))
-        e.max_order_qty = 'Max qty must be ≥ Min qty';
+        e.max_order_qty = MSG.MIN_MAX_QTY;
     }
-    if (isPhysical === false) {
-      if (d.is_license_required === 'Y' || d.is_license_required === true) {
-        if (isEmpty(d.license_type)) e.license_type = 'License type is required';
-        if (isEmpty(d.max_users)) e.max_users = 'Max users is required';
-        else if (!isPositiveNumber(d.max_users)) e.max_users = 'Max users must be > 0';
-      }
-    }
+    
     const scErr = nonNeg(d.standard_cost, 'Standard cost'); if (scErr) e.standard_cost = scErr;
     const lpErr = nonNeg(d.list_price, 'List price'); if (lpErr) e.list_price = lpErr;
     validateDates(e, d);
@@ -136,45 +177,31 @@ const RULES = {
   opening_stock: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_id)) e.item_id = 'Please select Item';
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Inventory Org';
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Please select Subinventory';
-    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = 'Please select Locator';
-    if (isEmpty(d.txn_reason_id)) e.txn_reason_id = 'Please select Transaction Reason';
-    if (isEmpty(d.opening_qty)) e.opening_qty = 'Quantity is required';
-    else if (!isPositiveNumber(d.opening_qty)) e.opening_qty = 'Quantity must be > 0';
-    if (isEmpty(d.unit_cost)) e.unit_cost = 'Unit cost is required';
-    else if (!isNonNegativeNumber(d.unit_cost)) e.unit_cost = 'Unit cost must be ≥ 0';
-    if (!isEmpty(d.opening_date) && isFutureDate(d.opening_date))
-      e.opening_date = 'Opening date cannot be in the future';
-    // Lot optional when org+item lot-controlled — backend auto-generates if blank
+    if (isEmpty(d.item_id)) e.item_id = reqDrop(d.item_id, 'Item');
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = reqDrop(d.subinventory_id, 'Subinventory');
+    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = reqDrop(d.locator_id, 'Locator');
+    if (isEmpty(d.txn_reason_id)) e.txn_reason_id = reqDrop(d.txn_reason_id, 'Transaction Reason');
+    
+    if (isEmpty(d.opening_qty)) e.opening_qty = MSG.REQ;
+    else if (!isPositiveNumber(d.opening_qty)) e.opening_qty = 'Opening quantity must be greater than 0';
+    
+    if (isEmpty(d.unit_cost)) e.unit_cost = MSG.REQ;
+    else if (!isNonNegativeNumber(d.unit_cost)) e.unit_cost = 'Unit cost cannot be negative';
+    
+    if (!isEmpty(d.opening_date)) {
+       if (!isValidDate(d.opening_date)) e.opening_date = 'Invalid date format';
+       else if (isFutureDate(d.opening_date)) e.opening_date = 'Opening date cannot be in the future';
+    }
+
     if (opts.isSerialControlled && opts.serialMode === 'manual') {
       const serials = opts.serialInputs || [];
       const validSerials = serials.filter(s => s && s.trim());
       const qty = parseInt(opts.convertedQty !== undefined ? opts.convertedQty : d.opening_qty) || 0;
       if (validSerials.length > 0 && validSerials.length !== qty) {
-        e.serial_numbers = `Need exactly ${qty} serial numbers (or leave all blank for auto-generation)`;
+        e.serial_numbers = `Enter exactly ${qty} serial numbers or leave blank for auto-generation`;
       }
     }
-    return e;
-  },
-
-  // ━━━━━━━━━━━━━━ ITEM STOCK (ONHAND) ━━━━━━━━━━━━━━
-  item_stock: (d) => {
-    const e = {};
-    if (isEmpty(d.item_id)) e.item_id = 'Please select Item';
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Inventory Org';
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Please select Subinventory';
-    if (isEmpty(d.onhand_qty)) e.onhand_qty = 'Onhand quantity is required';
-    else if (!isNonNegativeNumber(d.onhand_qty)) e.onhand_qty = 'Onhand qty must be ≥ 0';
-    if (!isEmpty(d.available_qty) && !isNonNegativeNumber(d.available_qty))
-      e.available_qty = 'Available qty must be ≥ 0';
-    if (!isEmpty(d.reserved_qty) && !isNonNegativeNumber(d.reserved_qty))
-      e.reserved_qty = 'Reserved qty must be ≥ 0';
-    if (!isEmpty(d.available_qty) && !isEmpty(d.onhand_qty) && Number(d.available_qty) > Number(d.onhand_qty))
-      e.available_qty = 'Available qty cannot exceed onhand qty';
-    const ucErr = nonNeg(d.unit_cost, 'Unit cost'); if (ucErr) e.unit_cost = ucErr;
-    if (isEmpty(d.uom_id)) e.uom_id = 'Please select UOM';
     return e;
   },
 
@@ -182,63 +209,63 @@ const RULES = {
   stock_adjustment: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_id)) e.item_id = 'Please select Item';
-    if (isEmpty(d.txn_type_id)) e.txn_type_id = 'Please select Adjustment Type';
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Source Org';
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Please select Subinventory';
-    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = 'Source Locator is required';
+    if (isEmpty(d.item_id)) e.item_id = reqDrop(d.item_id, 'Item');
+    if (isEmpty(d.txn_type_id)) e.txn_type_id = reqDrop(d.txn_type_id, 'Adjustment Type');
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Source Org');
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = reqDrop(d.subinventory_id, 'Subinventory');
+    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = reqDrop(d.locator_id, 'Source Locator');
 
     const isTransfer = opts.isTransfer || d.txn_action === 'TRANSFER';
+    const netAdj = parseFloat(opts.netAdj !== undefined ? opts.netAdj : 0);
+    const availableQty = parseFloat(opts.stockInfo?.available_qty || 0);
+
     if (isTransfer) {
-      if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'Destination Org is required';
-      if (isEmpty(d.to_subinventory_id)) e.to_subinventory_id = 'Destination Subinventory is required';
-      if (opts.locatorRequired && isEmpty(d.to_locator_id)) e.to_locator_id = 'Destination Locator is required';
+      if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = reqDrop(d.to_inv_org_id, 'Destination Org');
+      if (isEmpty(d.to_subinventory_id)) e.to_subinventory_id = reqDrop(d.to_subinventory_id, 'Destination Subinventory');
+      if (opts.locatorRequired && isEmpty(d.to_locator_id)) e.to_locator_id = reqDrop(d.to_locator_id, 'Destination Locator');
+      
       if (!isEmpty(d.inv_org_id) && !isEmpty(d.to_inv_org_id) &&
         !isEmpty(d.subinventory_id) && !isEmpty(d.to_subinventory_id) &&
-        d.inv_org_id === d.to_inv_org_id && d.subinventory_id === d.to_subinventory_id)
-        e.to_subinventory_id = 'Destination must differ from source';
+        d.inv_org_id === d.to_inv_org_id && d.subinventory_id === d.to_subinventory_id &&
+        (isEmpty(d.locator_id) || isEmpty(d.to_locator_id) || d.locator_id === d.to_locator_id)) {
+          e.to_subinventory_id = MSG.TRANSFER;
+          e.subinventory_id = MSG.TRANSFER;
+        }
     }
 
-    if (isEmpty(d.physical_qty)) e.physical_qty = 'Quantity is required';
-    else if (isTransfer && !isPositiveNumber(d.physical_qty)) e.physical_qty = 'Transfer qty must be > 0';
-    else if (!isTransfer && !isNonNegativeNumber(d.physical_qty)) e.physical_qty = 'Qty must be ≥ 0';
-
-    // Adjustment qty cannot be 0 (non-transfer)
-    if (!isTransfer && !isEmpty(d.physical_qty) && !isEmpty(d.system_qty)) {
-      const adjQty = Number(d.physical_qty) - Number(d.system_qty);
-      if (adjQty === 0) e.physical_qty = 'Adjustment quantity cannot be 0';
+    if (isEmpty(d.physical_qty)) e.physical_qty = MSG.REQ;
+    else if (isTransfer && !isPositiveNumber(d.physical_qty)) e.physical_qty = 'Transfer quantity must be greater than 0';
+    else if (isTransfer && parseFloat(d.physical_qty) > availableQty) {
+      e.physical_qty = `Insufficient stock (Available: ${availableQty})`;
     }
-
-    // Prevent negative resulting stock
-    if (!isTransfer && !isEmpty(d.system_qty) && !isEmpty(d.physical_qty)) {
-      if (Number(d.physical_qty) < 0) e.physical_qty = 'Cannot result in negative stock';
-    }
+    else if (!isTransfer && !isNonNegativeNumber(d.physical_qty)) e.physical_qty = 'Physical quantity cannot be negative';
 
     const ucErr = nonNeg(d.unit_cost, 'Unit cost'); if (ucErr) e.unit_cost = ucErr;
-    if (!isEmpty(d.adjustment_date) && isFutureDate(d.adjustment_date))
-      e.adjustment_date = 'Adjustment date cannot be in the future';
+    if (!isEmpty(d.adjustment_date)) {
+       if (isFutureDate(d.adjustment_date)) e.adjustment_date = 'Adjustment date cannot be in the future';
+    }
 
-    // Lot/Serial conditional
     if (opts.isLotControlled) {
-      if (d.txn_action === 'IN') {
-        if (isEmpty(d.lot_number)) e.lot_number = 'Lot is required';
-      } else if (d.txn_action === 'OUT' || d.txn_action === 'TRANSFER') {
-        if (isEmpty(d.lot_id)) e.lot_id = 'Lot is required';
+      const isPositiveAdj = d.txn_action === 'IN' || (!isTransfer && netAdj > 0);
+      if (isPositiveAdj) {
+        if (!d.lot_number && !d.lot_id) e.lot_number = reqDrop(d.lot_number, 'Lot');
       } else {
-        if (isEmpty(d.lot_id) && isEmpty(d.lot_number)) {
-          e.lot_id = 'Lot is required';
-        }
+        if (isEmpty(d.lot_id)) e.lot_id = reqDrop(d.lot_id, 'Lot');
       }
     }
+    
     if (opts.isSerialControlled) {
-      if (d.txn_action === 'IN') {
-        if (isEmpty(d.serial_numbers)) e.serial_ids = 'Serial numbers are required';
-      } else if (d.txn_action === 'OUT' || d.txn_action === 'TRANSFER') {
-        if (isEmpty(d.serial_ids)) e.serial_ids = 'Serial numbers are required';
+      const isPositiveAdj = d.txn_action === 'IN' || (!isTransfer && netAdj > 0);
+      const qtyInt = Math.floor(Math.abs(netAdj || 0));
+      if (isPositiveAdj) {
+        const serials = opts.serialInputs || [];
+        const validSerials = serials.filter(s => s && s.trim());
+        if (validSerials.length === 0) e.serial_ids = MSG.REQ;
+        else if (validSerials.length !== qtyInt) e.serial_ids = `Enter exactly ${qtyInt} serial numbers or leave blank for auto-generation`;
       } else {
-        if (isEmpty(d.serial_ids) && isEmpty(d.serial_numbers)) {
-          e.serial_ids = 'Serial numbers are required';
-        }
+        const serials = Array.isArray(d.serial_ids) ? d.serial_ids : [];
+        if (serials.length === 0) e.serial_ids = MSG.REQ;
+        else if (serials.length !== qtyInt) e.serial_ids = `Select exactly ${qtyInt} serial numbers`;
       }
     }
 
@@ -248,45 +275,56 @@ const RULES = {
   // ━━━━━━━━━━━━━━ INVENTORY TRANSACTION ━━━━━━━━━━━━━━
   inventory_transaction: (d) => {
     const e = {};
-    if (isEmpty(d.item_id)) e.item_id = 'Please select Item';
-    if (isEmpty(d.txn_type_id)) e.txn_type_id = 'Please select Transaction Type';
-    if (isEmpty(d.txn_action)) e.txn_action = 'Transaction Action is required';
-    else if (!['IN', 'OUT', 'TRANSFER'].includes(d.txn_action))
-      e.txn_action = 'Action must be IN, OUT, or TRANSFER';
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Please select Inventory Org';
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Please select Subinventory';
-    if (isEmpty(d.txn_qty)) e.txn_qty = 'Quantity is required';
-    else if (!isPositiveNumber(d.txn_qty)) e.txn_qty = 'Quantity must be > 0';
-    if (isEmpty(d.uom_id)) e.uom_id = 'Please select UOM';
+    if (isEmpty(d.item_id)) e.item_id = reqDrop(d.item_id, 'Item');
+    if (isEmpty(d.txn_type_id)) e.txn_type_id = reqDrop(d.txn_type_id, 'Transaction Type');
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = reqDrop(d.subinventory_id, 'Subinventory');
+    
+    if (isEmpty(d.txn_qty)) e.txn_qty = MSG.REQ;
+    else if (!isPositiveNumber(d.txn_qty)) e.txn_qty = 'Transaction quantity must be greater than 0';
+    
+    if (isEmpty(d.uom_id)) e.uom_id = reqDrop(d.uom_id, 'UOM');
     const ucErr = nonNeg(d.unit_cost, 'Unit cost'); if (ucErr) e.unit_cost = ucErr;
-    if (isEmpty(d.txn_date)) e.txn_date = 'Transaction date is required';
+    
+    if (isEmpty(d.txn_date)) e.txn_date = MSG.DATE_REQ;
     else if (isFutureDate(d.txn_date)) e.txn_date = 'Transaction date cannot be in the future';
-    if (isEmpty(d.txn_reason_id)) e.txn_reason_id = 'Please select Reason';
+    
+    if (isEmpty(d.txn_reason_id)) e.txn_reason_id = reqDrop(d.txn_reason_id, 'Reason');
     return e;
   },
 
   // ━━━━━━━━━━━━━━ TRANSACTION TYPE ━━━━━━━━━━━━━━
-  transaction_type: (d) => {
+  transaction_type: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.txn_type_name)) e.txn_type_name = 'This field is required';
-    if (isEmpty(d.txn_type_code)) e.txn_type_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.txn_type_code).trim())) e.txn_type_code = 'Invalid format';
-    if (isEmpty(d.txn_action)) e.txn_action = 'This field is required';
-    if (isEmpty(d.txn_category)) e.txn_category = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.txn_type_name)) e.txn_type_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.txn_type_name).trim())) e.txn_type_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.txn_type_code)) e.txn_type_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.txn_type_code).trim())) e.txn_type_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.txn_action)) e.txn_action = reqDrop(d.txn_action, 'Transaction Action');
+    if (isEmpty(d.txn_category)) e.txn_category = reqDrop(d.txn_category, 'Transaction Category');
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ TRANSACTION REASON ━━━━━━━━━━━━━━
-  transaction_reason: (d) => {
+  transaction_reason: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.txn_reason)) e.txn_reason = 'This field is required';
-    if (isEmpty(d.reason_code)) e.reason_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.reason_code).trim())) e.reason_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.txn_reason)) e.txn_reason = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.txn_reason).trim())) e.txn_reason = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.reason_code)) e.reason_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.reason_code).trim())) e.reason_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -295,11 +333,11 @@ const RULES = {
   item_subinv_restriction: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_id)) e.item_id = 'This field is required';
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'This field is required';
-    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.item_id)) e.item_id = reqDrop(d.item_id, 'Item');
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = reqDrop(d.subinventory_id, 'Subinventory');
+    if (opts.locatorRequired && isEmpty(d.locator_id)) e.locator_id = reqDrop(d.locator_id, 'Locator');
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -308,79 +346,86 @@ const RULES = {
   item_org_assignment: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_id)) e.item_id = 'This field is required';
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
+    if (isEmpty(d.item_id)) e.item_id = reqDrop(d.item_id, 'Item');
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
 
     // Stock Policy
-    if (isEmpty(d.min_qty)) e.min_qty = 'This field is required';
-    else if (!isNonNegativeNumber(d.min_qty)) e.min_qty = 'Invalid format';
+    if (isEmpty(d.min_qty)) e.min_qty = MSG.REQ;
+    else if (!isNonNegativeNumber(d.min_qty)) e.min_qty = 'Minimum quantity cannot be negative';
 
-    if (isEmpty(d.max_qty)) e.max_qty = 'This field is required';
-    else if (!isPositiveNumber(d.max_qty)) e.max_qty = 'Invalid format';
-    else if (!isEmpty(d.min_qty) && Number(d.max_qty) <= Number(d.min_qty))
-      e.max_qty = 'Invalid format';
+    if (isEmpty(d.max_qty)) e.max_qty = MSG.REQ;
+    else if (!isPositiveNumber(d.max_qty)) e.max_qty = 'Maximum quantity must be greater than 0';
+    else if (!isEmpty(d.min_qty) && Number(d.max_qty) < Number(d.min_qty))
+      e.max_qty = MSG.MIN_MAX_QTY;
 
     if (isEmpty(d.safety_stock_qty)) {
-      e.safety_stock_qty = 'This field is required';
+      e.safety_stock_qty = MSG.REQ;
     } else if (!isNonNegativeNumber(d.safety_stock_qty)) {
-      e.safety_stock_qty = 'Invalid format';
+      e.safety_stock_qty = 'Safety stock cannot be negative';
     } else if (!isEmpty(d.min_qty) && Number(d.safety_stock_qty) < Number(d.min_qty)) {
       e.safety_stock_qty = 'Safety stock must be ≥ Min qty';
     } else if (!isEmpty(d.max_qty) && Number(d.safety_stock_qty) > Number(d.max_qty)) {
       e.safety_stock_qty = 'Safety stock must be ≤ Max qty';
     }
 
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ WORKDAY CALENDAR ━━━━━━━━━━━━━━
-  workday_calendar: (d) => {
+  workday_calendar: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.calendar_name)) e.calendar_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.calendar_name).trim())) e.calendar_name = 'Invalid format';
-    if (isEmpty(d.calendar_code)) e.calendar_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.calendar_code).trim())) e.calendar_code = 'Invalid format';
-    if (isEmpty(d.year)) e.year = 'This field is required';
-    else if (!isPositiveNumber(d.year) || Number(d.year) < 2000 || Number(d.year) > 2100)
-      e.year = 'Invalid format';
-    if (!d.weekly_off_days || !Array.isArray(d.weekly_off_days) || d.weekly_off_days.length === 0)
-      e.weekly_off_days = 'This field is required';
-    validateDates(e, d);
-    // Holiday validation
-    if (d.holidays && Array.isArray(d.holidays)) {
-      d.holidays.forEach((h, i) => {
-        if (isEmpty(h.holiday_name)) e[`holiday_name_${i}`] = 'This field is required';
-        if (isEmpty(h.holiday_date)) e[`holiday_date_${i}`] = 'This field is required';
-      });
+    if (isEmpty(d.calendar_name)) e.calendar_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.calendar_name).trim())) e.calendar_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.calendar_code)) e.calendar_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.calendar_code).trim())) e.calendar_code = 'Invalid format';
     }
+
+    if (isEmpty(d.year)) e.year = MSG.REQ;
+    else if (!isPositiveNumber(d.year) || Number(d.year) < 2000 || Number(d.year) > 2100)
+      e.year = 'Year must be between 2000 and 2100';
+    
+    if (!d.weekly_off_days || !Array.isArray(d.weekly_off_days) || d.weekly_off_days.length === 0)
+      e.weekly_off_days = MSG.REQ;
+    
+    validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ COST METHOD ━━━━━━━━━━━━━━
-  cost_method: (d) => {
+  cost_method: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.cost_method_name)) e.cost_method_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.cost_method_name).trim())) e.cost_method_name = 'Invalid format';
-    if (isEmpty(d.cost_method_code)) e.cost_method_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.cost_method_code).trim())) e.cost_method_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.cost_method_name)) e.cost_method_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.cost_method_name).trim())) e.cost_method_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.cost_method_code)) e.cost_method_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.cost_method_code).trim())) e.cost_method_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ COST TYPE ━━━━━━━━━━━━━━
-  cost_type: (d) => {
+  cost_type: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.cost_type_name)) e.cost_type_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.cost_type_name).trim())) e.cost_type_name = 'Invalid format';
-    if (isEmpty(d.cost_type_code)) e.cost_type_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.cost_type_code).trim())) e.cost_type_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.cost_type_name)) e.cost_type_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.cost_type_name).trim())) e.cost_type_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.cost_type_code)) e.cost_type_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.cost_type_code).trim())) e.cost_type_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -389,28 +434,33 @@ const RULES = {
   org_parameter: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
-    if (isEmpty(d.org_code)) e.org_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.org_code).trim())) e.org_code = 'Invalid format';
-    if (isEmpty(d.workday_calendar_id)) e.workday_calendar_id = 'This field is required';
-    if (isEmpty(d.cost_method_id)) e.cost_method_id = 'This field is required';
-    if (isEmpty(d.cost_type_id)) e.cost_type_id = 'This field is required';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
+    
+    if (isEmpty(d.workday_calendar_id)) e.workday_calendar_id = reqDrop(d.workday_calendar_id, 'Workday Calendar');
+    if (isEmpty(d.cost_method_id)) e.cost_method_id = reqDrop(d.cost_method_id, 'Cost Method');
+    if (isEmpty(d.cost_type_id)) e.cost_type_id = reqDrop(d.cost_type_id, 'Cost Type');
+    
     if (!isEmpty(d.move_order_timeout_days) && !isNonNegativeNumber(d.move_order_timeout_days))
-      e.move_order_timeout_days = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+      e.move_order_timeout_days = 'Timeout days cannot be negative';
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ SHIP METHOD ━━━━━━━━━━━━━━
-  ship_method: (d) => {
+  ship_method: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.ship_method_name)) e.ship_method_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.ship_method_name).trim())) e.ship_method_name = 'Invalid format';
-    if (isEmpty(d.method_code)) e.method_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.method_code).trim())) e.method_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.ship_method_name)) e.ship_method_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.ship_method_name).trim())) e.ship_method_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.method_code)) e.method_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.method_code).trim())) e.method_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -419,29 +469,30 @@ const RULES = {
   ship_network: (d, options = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.from_inv_org_id)) e.from_inv_org_id = 'This field is required';
-    if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = 'This field is required';
+    if (isEmpty(d.from_inv_org_id)) e.from_inv_org_id = reqDrop(d.from_inv_org_id, 'From Inventory Org');
+    if (isEmpty(d.to_inv_org_id)) e.to_inv_org_id = reqDrop(d.to_inv_org_id, 'To Inventory Org');
+    
     if (!isEmpty(d.from_inv_org_id) && !isEmpty(d.to_inv_org_id) && String(d.from_inv_org_id) === String(d.to_inv_org_id)) {
-      const dupMsg = 'From and To Inventory Org cannot be same';
-      e.from_inv_org_id = dupMsg;
-      e.to_inv_org_id = dupMsg;
+      e.from_inv_org_id = MSG.TRANSFER;
+      e.to_inv_org_id = MSG.TRANSFER;
     }
-    const notInParam = 'This Inventory Org is not configured in Org Parameter';
+    
     const allowed = options.allowedInvOrgIds;
-    const listReady = options.invOrgListLoaded !== false;
-    if (allowed instanceof Set && listReady) {
+    if (allowed instanceof Set && options.invOrgListLoaded !== false) {
       if (!e.from_inv_org_id && !isEmpty(d.from_inv_org_id) && !allowed.has(String(d.from_inv_org_id))) {
-        e.from_inv_org_id = notInParam;
+        e.from_inv_org_id = MSG.ORG_NOT_CONFIG;
       }
       if (!e.to_inv_org_id && !isEmpty(d.to_inv_org_id) && !allowed.has(String(d.to_inv_org_id))) {
-        e.to_inv_org_id = notInParam;
+        e.to_inv_org_id = MSG.ORG_NOT_CONFIG;
       }
     }
-    if (isEmpty(d.transfer_type)) e.transfer_type = 'This field is required';
-    if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = 'This field is required';
-    if (isEmpty(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'This field is required';
-    else if (!isNonNegativeNumber(d.intransit_lead_time_days)) e.intransit_lead_time_days = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+
+    if (isEmpty(d.transfer_type)) e.transfer_type = reqDrop(d.transfer_type, 'Transfer Type');
+    if (isEmpty(d.default_ship_method_id)) e.default_ship_method_id = reqDrop(d.default_ship_method_id, 'Ship Method');
+    
+    const ltErr = nonNeg(d.intransit_lead_time_days, 'Lead time'); if (ltErr) e.intransit_lead_time_days = ltErr;
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -450,47 +501,61 @@ const RULES = {
   intercompany: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.ship_ou_id)) e.ship_ou_id = 'This field is required';
-    if (isEmpty(d.sell_ou_id)) e.sell_ou_id = 'This field is required';
-    if (!isEmpty(d.ship_ou_id) && !isEmpty(d.sell_ou_id) && String(d.ship_ou_id) === String(d.sell_ou_id))
-      e.sell_ou_id = 'Invalid format';
-    if (isEmpty(d.relation_type)) e.relation_type = 'This field is required';
-    if (isEmpty(d.ar_inv_method_id)) e.ar_inv_method_id = 'This field is required';
-    if (isEmpty(d.ap_inv_method_id)) e.ap_inv_method_id = 'This field is required';
-    if (d.description && d.description.length > 250) e.description = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.ship_ou_id)) e.ship_ou_id = reqDrop(d.ship_ou_id, 'Ship OU');
+    if (isEmpty(d.sell_ou_id)) e.sell_ou_id = reqDrop(d.sell_ou_id, 'Sell OU');
+    
+    if (!isEmpty(d.ship_ou_id) && !isEmpty(d.sell_ou_id) && String(d.ship_ou_id) === String(d.sell_ou_id)) {
+      e.sell_ou_id = MSG.OU_SAME;
+      e.ship_ou_id = MSG.OU_SAME;
+    }
+
+    if (isEmpty(d.relation_type)) e.relation_type = reqDrop(d.relation_type, 'Relation Type');
+    if (isEmpty(d.ar_inv_method_id)) e.ar_inv_method_id = reqDrop(d.ar_inv_method_id, 'AR Method');
+    if (isEmpty(d.ap_inv_method_id)) e.ap_inv_method_id = reqDrop(d.ap_inv_method_id, 'AP Method');
+    
+    if (d.description && d.description.length > 250) e.description = MSG.DESC_LIMIT;
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ UOM TYPE ━━━━━━━━━━━━━━
-  uom_type: (d) => {
+  uom_type: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.uom_type_name)) e.uom_type_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.uom_type_name).trim())) e.uom_type_name = 'Invalid format';
-    if (isEmpty(d.uom_type_code)) e.uom_type_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.uom_type_code).trim())) e.uom_type_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.uom_type_name)) e.uom_type_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.uom_type_name).trim())) e.uom_type_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.uom_type_code)) e.uom_type_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.uom_type_code).trim())) e.uom_type_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ UOM ━━━━━━━━━━━━━━
-  uom: (d) => {
+  uom: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.uom_type_id)) e.uom_type_id = 'This field is required';
-    if (isEmpty(d.uom_name)) e.uom_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.uom_name).trim())) e.uom_name = 'Invalid format';
-    if (isEmpty(d.uom_code)) e.uom_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.uom_code).trim())) e.uom_code = 'Invalid format';
-    if (isEmpty(d.decimal_precision)) e.decimal_precision = 'This field is required';
+    if (isEmpty(d.uom_type_id)) e.uom_type_id = reqDrop(d.uom_type_id, 'UOM Type');
+    if (isEmpty(d.uom_name)) e.uom_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.uom_name).trim())) e.uom_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.uom_code)) e.uom_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.uom_code).trim())) e.uom_code = 'Invalid format';
+    }
+
+    if (isEmpty(d.decimal_precision)) e.decimal_precision = MSG.REQ;
     else {
       const prec = Number(d.decimal_precision);
-      if (isNaN(prec) || prec < 0 || prec > 6) e.decimal_precision = 'Invalid format';
+      if (isNaN(prec) || prec < 0 || prec > 6) e.decimal_precision = MSG.PRECISION;
     }
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -499,67 +564,82 @@ const RULES = {
   uom_conv: (d) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.item_id)) e.item_id = 'This field is required';
-    if (isEmpty(d.from_uom_id)) e.from_uom_id = 'This field is required';
-    if (isEmpty(d.to_uom_id)) e.to_uom_id = 'This field is required';
-    else if (!isEmpty(d.from_uom_id) && String(d.from_uom_id) === String(d.to_uom_id)) e.to_uom_id = 'Invalid format';
-    if (isEmpty(d.conversion_rate)) e.conversion_rate = 'This field is required';
-    else if (!isPositiveNumber(d.conversion_rate)) e.conversion_rate = 'Invalid format';
-    if (isEmpty(d.conversion_type)) e.conversion_type = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.item_id)) e.item_id = reqDrop(d.item_id, 'Item');
+    if (isEmpty(d.from_uom_id)) e.from_uom_id = reqDrop(d.from_uom_id, 'From UOM');
+    if (isEmpty(d.to_uom_id)) e.to_uom_id = reqDrop(d.to_uom_id, 'To UOM');
+    else if (!isEmpty(d.from_uom_id) && String(d.from_uom_id) === String(d.to_uom_id)) e.to_uom_id = 'Conversion to same UOM not allowed';
+    
+    const crErr = posNum(d.conversion_rate, 'Conversion rate'); if (crErr) e.conversion_rate = crErr;
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ CATEGORY SET ━━━━━━━━━━━━━━
-  category_set: (d) => {
+  category_set: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.category_set_name)) e.category_set_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.category_set_name).trim())) e.category_set_name = 'Invalid format';
-    if (isEmpty(d.category_set_code)) e.category_set_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.category_set_code).trim())) e.category_set_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.category_set_name)) e.category_set_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.category_set_name).trim())) e.category_set_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.category_set_code)) e.category_set_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.category_set_code).trim())) e.category_set_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ ITEM CATEGORY ━━━━━━━━━━━━━━
-  item_category: (d) => {
+  item_category: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.category_set_id)) e.category_set_id = 'This field is required';
-    if (isEmpty(d.category_name)) e.category_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.category_name).trim())) e.category_name = 'Invalid format';
-    if (isEmpty(d.category_code)) e.category_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.category_code).trim())) e.category_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.category_set_id)) e.category_set_id = reqDrop(d.category_set_id, 'Category Set');
+    if (isEmpty(d.category_name)) e.category_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.category_name).trim())) e.category_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.category_code)) e.category_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.category_code).trim())) e.category_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
   // ━━━━━━━━━━━━━━ ITEM SUB CATEGORY ━━━━━━━━━━━━━━
-  item_sub_category: (d) => {
+  item_sub_category: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.category_id)) e.category_id = 'This field is required';
-    if (isEmpty(d.sub_category_name)) e.sub_category_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.sub_category_name).trim())) e.sub_category_name = 'Invalid format';
-    if (isEmpty(d.sub_category_code)) e.sub_category_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.sub_category_code).trim())) e.sub_category_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.category_id)) e.category_id = reqDrop(d.category_id, 'Category');
+    if (isEmpty(d.sub_category_name)) e.sub_category_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.sub_category_name).trim())) e.sub_category_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.sub_category_code)) e.sub_category_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.sub_category_code).trim())) e.sub_category_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
-  brand: (d) => {
+  brand: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.brand_name)) e.brand_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.brand_name).trim())) e.brand_name = 'Invalid format';
-    if (isEmpty(d.brand_code)) e.brand_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.brand_code).trim())) e.brand_code = 'Invalid format';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    if (isEmpty(d.brand_name)) e.brand_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.brand_name).trim())) e.brand_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.brand_code)) e.brand_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.brand_code).trim())) e.brand_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
@@ -568,91 +648,102 @@ const RULES = {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.item_type_name)) {
-      e.item_type_name = 'This field is required';
+      e.item_type_name = MSG.REQ;
     } else if (!REGEX.NAME.test(String(d.item_type_name).trim())) {
-      e.item_type_name = 'Invalid format';
+      e.item_type_name = MSG.NAME_FORMAT;
     }
     if (isEmpty(d.module_id)) {
-      e.module_id = 'This field is required';
-    }
-    if (d.module_name && d.module_name !== 'Inventory') {
-      e.module_id = 'Only Inventory module allowed';
+      e.module_id = reqDrop(d.module_id, 'Module');
     }
     validateDates(e, d);
     return e;
   },
   
-  zone: (d) => {
+  zone: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
     if (isEmpty(d.zone_name)) {
-      e.zone_name = 'This field is required';
+      e.zone_name = MSG.REQ;
     } else if (!REGEX.NAME.test(String(d.zone_name).trim())) {
-      e.zone_name = 'Invalid format';
+      e.zone_name = MSG.NAME_FORMAT;
     }
-    if (isEmpty(d.zone_code)) e.zone_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.zone_code).trim())) e.zone_code = 'Invalid format';
-    if (isEmpty(d.zone_type)) e.zone_type = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.zone_code)) e.zone_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.zone_code).trim())) e.zone_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.zone_type)) e.zone_type = reqDrop(d.zone_type, 'Zone Type');
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
-  subinventory: (d) => {
+  subinventory: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'This field is required';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
     if (isEmpty(d.subinventory_name)) {
-      e.subinventory_name = 'This field is required';
+      e.subinventory_name = MSG.REQ;
     } else if (!REGEX.NAME.test(String(d.subinventory_name).trim())) {
-      e.subinventory_name = 'Invalid format';
+      e.subinventory_name = MSG.NAME_FORMAT;
     }
-    if (isEmpty(d.subinventory_code)) e.subinventory_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.subinventory_code).trim())) e.subinventory_code = 'Invalid format';
-    if (isEmpty(d.zone_id)) e.zone_id = 'This field is required';
-    if (isEmpty(d.material_status)) e.material_status = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.subinventory_code)) e.subinventory_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.subinventory_code).trim())) e.subinventory_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.zone_id)) e.zone_id = reqDrop(d.zone_id, 'Zone');
+    if (isEmpty(d.material_status)) e.material_status = reqDrop(d.material_status, 'Material Status');
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
-  locator: (d) => {
+  locator: (d, opts = {}) => {
     const e = {};
     validateCompanyGroup(e, d);
-    if (isEmpty(d.inv_org_id)) e.inv_org_id = 'Inventory is required';
-    if (isEmpty(d.subinventory_id)) e.subinventory_id = 'Subinventory is required';
+    if (isEmpty(d.inv_org_id)) e.inv_org_id = reqDrop(d.inv_org_id, 'Inventory Org');
+    if (isEmpty(d.subinventory_id)) e.subinventory_id = reqDrop(d.subinventory_id, 'Subinventory');
     if (isEmpty(d.locator_name)) {
-      e.locator_name = 'This field is required';
+      e.locator_name = MSG.REQ;
     } else if (!REGEX.NAME.test(String(d.locator_name).trim())) {
-      e.locator_name = 'Invalid format';
+      e.locator_name = MSG.NAME_FORMAT;
     }
-    if (isEmpty(d.locator_code)) e.locator_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.locator_code).trim())) e.locator_code = 'Invalid format';
-    if (isEmpty(d.locator_type)) e.locator_type = 'This field is required';
-    if (isEmpty(d.locator_usage)) e.locator_usage = 'This field is required';
-    if (isEmpty(d.material_status)) e.material_status = 'This field is required';
-    if (isEmpty(d.module_id)) e.module_id = 'This field is required';
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.locator_code)) e.locator_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.locator_code).trim())) e.locator_code = 'Invalid format';
+    }
+    
+    if (isEmpty(d.locator_type)) e.locator_type = reqDrop(d.locator_type, 'Locator Type');
+    if (isEmpty(d.locator_usage)) e.locator_usage = reqDrop(d.locator_usage, 'Locator Usage');
+    if (isEmpty(d.material_status)) e.material_status = reqDrop(d.material_status, 'Material Status');
+    if (isEmpty(d.module_id)) e.module_id = reqDrop(d.module_id, 'Module');
     validateDates(e, d);
     return e;
   },
 
-  material_status: (d) => {
+  material_status: (d, opts = {}) => {
     const e = {};
-    if (isEmpty(d.status_name)) e.status_name = 'This field is required';
-    else if (!REGEX.NAME.test(String(d.status_name).trim())) e.status_name = 'Invalid format';
-    if (isEmpty(d.status_code)) e.status_code = 'This field is required';
-    else if (!REGEX.CODE.test(String(d.status_code).trim())) e.status_code = 'Invalid format';
+    if (isEmpty(d.status_name)) e.status_name = MSG.REQ;
+    else if (!REGEX.NAME.test(String(d.status_name).trim())) e.status_name = MSG.NAME_FORMAT;
+    
+    if (!opts.isAutoGenerated) {
+      if (isEmpty(d.status_code)) e.status_code = MSG.REQ;
+      else if (!REGEX.CODE.test(String(d.status_code).trim())) e.status_code = 'Invalid format';
+    }
     return e;
   },
 
   // ━━━━━━━━━━━━━━ GENERIC FALLBACK ━━━━━━━━━━━━━━
-  // For simple master pages that just need company group + dates
   _generic: (d, opts = {}) => {
     const e = {};
     if (opts.requireCompanyGroup !== false) validateCompanyGroup(e, d);
     if (opts.requiredFields) {
       for (const f of opts.requiredFields) {
-        if (isEmpty(d[f.key])) e[f.key] = f.label ? `${f.label} is required` : `${f.key} is required`;
+        if (isEmpty(d[f.key])) e[f.key] = MSG.REQ;
       }
     }
     if (opts.numericFields) {
@@ -663,7 +754,7 @@ const RULES = {
     }
     if (opts.dropdownFields) {
       for (const f of opts.dropdownFields) {
-        if (isEmpty(d[f.key])) e[f.key] = `Please select ${f.label}`;
+        if (isEmpty(d[f.key])) e[f.key] = reqDrop(d[f.key], f.label);
       }
     }
     validateDates(e, d);
@@ -673,36 +764,17 @@ const RULES = {
 
 // ── Public API ───────────────────────────────────────────────
 
-/**
- * Validate form data for a specific module.
- * @param {string} formName - Module key (e.g. 'inventory_org', 'item_master')
- * @param {object} data     - Form data object
- * @param {object} options  - Extra context (isPhysical, isTransfer, isLotControlled, etc.)
- * @returns {{ errors: object, isValid: boolean }}
- */
 export const validate = (formName, data, options = {}) => {
   const ruleFn = RULES[formName] || RULES._generic;
   const errors = ruleFn(data, options);
   return { errors, isValid: Object.keys(errors).length === 0 };
 };
 
-/**
- * Universal auto-code generator from a name string.
- * Uppercase → remove special chars → replace spaces with _ → max 20 chars
- * @param {string} name  - Source name (e.g. "Standard Cost Method")
- * @param {string} prefix - Optional prefix (e.g. "OU_", "CM_")
- * @returns {string} Generated code (e.g. "STANDARD_COST_METHOD")
- */
 export const autoCode = (name, prefix = '', existingCodes = []) => {
   if (!name || !name.trim()) return '';
-  // Convert to UPPERCASE, replace non-alphanumeric with _, trim underscores
   const cleanName = name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
   let code = prefix + cleanName;
-
-  // Enforce max length (20 chars)
   if (code.length > 20) code = code.substring(0, 20);
-
-  // Uniqueness check (numeric suffix if duplicate)
   if (existingCodes && existingCodes.length > 0 && existingCodes.includes(code)) {
     let suffix = 1;
     let candidate = code;
@@ -717,14 +789,10 @@ export const autoCode = (name, prefix = '', existingCodes = []) => {
   return code;
 };
 
-// Backward compat alias
 export const generateOUShortCode = (name) => autoCode(name, 'OU_');
 
-/**
- * Legacy schema-based validation (backward compat for TransactionTypePage etc.)
- */
 export const validators = {
-  required: (value) => (!value && value !== 0 ? 'This field is required' : null),
+  required: (value) => (!value && value !== 0 ? MSG.REQ : null),
   minLength: (min) => (value) => (value && value.length < min ? `Minimum ${min} characters` : null),
   maxLength: (max) => (value) => (value && value.length > max ? `Maximum ${max} characters` : null),
   pattern: (regex, msg) => (value) => (value && !regex.test(value) ? (msg || 'Invalid format') : null),
@@ -742,4 +810,3 @@ export const validateForm = (formData, schema) => {
 };
 
 export default validate;
-

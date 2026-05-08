@@ -34,25 +34,38 @@ export function Toggle({ value, onChange, disabled }) {
 }
 
 // ?????? Select Dropdown ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-export function Select({ value, onChange, options = [], placeholder = '-- Select --', disabled, error, className, onBlur }) {
+export function Select({ value, onChange, options = [], placeholder = '-- Select --', disabled, error, className, onBlur, displayValue }) {
   const { mode } = useFormMode()
   const isView = mode === 'view'
   const currentValue = value ?? ''
   const normalizedCurrent = String(currentValue)
 
-  // Ensure saved value remains visible while LOV options are still loading.
-  const hasCurrentInOptions = options.some(opt => {
+  // Find label for the current value
+  const selectedOption = options.find(opt => {
     const optValue = typeof opt === 'object' ? opt.value : opt
     return String(optValue ?? '') === normalizedCurrent
   })
+  
+  const label = selectedOption 
+    ? (typeof selectedOption === 'object' ? selectedOption.label : selectedOption)
+    : (displayValue || normalizedCurrent)
 
+  if (isView) {
+    return (
+      <div className={clsx('input bg-gray-100 dark:bg-gray-800 opacity-80 cursor-default truncate', className)}>
+        {currentValue === '' ? '' : label}
+      </div>
+    )
+  }
+
+  const hasCurrentInOptions = !!selectedOption
   const resolvedOptions =
     normalizedCurrent !== '' && !hasCurrentInOptions
-      ? [{ value: currentValue, label: String(currentValue) }, ...options]
+      ? [{ value: currentValue, label: label }, ...options]
       : options
 
   return (
-    <select value={currentValue} onChange={e => onChange(e.target.value)} onBlur={onBlur} disabled={disabled || isView}
+    <select value={currentValue} onChange={e => onChange(e.target.value)} onBlur={onBlur} disabled={disabled}
       className={clsx(error ? 'input-error' : 'input', 'cursor-pointer', className)}>
       <option value="">{placeholder}</option>
       {resolvedOptions.map(opt => {
@@ -295,9 +308,9 @@ export function DataTable({ title, subtitle, columns, data, total, page, pages, 
                     <td className="td">
                       <div className="flex items-center justify-center gap-1">
                         {actions.onView && <button onClick={() => actions.onView(row)} title="View" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-3.5 h-3.5" /></button>}
-                        {actions.onEdit && <button onClick={() => actions.onEdit(row)} title="Edit" className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>}
-                        {actions.onApprove && <button onClick={() => actions.onApprove(row)} title="Approve / Post" className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><CheckCircle2 className="w-3.5 h-3.5" /></button>}
-                        {actions.onDelete && <button onClick={() => actions.onDelete(row)} title="Delete" className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>}
+                        {actions.onEdit && (!actions.isEditDisabled || !actions.isEditDisabled(row)) && <button onClick={() => actions.onEdit(row)} title="Edit" className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>}
+                        {actions.onApprove && (!actions.isApproveDisabled || !actions.isApproveDisabled(row)) && <button onClick={() => actions.onApprove(row)} title="Approve / Post" className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><CheckCircle2 className="w-3.5 h-3.5" /></button>}
+                        {actions.onDelete && (!actions.isDeleteDisabled || !actions.isDeleteDisabled(row)) && <button onClick={() => actions.onDelete(row)} title="Delete" className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>}
                       </div>
                     </td>
                   </tr>

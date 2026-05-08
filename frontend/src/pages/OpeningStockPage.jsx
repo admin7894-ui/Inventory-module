@@ -20,14 +20,19 @@ const COLUMNS = [
   { key: 'unit_cost', label: 'Unit Cost' },
   { key: 'total_value', label: 'Total Value' },
   {
-    key: 'active_flag', label: 'Status', render: (v) => (
-      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${v === 'Y' || v === 'True' || v === true
-          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-          : 'bg-rose-100 text-rose-700 border border-rose-200'
-        }`}>
-        {v === 'Y' || v === 'True' || v === true ? 'Active' : 'Inactive'}
-      </span>
-    )
+    key: 'approval_status', label: 'Status', render: (v, row) => {
+      const status = (row.active_flag === 'N' || row.active_flag === 'False' || row.active_flag === false) ? 'INACTIVE' : (v || 'PENDING');
+      const config = {
+        'PENDING': 'bg-amber-100 text-amber-700 border-amber-200',
+        'APPROVED': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        'INACTIVE': 'bg-rose-100 text-rose-700 border-rose-200'
+      };
+      return (
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${config[status] || config['PENDING']}`}>
+          {status}
+        </span>
+      );
+    }
   },
 ]
 
@@ -36,6 +41,7 @@ export default function OpeningStockPage() {
   const [view, setView] = useState('list')
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [confirmApprove, setConfirmApprove] = useState(null)
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
   const [serialInputs, setSerialInputs] = useState([])
@@ -43,6 +49,8 @@ export default function OpeningStockPage() {
   const [conversionRate, setConversionRate] = useState(1)
   const [isConverting, setIsConverting] = useState(false)
 
+  // ... (dropdowns and other hooks remain same)
+  // ... (re-inserting the missing logic to ensure completeness)
   // Dropdowns
   const { options: modules } = useDropdownData(moduleApi, 'mod_dd')
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -73,16 +81,13 @@ export default function OpeningStockPage() {
       const isStock = item.is_stock_item === 'Y' || item.is_stock_item === true || item.is_stock_item === 'True'
       if (!isPhys || !isStock) return false
 
-      // Check if item is assigned to at least one Org
       const isAssigned = assignments.some(a => String(a.item_id) === String(item.item_id))
-      // Check if item has at least one Subinventory restriction
       const hasRestrictions = restrictions.some(r => String(r.item_id) === String(item.item_id))
 
       return isAssigned && hasRestrictions
     })
   }, [allItems, itemTypes, assignments, restrictions])
 
-  // Selected item's config
   const selectedItem = useMemo(() => {
     if (!formData.item_id) return null
     return allItems?.find(i => String(i.item_id) === String(formData.item_id)) || null
@@ -99,13 +104,12 @@ export default function OpeningStockPage() {
       return (!from || today >= from) && (!to || today <= to)
     })
   }, [orgParameters, formData.inv_org_id])
+
   const locatorRequired = !!selectedOrgParam && isYes(selectedOrgParam.locator_control)
   const lotConflict = !!selectedOrgParam && selectedItem && isYes(selectedItem.is_lot_controlled) && !isYes(selectedOrgParam.lot_control_enabled);
   const serialConflict = !!selectedOrgParam && selectedItem && isYes(selectedItem.is_serial_controlled) && !isYes(selectedOrgParam.serial_control_enabled);
-
   const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled)
   const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled)
-
   const canSave = !lotConflict && !serialConflict;
   const shelfLifeDays = selectedItem ? parseInt(selectedItem.shelf_life_days || 0) : 0
   const isExpirable = selectedItem && isYes(selectedItem.is_expirable)
@@ -116,7 +120,6 @@ export default function OpeningStockPage() {
       if (conversionRate === null || isNaN(qty)) return null
       return (qty * conversionRate).toFixed(4)
     } catch (err) {
-      console.error('Calculation Error:', err)
       return null
     }
   }, [formData.opening_qty, conversionRate])
@@ -141,7 +144,6 @@ export default function OpeningStockPage() {
     if (errors[k]) setErrors(p => ({ ...p, [k]: null }));
   }, [errors])
 
-  // Auto-set default txn reason to 'INITIAL_STOCK'
   useEffect(() => {
     if (view === 'create' && filteredReasons.length > 0 && !formData.txn_reason_id) {
       const defaultReason = filteredReasons.find(r => r.reason_code === 'INITIAL_STOCK')
@@ -149,7 +151,6 @@ export default function OpeningStockPage() {
     }
   }, [view, filteredReasons, formData.txn_reason_id, setField])
 
-  // Filtered dropdowns based on Item selection
   const filteredOrgs = useMemo(() => {
     if (!formData.item_id || !inventoryOrgs?.length || !assignments?.length) return []
     const itemAssignments = assignments.filter(a => String(a.item_id) === String(formData.item_id))
@@ -175,25 +176,14 @@ export default function OpeningStockPage() {
     return locators.filter(l => itemRestrictions.some(r => String(r.locator_id) === String(l.locator_id)))
   }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, locators, restrictions])
 
-  // Auto-selection logic
   useEffect(() => {
     if (view === 'create' || view === 'edit') {
-      // Auto-select Org
-      if (!formData.inv_org_id && filteredOrgs.length === 1) {
-        setField('inv_org_id', filteredOrgs[0].inv_org_id)
-      }
-      // Auto-select Subinventory
-      if (formData.inv_org_id && !formData.subinventory_id && filteredSubinventories.length === 1) {
-        setField('subinventory_id', filteredSubinventories[0].subinventory_id)
-      }
-      // Auto-select Locator
-      if (formData.subinventory_id && !formData.locator_id && filteredLocators.length === 1) {
-        setField('locator_id', filteredLocators[0].locator_id)
-      }
+      if (!formData.inv_org_id && filteredOrgs.length === 1) setField('inv_org_id', filteredOrgs[0].inv_org_id)
+      if (formData.inv_org_id && !formData.subinventory_id && filteredSubinventories.length === 1) setField('subinventory_id', filteredSubinventories[0].subinventory_id)
+      if (formData.subinventory_id && !formData.locator_id && filteredLocators.length === 1) setField('locator_id', filteredLocators[0].locator_id)
     }
   }, [view, formData.inv_org_id, formData.subinventory_id, formData.locator_id, filteredOrgs, filteredSubinventories, filteredLocators, setField])
 
-  // Handle item change — reset tracking fields, auto-fill UOM
   const handleItemChange = useCallback((itemId) => {
     const item = allItems?.find(i => String(i.item_id) === String(itemId))
     setFormData(prev => ({
@@ -211,7 +201,6 @@ export default function OpeningStockPage() {
     setErrors({})
   }, [allItems])
 
-  // Auto-calc expiry date from shelf life
   const computedExpiry = useMemo(() => {
     if (!isExpirable || !shelfLifeDays || !formData.opening_date) return ''
     const d = new Date(formData.opening_date)
@@ -219,7 +208,6 @@ export default function OpeningStockPage() {
     return d.toISOString().split('T')[0]
   }, [isExpirable, shelfLifeDays, formData.opening_date])
 
-  // Serial input management
   const handleQtyChangeForSerials = useCallback((newQty) => {
     setField('opening_qty', newQty)
   }, [setField])
@@ -238,7 +226,6 @@ export default function OpeningStockPage() {
     }
   }, [formData.opening_qty, conversionRate, isSerialControlled, view]);
 
-  // UOM Conversion Preview logic
   useEffect(() => {
     let active = true
     if (formData.item_id && formData.uom_id && selectedItem) {
@@ -255,13 +242,10 @@ export default function OpeningStockPage() {
       }).then(resp => {
         if (!active) return
         const conv = resp.data?.[0]
-        if (!conv) {
-          toast.error(`No UOM conversion defined for ${selectedItem.item_code} to base UOM.`)
-        }
+        if (!conv) toast.error(`No UOM conversion defined for ${selectedItem.item_code} to base UOM.`)
         setConversionRate(conv ? parseFloat(conv.conversion_rate) : null)
-      }).catch((err) => {
+      }).catch(() => {
         if (!active) return
-        console.error('UOM Conv Error:', err)
         setConversionRate(null)
       }).finally(() => {
         if (active) setIsConverting(false)
@@ -273,7 +257,7 @@ export default function OpeningStockPage() {
   const handleCreate = () => {
     setFormData({
       active_flag: 'Y',
-      effective_from: new Date().toISOString().split('T')[0],
+      approval_status: 'PENDING',
       opening_date: new Date().toISOString().split('T')[0]
     })
     setSerialInputs([])
@@ -281,9 +265,26 @@ export default function OpeningStockPage() {
     setErrors({})
     setView('create')
   }
+
   const handleEdit = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('edit') }
   const handleView = (row) => { setSelected(row); setFormData({ ...row }); setErrors({}); setView('view') }
   const handleBack = () => { setView('list'); setSelected(null); setErrors({}) }
+
+  const handleApprove = async () => {
+    if (!confirmApprove) return
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('erp_user') || '{}')?.username || 'system'
+      await table.update(confirmApprove.opening_stock_id, {
+        ...confirmApprove,
+        approval_status: 'APPROVED',
+        approved_by: currentUser
+      })
+      toast.success('Opening stock approved and posted to inventory')
+      table.refresh()
+    } finally {
+      setConfirmApprove(null)
+    }
+  }
 
   const handleSubmit = async (ev) => {
     ev.preventDefault()
@@ -297,13 +298,10 @@ export default function OpeningStockPage() {
     })
 
     setErrors(valErrors)
-
-    if (!isValid) {
-      return toast.error('Please fix the highlighted errors')
-    }
+    if (!isValid) return toast.error('Please fix the highlighted errors')
 
     try {
-      const payload = { ...formData, total_value: totalValue, active_flag: 'Y' }
+      const payload = { ...formData, total_value: totalValue }
       if (!locatorRequired) delete payload.locator_id;
 
       if (isSerialControlled) {
@@ -346,11 +344,13 @@ export default function OpeningStockPage() {
             <CompanyGroup formData={formData} setField={setField} errors={errors} handleBlur={validateField} />
             <Field label="Item" required error={errors.item_id}>
               <Select value={formData.item_id} onChange={handleItemChange} onBlur={() => validateField('item_id', formData.item_id)} error={errors.item_id} disabled={view === 'view' || view === 'edit'}
+                displayValue={formData.item_name}
                 options={physicalStockItems.map(r => ({ value: r.item_id, label: `${r.item_code || ''} - ${r.item_name || r.item_id}` }))} />
             </Field>
 
             <Field label="Transaction Reason" required error={errors.txn_reason_id}>
               <Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id', v)} onBlur={() => validateField('txn_reason_id', formData.txn_reason_id)} error={errors.txn_reason_id} disabled={view === 'view'}
+                displayValue={formData.txn_reason}
                 options={filteredReasons.map(r => ({ value: r.txn_reason_id, label: `${r.reason_code} - ${r.txn_reason}` }))} />
             </Field>
 
@@ -372,40 +372,15 @@ export default function OpeningStockPage() {
         {selectedItem && (
           <div className="card p-6 mb-5 animate-slide-in">
             <SectionHeader icon={MapPin} title="Location & Quantity" subtitle="Where and how much" color="emerald" />
-            
-            {serialConflict && (
-              <div className="mb-4 bg-rose-50 border border-rose-200 p-4 rounded-lg flex items-start gap-3 animate-pulse">
-                <AlertTriangle className="text-rose-500 mt-0.5" size={20} />
-                <div>
-                  <p className="text-rose-800 font-bold text-sm">Action Required: Serial Control Conflict</p>
-                  <p className="text-rose-600 text-xs mt-1">
-                    This item requires Serial Control, but it is disabled for this Inventory Org.
-                    Enable Serial Control in Org Parameter to proceed.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {lotConflict && (
-              <div className="mb-4 bg-rose-50 border border-rose-200 p-4 rounded-lg flex items-start gap-3 animate-pulse">
-                <AlertTriangle className="text-rose-500 mt-0.5" size={20} />
-                <div>
-                  <p className="text-rose-800 font-bold text-sm">Action Required: Lot Control Conflict</p>
-                  <p className="text-rose-600 text-xs mt-1">
-                    This item requires Lot Control, but it is disabled for this Inventory Org.
-                    Enable Lot Control in Org Parameter to proceed.
-                  </p>
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Inventory Organization" required error={errors.inv_org_id}>
                 <Select value={formData.inv_org_id} onChange={v => { setField('inv_org_id', v); setField('subinventory_id', ''); setField('locator_id', ''); }} onBlur={() => validateField('inv_org_id', formData.inv_org_id)} error={errors.inv_org_id} disabled={view === 'view'}
+                  displayValue={formData.inv_org_name}
                   options={filteredOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} />
               </Field>
               <Field label="Subinventory" required error={errors.subinventory_id}>
                 <Select value={formData.subinventory_id} onChange={v => { setField('subinventory_id', v); setField('locator_id', ''); }} onBlur={() => validateField('subinventory_id', formData.subinventory_id)} error={errors.subinventory_id} disabled={view === 'view'}
+                  displayValue={formData.subinventory_name}
                   options={filteredSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name || r.subinventory_id }))} />
               </Field>
               {locatorRequired && (
@@ -444,15 +419,6 @@ export default function OpeningStockPage() {
                       )}
                     </div>
                   )}
-
-                  {isSerialControlled && (
-                    <div className="mt-2">
-                      <div className="text-[10px] bg-blue-50 text-blue-700 p-2 rounded border border-blue-100 flex items-center gap-2">
-                        <Hash size={12} />
-                        <span>Required Serial Count: <strong>{Math.floor(parseFloat(convertedQtyPreview || 0))}</strong> (based on {formData.opening_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'})</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </Field>
               <Field label="Unit Cost" required error={errors.unit_cost}>
@@ -469,10 +435,9 @@ export default function OpeningStockPage() {
           </div>
         )}
 
-        {/* Conditional Rendering: Lot vs Serial */}
         {selectedItem && isLotControlled && (
           <div className="card p-6 mb-5 border-l-4 border-purple-500 animate-slide-in">
-            <SectionHeader icon={Hash} title="Lot Details" subtitle="Optional — leave blank to auto-generate (Org + Item lot control)" color="purple" />
+            <SectionHeader icon={Hash} title="Lot Details" subtitle="Optional — leave blank to auto-generate" color="purple" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Lot Number" error={errors.lot_number}>
                 <Input value={formData.lot_number} error={errors.lot_number} disabled={view === 'view' || view === 'edit'}
@@ -490,7 +455,7 @@ export default function OpeningStockPage() {
 
         {selectedItem && isSerialControlled && (
           <div className="card p-6 mb-5 border-l-4 border-amber-500 animate-slide-in">
-            <SectionHeader icon={Hash} title="Serial Numbers" subtitle="Leave all blank for auto-generation, or enter one per unit" color="amber" />
+            <SectionHeader icon={Hash} title="Serial Numbers" subtitle="Enter one per unit or leave blank to auto-generate" color="amber" />
             {view === 'create' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {serialInputs.map((val, idx) => (
@@ -499,15 +464,6 @@ export default function OpeningStockPage() {
                 ))}
               </div>
             )}
-            {isSerialControlled && (
-              <div className="col-span-full mt-3">
-                <div className="text-[10px] bg-blue-50 text-blue-700 p-2 rounded border border-blue-100 flex items-center gap-2">
-                  <Hash size={12} />
-                  <span>Required Serial Count: <strong>{Math.floor(parseFloat(convertedQtyPreview || 0))}</strong> (based on {formData.opening_qty || 0} {(uoms || []).find(u => u.uom_id === formData.uom_id)?.uom_code || 'Unit'})</span>
-                </div>
-              </div>
-            )}
-
             {view !== 'create' && (
               <div className="bg-amber-50 p-3 rounded text-sm text-amber-800 border border-amber-200">
                 Serial numbers are generated and tracked in Serial Master.
@@ -521,13 +477,20 @@ export default function OpeningStockPage() {
             <SectionHeader icon={FileText} title="Audit & Status" subtitle="Record details" color="brand" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Reference No"><Input value={formData.reference_no} onChange={e => setField('reference_no', e.target.value)} disabled={view === 'view'} /></Field>
-              <Field label="Approved By"><Input value={formData.approved_by || formData.created_by || 'Auto-set on save'} readOnly className="bg-gray-50" /></Field>
-              <Field label="Active Status">
+              <Field label="Approval Status">
                 <div className="flex items-center gap-2 mt-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span className="text-sm font-medium text-emerald-700">System Forced: Active</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                    formData.approval_status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
+                  }`}>
+                    {formData.approval_status || 'PENDING'}
+                  </span>
                 </div>
               </Field>
+              <Field label="Active Status">
+                <Toggle value={formData.active_flag === 'Y'} onChange={v => setField('active_flag', v ? 'Y' : 'N')} disabled={view === 'view'} />
+              </Field>
+              <Field label="Approved By"><Input value={formData.approved_by || 'Not Approved'} readOnly className="bg-gray-50" /></Field>
+              <Field label="Approved Date"><Input value={formData.approved_date || ''} readOnly className="bg-gray-50" /></Field>
               <Field label="Remarks" className="md:col-span-2">
                 <textarea className="input" rows={2} value={formData.remarks || ''} onChange={e => setField('remarks', e.target.value)} disabled={view === 'view'} />
               </Field>
@@ -549,11 +512,24 @@ export default function OpeningStockPage() {
         onSearch={table.handleSearch} onPageChange={table.setPage}
         onSort={table.handleSort} sortBy={table.sortBy} sortOrder={table.sortOrder}
         onCreate={handleCreate}
-        actions={{ onView: handleView, onEdit: handleEdit, onDelete: setConfirmDelete }}
+        actions={{ 
+          onView: handleView, 
+          onEdit: handleEdit, 
+          isEditDisabled: (row) => row.approval_status === 'APPROVED',
+          onDelete: setConfirmDelete,
+          isDeleteDisabled: (row) => row.approval_status === 'APPROVED',
+          onApprove: setConfirmApprove,
+          isApproveDisabled: (row) => row.approval_status !== 'PENDING'
+        }}
       />
       <ConfirmDialog open={!!confirmDelete} title="Delete Opening Stock"
         message={`This will permanently delete opening stock record ${confirmDelete?.opening_stock_id}.`}
         onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} loading={table.isDeleting} />
+      
+      <ConfirmDialog open={!!confirmApprove} title="Approve Opening Stock"
+        message={`Are you sure you want to approve opening stock ${confirmApprove?.opening_stock_id}? This will post transactions to inventory.`}
+        confirmText="Approve"
+        onConfirm={handleApprove} onCancel={() => setConfirmApprove(null)} loading={table.isUpdating} />
     </>
   )
 }
