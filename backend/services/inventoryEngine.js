@@ -9,6 +9,7 @@ const {
   findLot,
   validateIssueControls,
   validateReceiptControls,
+  availableQty,
   applyStandardCost
 } = require('../utils/inventoryControls');
 const {
@@ -64,6 +65,11 @@ class InventoryEngine {
 
   isYes(val) {
     return isYes(val);
+  }
+
+  getAssignmentRules(itemId, invOrgId) {
+    const { getAssignmentRules } = require('../utils/inventoryControls');
+    return getAssignmentRules(itemId, invOrgId);
   }
 
   /** Gets material status properties for a location (Locator > Subinventory) */
@@ -316,6 +322,26 @@ class InventoryEngine {
       params.lot_number = generateAutoLotNumber(controls.item, params.txn_date || params.opening_date || new Date());
     }
 
+    // 0. Lot Divisible Check
+    if (controls.lotRequired && (params.lot_id || lot_id)) {
+      const rules = this.getAssignmentRules(item_id, inv_org_id);
+      if (rules && !rules.lot_divisible_flag) {
+        // If not divisible, qty must match full lot quantity in this location
+        const lotId = params.lot_id || lot_id;
+        const lotStock = (db.item_stock_onhand || []).find(s => 
+          String(s.item_id) === String(item_id) &&
+          String(s.inv_org_id) === String(inv_org_id) &&
+          String(s.lot_id) === String(lotId) &&
+          String(s.subinventory_id) === String(subinventory_id) &&
+          (!controls.locatorRequired || String(s.locator_id || '') === String(locator_id || ''))
+        );
+        const lotQty = lotStock ? parseFloat(lotStock.onhand_qty) : 0;
+        if (action === 'OUT' && qty !== lotQty && lotQty > 0) {
+          throw new Error(`This item is configured as NON-DIVISIBLE. Partial lot transactions are not allowed. Please transact the full lot quantity (${lotQty}).`);
+        }
+      }
+    }
+
     if (action === 'IN') validateReceiptControls(params, controls, qty, { allowExistingSerial: params.allow_existing_serial_receipt });
     if (action === 'OUT') validateIssueControls(params, controls, qty);
 
@@ -419,6 +445,37 @@ class InventoryEngine {
       updated_at: new Date().toISOString()
     };
     db.inventory_transaction.push(txnRecord);
+
+    // 3.5. Add Stock Level Warnings
+    const rules = this.getAssignmentRules(item_id, inv_org_id);
+    if (rules) {
+      const currentStock = availableQty(params, controls);
+      const nextStock = action === 'IN' ? currentStock + qty : currentStock - qty;
+      
+      if (action === 'OUT' && nextStock < rules.safety_stock_qty && currentStock >= rules.safety_stock_qty) {
+        txnRecord.warnings = txnRecord.warnings || [];
+        txnRecord.warnings.push({
+          type: 'SAFETY_STOCK',
+          message: `Remaining stock will become ${nextStock} which is below safety stock level (${rules.safety_stock_qty}).`
+        });
+      }
+      
+      if (nextStock < rules.min_qty) {
+        txnRecord.warnings = txnRecord.warnings || [];
+        txnRecord.warnings.push({
+          type: 'MIN_STOCK',
+          message: `Warning: Stock quantity has fallen below the minimum stock level (${rules.min_qty}).`
+        });
+      }
+      
+      if (action === 'IN' && nextStock > rules.max_qty) {
+        txnRecord.warnings = txnRecord.warnings || [];
+        txnRecord.warnings.push({
+          type: 'MAX_STOCK',
+          message: `Warning: Stock quantity exceeds the configured maximum stock level (${rules.max_qty}).`
+        });
+      }
+    }
 
     // 4. Update On-Hand Stock
     this.updateStock({

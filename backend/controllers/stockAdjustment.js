@@ -2,6 +2,7 @@ const db = require('../data/db');
 const { applyScopeFilter } = require('../utils/scopeFilter');
 const { generateId } = require('../utils/idGenerator');
 const inventoryEngine = require('../services/inventoryEngine');
+const { getAssignmentRules } = require('../utils/inventoryControls');
 const {
   getControlContext,
   validateIssueControls,
@@ -338,6 +339,74 @@ exports.create = async (req, res) => {
       }
     }
 
+    // ── Item Org Assignment Rules (OUT & TRANSFER only) ──────────
+    // Only apply for OUT and TRANSFER — never for IN or Opening Stock
+    const isOutOrTransfer = isTransfer || body.txn_action === 'OUT' || isNegativeAdj;
+    const stockWarnings = [];
+    if (isOutOrTransfer && body.item_id && body.inv_org_id) {
+      const assignRules = getAssignmentRules(body.item_id, body.inv_org_id);
+      if (assignRules) {
+        const txnQty = parseFloat(body.physical_qty || 0);
+        const currentAvail = availableQtyVal;
+        const remainingQty = currentAvail - txnQty;
+
+        // A. Lot Divisible Flag — HARD BLOCK for OUT/TRANSFER
+        if (isLotControlled && body.lot_id && !assignRules.lot_divisible_flag) {
+          // Find the available qty for this specific lot
+          const lotStockRows = (db.item_stock_onhand || []).filter(s =>
+            String(s.item_id) === String(body.item_id) &&
+            String(s.inv_org_id) === String(body.inv_org_id) &&
+            String(s.lot_id) === String(body.lot_id)
+          );
+          const lotAvailQty = lotStockRows.reduce((sum, s) => sum + parseFloat(s.available_qty || 0), 0);
+          if (lotAvailQty > 0 && txnQty !== lotAvailQty) {
+            fieldErrors.physical_qty = `This item is configured as NON-DIVISIBLE. Partial lot transactions are not allowed. Please transact the full lot quantity (${lotAvailQty}).`;
+          }
+        }
+
+        // B. Min Qty Warning (non-blocking)
+        if (assignRules.min_qty > 0 && remainingQty < assignRules.min_qty) {
+          stockWarnings.push({
+            type: 'MIN_QTY',
+            message: `Remaining stock (${remainingQty}) will fall below Minimum Quantity level (${assignRules.min_qty}).`,
+            currentQty: currentAvail,
+            minQty: assignRules.min_qty,
+            remainingQty
+          });
+        }
+
+        // C. Safety Stock Warning (non-blocking)
+        if (assignRules.safety_stock_qty > 0 && remainingQty < assignRules.safety_stock_qty) {
+          stockWarnings.push({
+            type: 'SAFETY_STOCK',
+            message: `This transaction will reduce stock below Safety Stock level (${assignRules.safety_stock_qty}). Remaining will be ${remainingQty}.`,
+            currentQty: currentAvail,
+            safetyStockQty: assignRules.safety_stock_qty,
+            remainingQty
+          });
+        }
+      }
+    }
+
+    // Max Qty Warning for IN/Opening (non-blocking)
+    if (!isOutOrTransfer && body.item_id && body.inv_org_id) {
+      const assignRules = getAssignmentRules(body.item_id, body.inv_org_id);
+      if (assignRules && assignRules.max_qty > 0) {
+        const txnQty = parseFloat(body.physical_qty || 0);
+        const currentOnhand = parseFloat(body.system_qty || 0);
+        const resultingQty = currentOnhand + txnQty;
+        if (resultingQty > assignRules.max_qty) {
+          stockWarnings.push({
+            type: 'MAX_QTY',
+            message: `Stock quantity (${resultingQty}) will exceed configured Maximum Quantity limit (${assignRules.max_qty}).`,
+            currentQty: currentOnhand,
+            maxQty: assignRules.max_qty,
+            resultingQty
+          });
+        }
+      }
+    }
+
     if (Object.keys(fieldErrors).length > 0) {
       return res.status(400).json({ success: false, errors: fieldErrors });
     }
@@ -354,7 +423,7 @@ exports.create = async (req, res) => {
     if (!db[TABLE]) db[TABLE] = [];
     db[TABLE].push(body);
 
-    res.status(201).json({ success: true, data: body, message: 'Stock adjustment saved' });
+    res.status(201).json({ success: true, data: body, message: 'Stock adjustment saved', warnings: stockWarnings });
   } catch (e) { res.status(400).json({ success: false, message: e.message }); }
 };
 

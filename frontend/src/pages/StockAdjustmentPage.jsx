@@ -8,7 +8,7 @@ import {
   DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog,
   Input, AuditFields, MultiSelect, SectionHeader
 } from '../components/ui/index'
-import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react'
+import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck, Loader2, AlertCircle } from 'lucide-react'
 import {
   stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
@@ -21,7 +21,25 @@ const COLUMNS = [
   { key: 'item_name', label: 'Item' },
   { key: 'inv_org_name', label: 'Org' },
   { key: 'txn_action', label: 'Action' },
-  { key: 'adjustment_qty', label: 'Adj Qty' },
+  {
+    key: 'adjustment_qty',
+    label: 'Adj Qty',
+    render: (v, row) => {
+      const action = String(row.txn_action || '').toUpperCase();
+      const qty = parseFloat(v || 0);
+      const isTransfer = action.includes('TRANSFER');
+      
+      if (isTransfer) {
+        return <span className="text-blue-600 font-medium">{qty}</span>;
+      }
+      if (qty > 0) {
+        return <span className="text-emerald-600 font-bold">+{qty}</span>;
+      } else if (qty < 0) {
+        return <span className="text-rose-600 font-bold">{qty}</span>;
+      }
+      return <span className="text-gray-500 font-medium">0</span>;
+    }
+  },
   { key: 'adjustment_value', label: 'Value' },
   {
     key: 'approval_status', label: 'Status', render: (v) => (
@@ -69,7 +87,7 @@ export default function StockAdjustmentPage() {
 
   const isYes = (v) => v === 'Y' || v === true || v === 'True' || v === 'true';
 
-  const isTransfer = formData.txn_action === 'TRANSFER';
+  const isTransfer = String(formData.txn_action || '').toUpperCase().includes('TRANSFER');
 
   const selectedItem = useMemo(() => {
     return (items || []).find(i => String(i.item_id) === String(formData.item_id));
@@ -96,6 +114,7 @@ export default function StockAdjustmentPage() {
   const isLotControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.lot_control_enabled) && isYes(selectedItem.is_lot_controlled);
   const isSerialControlled = !!selectedOrgParam && selectedItem && isYes(selectedOrgParam.serial_control_enabled) && isYes(selectedItem.is_serial_controlled);
 
+  // canSave used locally; canSaveAll is computed later after convertedQtyPreview is defined
   const canSave = !lotConflict && !serialConflict;
 
   const setField = useCallback((k, v) => {
@@ -289,6 +308,97 @@ export default function StockAdjustmentPage() {
     }
   }, [formData.physical_qty, conversionRate])
 
+  // ── Item Org Assignment Rules (OUT & TRANSFER only) ──────────────
+  // These MUST be declared after convertedQtyPreview and currentStockInfo
+  const itemOrgAssignmentRules = useMemo(() => {
+    if (!formData.item_id || !formData.inv_org_id || !assignments?.length) return null;
+    const match = assignments.find(a =>
+      String(a.item_id) === String(formData.item_id) &&
+      String(a.inv_org_id) === String(formData.inv_org_id) &&
+      isYes(a.active_flag)
+    );
+    if (!match) return null;
+    return {
+      lot_divisible_flag: isYes(match.lot_divisible_flag),
+      min_qty: parseFloat(match.min_qty || 0),
+      max_qty: parseFloat(match.max_qty || 0),
+      safety_stock_qty: parseFloat(match.safety_stock_qty || 0)
+    };
+  }, [assignments, formData.item_id, formData.inv_org_id]);
+
+  // Only applies to OUT and TRANSFER — never to IN or Opening Stock
+  const isOutOrTransfer = isTransfer || String(formData.txn_action || '').toUpperCase() === 'OUT';
+
+  // Available qty for selected lot in current location
+  const lotAvailableQty = useMemo(() => {
+    if (!formData.lot_id || !allStock?.length) return null;
+    const rows = allStock.filter(s =>
+      String(s.item_id) === String(formData.item_id) &&
+      String(s.inv_org_id) === String(formData.inv_org_id) &&
+      String(s.lot_id) === String(formData.lot_id)
+    );
+    return rows.reduce((sum, s) => sum + parseFloat(s.available_qty || 0), 0);
+  }, [allStock, formData.item_id, formData.inv_org_id, formData.lot_id]);
+
+  // Lot Divisible validation — HARD block for OUT/TRANSFER
+  const lotDivisibleError = useMemo(() => {
+    if (!isOutOrTransfer) return null;
+    if (!isLotControlled || !formData.lot_id) return null;
+    if (!itemOrgAssignmentRules) return null;
+    if (itemOrgAssignmentRules.lot_divisible_flag) return null;
+    const entered = parseFloat(convertedQtyPreview || 0);
+    if (lotAvailableQty === null || lotAvailableQty <= 0) return null;
+    if (entered === 0) return null;
+    if (entered !== lotAvailableQty) {
+      return `This item is configured as NON-DIVISIBLE. Partial lot transactions are not allowed. Please transact the full lot quantity (${lotAvailableQty}).`;
+    }
+    return null;
+  }, [isOutOrTransfer, isLotControlled, formData.lot_id, itemOrgAssignmentRules, lotAvailableQty, convertedQtyPreview]);
+
+  // Stock level warnings (non-blocking) for OUT/TRANSFER
+  const stockLevelWarnings = useMemo(() => {
+    const warnings = [];
+    if (!isOutOrTransfer || !itemOrgAssignmentRules || !currentStockInfo) return warnings;
+    const entered = parseFloat(convertedQtyPreview || 0);
+    if (entered <= 0) return warnings;
+    const currentAvail = parseFloat(currentStockInfo.available_qty || 0);
+    const remaining = currentAvail - entered;
+    if (itemOrgAssignmentRules.safety_stock_qty > 0 && remaining < itemOrgAssignmentRules.safety_stock_qty) {
+      warnings.push({
+        type: 'SAFETY_STOCK',
+        color: 'orange',
+        message: `This transaction will reduce stock below Safety Stock level (${itemOrgAssignmentRules.safety_stock_qty}).`,
+        details: { currentQty: currentAvail, safetyStock: itemOrgAssignmentRules.safety_stock_qty, remaining }
+      });
+    }
+    if (itemOrgAssignmentRules.min_qty > 0 && remaining < itemOrgAssignmentRules.min_qty) {
+      warnings.push({
+        type: 'MIN_QTY',
+        color: 'yellow',
+        message: `Remaining stock (${remaining}) will fall below Minimum Quantity level (${itemOrgAssignmentRules.min_qty}).`,
+        details: { currentQty: currentAvail, minQty: itemOrgAssignmentRules.min_qty, remaining }
+      });
+    }
+    return warnings;
+  }, [isOutOrTransfer, itemOrgAssignmentRules, currentStockInfo, convertedQtyPreview]);
+
+  // Max qty warning for IN (non-blocking)
+  const maxQtyWarning = useMemo(() => {
+    if (isOutOrTransfer) return null;
+    if (!itemOrgAssignmentRules || itemOrgAssignmentRules.max_qty <= 0) return null;
+    const entered = parseFloat(convertedQtyPreview || 0);
+    if (entered <= 0) return null;
+    const currentOnhand = parseFloat(currentStockInfo?.onhand_qty || 0);
+    const resulting = currentOnhand + entered;
+    if (resulting > itemOrgAssignmentRules.max_qty) {
+      return { currentQty: currentOnhand, maxQty: itemOrgAssignmentRules.max_qty, resulting };
+    }
+    return null;
+  }, [isOutOrTransfer, itemOrgAssignmentRules, currentStockInfo, convertedQtyPreview]);
+
+  // canSave must also block on lot divisible error
+  const canSaveAll = !lotConflict && !serialConflict && !lotDivisibleError;
+
   const validateField = useCallback((k, v) => {
     const val = typeof v === 'string' ? v.trim() : v;
     const { errors: newErrors } = validateStockAdjustment({ ...formData, [k]: val }, {
@@ -342,8 +452,8 @@ export default function StockAdjustmentPage() {
     const typeCode = String(formData.txn_type_code || '').toUpperCase();
 
     if (isTransfer) return physicalQty;
-    if (action === 'IN' || typeCode === 'TXN_TYPE_INC') return physicalQty;
-    if (action === 'OUT' || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
+    if (action === 'IN' || action.includes('STOCK IN') || typeCode === 'TXN_TYPE_INC') return physicalQty;
+    if (action === 'OUT' || action.includes('STOCK OUT') || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
     return physicalQty - systemQty;
   }, [isTransfer, convertedQtyPreview, formData.system_qty, formData.txn_action, formData.txn_type_code]);
 
@@ -352,8 +462,8 @@ export default function StockAdjustmentPage() {
     [formData.system_qty, currentAdjQty]
   );
 
-  const isPositiveAdj = formData.txn_action === 'IN' || (!isTransfer && currentAdjQty > 0);
-  const isNegativeAdj = formData.txn_action === 'OUT' || (!isTransfer && currentAdjQty < 0);
+  const isPositiveAdj = !isTransfer && currentAdjQty > 0;
+  const isNegativeAdj = !isTransfer && currentAdjQty < 0;
   const requiredSerialCount = Math.floor(Math.abs(currentAdjQty || 0));
 
   const handleQtyChangeForSerials = useCallback((newQty) => {
@@ -618,7 +728,17 @@ export default function StockAdjustmentPage() {
         payload.serial_ids = undefined; // Clear old field
       }
       if (view === 'edit') await table.update(selected['adjustment_id'], payload)
-      else await table.create(payload)
+      else {
+        const result = await table.create(payload)
+        // Show backend warnings as toasts (non-blocking)
+        if (result?.warnings?.length) {
+          result.warnings.forEach(w => {
+            if (w.type === 'SAFETY_STOCK') toast(w.message, { icon: '🟠', duration: 6000 });
+            else if (w.type === 'MIN_QTY') toast(w.message, { icon: '🟡', duration: 5000 });
+            else if (w.type === 'MAX_QTY') toast(w.message, { icon: '🔵', duration: 5000 });
+          });
+        }
+      }
       handleBack()
     } catch (err) {
       if (err.response?.data?.errors) {
@@ -634,7 +754,7 @@ export default function StockAdjustmentPage() {
     return (
       <FormPage title={view === 'view' ? 'View Adjustment' : view === 'edit' ? 'Edit Adjustment' : 'New Adjustment'}
         onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}
-        disabled={!canSave}>
+        disabled={!canSaveAll}>
         <>
           <div className="card p-6 mb-5">
             <SectionHeader icon={Package} title="Transaction Info" subtitle="Item and type details" color="brand" />
@@ -792,7 +912,11 @@ export default function StockAdjustmentPage() {
                     </div>
                   </Field>
                   <Field label="Net Adjustment">
-                    <Input value={currentAdjQty} readOnly className="bg-white font-bold" />
+                    <Input 
+                      value={currentAdjQty > 0 && !isTransfer ? `+${currentAdjQty}` : currentAdjQty} 
+                      readOnly 
+                      className={`bg-white font-bold ${isTransfer ? 'text-blue-600' : currentAdjQty > 0 ? 'text-emerald-600' : currentAdjQty < 0 ? 'text-rose-600' : 'text-gray-500'}`} 
+                    />
                   </Field>
                   {!isTransfer && (
                     <>
@@ -808,6 +932,82 @@ export default function StockAdjustmentPage() {
                         </Field>
                       )}
                     </>
+                  )}
+                  {/* Lot Divisible Hard Error — OUT & TRANSFER only */}
+                  {lotDivisibleError && (
+                    <div className="mt-2 p-3 bg-rose-50 border border-rose-300 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="text-rose-500 mt-0.5 shrink-0" size={16} />
+                      <div>
+                        <p className="text-rose-800 font-bold text-[11px]">❌ Non-Divisible Lot Restriction</p>
+                        <p className="text-rose-700 text-[11px] mt-0.5">{lotDivisibleError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lot Divisible Info Banner (when lot selected & non-divisible) */}
+                  {isOutOrTransfer && isLotControlled && formData.lot_id && itemOrgAssignmentRules && !itemOrgAssignmentRules.lot_divisible_flag && !lotDivisibleError && (
+                    <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                      <AlertTriangle className="text-amber-500 shrink-0" size={14} />
+                      <p className="text-amber-800 text-[11px] font-medium">
+                        ⚠️ This item is configured as <strong>NON-DIVISIBLE</strong>. You must transact the full lot quantity{lotAvailableQty !== null ? ` (${lotAvailableQty})` : ''}.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Lot Divisible Info Banner (when lot selected & divisible) */}
+                  {isOutOrTransfer && isLotControlled && formData.lot_id && itemOrgAssignmentRules?.lot_divisible_flag && (
+                    <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-2">
+                      <CheckCircle2 className="text-emerald-500 shrink-0" size={14} />
+                      <p className="text-emerald-800 text-[11px] font-medium">Partial lot transactions are allowed for this item.</p>
+                    </div>
+                  )}
+
+                  {/* Safety Stock Warning — OUT/TRANSFER, non-blocking */}
+                  {stockLevelWarnings.filter(w => w.type === 'SAFETY_STOCK').map((w, i) => (
+                    <div key={i} className="mt-2 p-3 bg-orange-50 border border-orange-300 rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="text-orange-500 mt-0.5 shrink-0" size={15} />
+                      <div>
+                        <p className="text-orange-800 font-bold text-[11px]">⚠️ Below Safety Stock Level</p>
+                        <p className="text-orange-700 text-[11px]">{w.message}</p>
+                        <div className="flex gap-3 mt-1 text-[10px] text-orange-600">
+                          <span>Current: <strong>{w.details.currentQty}</strong></span>
+                          <span>Safety Stock: <strong>{w.details.safetyStock}</strong></span>
+                          <span>Remaining: <strong>{w.details.remaining}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Min Qty Warning — OUT/TRANSFER, non-blocking */}
+                  {stockLevelWarnings.filter(w => w.type === 'MIN_QTY').map((w, i) => (
+                    <div key={i} className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={15} />
+                      <div>
+                        <p className="text-amber-800 font-bold text-[11px]">⚠️ Below Minimum Stock Level</p>
+                        <p className="text-amber-700 text-[11px]">{w.message}</p>
+                        <div className="flex gap-3 mt-1 text-[10px] text-amber-600">
+                          <span>Current: <strong>{w.details.currentQty}</strong></span>
+                          <span>Min Qty: <strong>{w.details.minQty}</strong></span>
+                          <span>Remaining: <strong>{w.details.remaining}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Max Qty Warning — IN only, non-blocking */}
+                  {maxQtyWarning && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="text-blue-500 mt-0.5 shrink-0" size={15} />
+                      <div>
+                        <p className="text-blue-800 font-bold text-[11px]">⚠️ Exceeds Maximum Stock Level</p>
+                        <p className="text-blue-700 text-[11px]">Stock quantity will exceed the configured Maximum Quantity limit ({maxQtyWarning.maxQty}).</p>
+                        <div className="flex gap-3 mt-1 text-[10px] text-blue-600">
+                          <span>Current: <strong>{maxQtyWarning.currentQty}</strong></span>
+                          <span>Max Qty: <strong>{maxQtyWarning.maxQty}</strong></span>
+                          <span>Resulting: <strong>{maxQtyWarning.resulting}</strong></span>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

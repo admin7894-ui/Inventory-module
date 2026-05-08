@@ -272,6 +272,21 @@ function applyStandardCost(data, controls) {
   return data;
 }
 
+function getAssignmentRules(itemId, invOrgId) {
+  const assignment = (db.item_org_assignment || []).find(a =>
+    String(a.item_id) === String(itemId) &&
+    String(a.inv_org_id) === String(invOrgId) &&
+    isYes(a.active_flag)
+  );
+  if (!assignment) return null;
+  return {
+    min_qty: asNumber(assignment.min_qty),
+    max_qty: asNumber(assignment.max_qty),
+    safety_stock_qty: asNumber(assignment.safety_stock_qty),
+    lot_divisible_flag: isYes(assignment.lot_divisible_flag)
+  };
+}
+
 module.exports = {
   isYes,
   asNumber,
@@ -289,5 +304,6 @@ module.exports = {
   validateIssueControls,
   validateReceiptControls,
   availableQty,
-  applyStandardCost
+  applyStandardCost,
+  getAssignmentRules
 };
