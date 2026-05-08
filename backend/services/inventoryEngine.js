@@ -759,13 +759,29 @@ class InventoryEngine {
 
       return { outTxn, inTxn };
     } else {
-      // Normal Adjustment
-    const qty = parseFloat(adj.adjustment_qty);
-    const action = qty >= 0 ? 'IN' : 'OUT';
+      // Normal Adjustment (IN / OUT / generic ADJUSTMENT)
+      const qty = parseFloat(adj.adjustment_qty);
+
+      // Prefer explicit txn_action when it's IN or OUT.
+      // For generic ADJUSTMENT types the sign of adjustment_qty drives direction.
+      let action;
+      if (adj.txn_action === 'IN') {
+        action = 'IN';
+      } else if (adj.txn_action === 'OUT') {
+        action = 'OUT';
+      } else {
+        // Generic adjustment: derive from sign
+        action = qty >= 0 ? 'IN' : 'OUT';
+      }
+
+      const absQty = Math.abs(qty);
+      if (absQty <= 0) {
+        throw new Error('Adjustment quantity must be greater than 0');
+      }
 
     const controlsAdj = getControlContext(adj, adj.adjustment_date || new Date());
-    const allowAuto = action === 'IN' && qty > 0;
-    const { lot_id, serial_ids } = await this.ensureLotAndSerial(item, adj, Math.abs(qty), user, controlsAdj, allowAuto);
+    const allowAuto = action === 'IN';
+    const { lot_id, serial_ids } = await this.ensureLotAndSerial(item, adj, absQty, user, controlsAdj, allowAuto);
 
     if (controlsAdj.serialRequired && serial_ids.length > 0) {
       const results = [];
@@ -792,7 +808,7 @@ class InventoryEngine {
       return this.processTransaction({
         ...adj,
         txn_action: action,
-        txn_qty: Math.abs(qty),
+        txn_qty: absQty,
         lot_id,
         reference_type: action === 'OUT' ? 'ADJUSTMENT_OUT' : 'ADJUSTMENT',
         reference_id: adj.adjustment_id,

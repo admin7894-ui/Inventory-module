@@ -437,11 +437,15 @@ exports.update = async (req, res) => {
     const updated = { ...prev, ...body, [PK]: req.params.id, updated_by: req.user?.username || MOCK_USER, updated_at: new Date().toISOString() };
     const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y';
     if (!isTransfer) {
-      const controls = getControlContext(updated, updated.adjustment_date || new Date());
-      const isSerialOut = controls.serialRequired && updated.txn_action === 'OUT';
-      if (isSerialOut) {
+      // Explicitly respect txn_action for IN and OUT — never recalculate as physical-system for these
+      if (updated.txn_action === 'OUT') {
+        // OUT: always negative physical qty regardless of system qty match
         updated.adjustment_qty = -parseFloat(updated.physical_qty || 0);
+      } else if (updated.txn_action === 'IN') {
+        // IN: always positive physical qty
+        updated.adjustment_qty = parseFloat(updated.physical_qty || 0);
       } else {
+        // Generic ADJUSTMENT: compute delta (physical - system)
         updated.adjustment_qty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
       }
     }
