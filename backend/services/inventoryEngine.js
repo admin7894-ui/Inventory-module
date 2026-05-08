@@ -443,9 +443,9 @@ class InventoryEngine {
     // 5. Create Stock Ledger Entry
     this.createLedgerEntry(txnRecord, user);
 
-    // OUT only: keep lot master quantity/status in sync with on-hand balance.
-    if (action === 'OUT' && effectiveLotId) {
-      this.updateLotMasterForOut(txnRecord, user);
+    // Sync lot master quantity for all lot-related transactions
+    if (effectiveLotId) {
+      this.syncLotMasterQuantity(txnRecord, user);
     }
 
     // 6. Update Batch/Serial Tracking & Serial Master
@@ -458,7 +458,7 @@ class InventoryEngine {
           const locStatus = this.getLocationStatus({ inv_org_id, subinventory_id, locator_id });
           
           if (action === 'IN') {
-            db.serial_master[serialIdx].status = locStatus.is_saleable === 'N' ? 'DAMAGED' : 'AVAILABLE';
+            db.serial_master[serialIdx].status = !this.isYes(locStatus.is_saleable) ? 'DAMAGED' : 'AVAILABLE';
             db.serial_master[serialIdx].current_subinventory_id = subinventory_id;
             db.serial_master[serialIdx].current_locator_id = locator_id;
           } else {
@@ -505,6 +505,8 @@ class InventoryEngine {
         onhand_qty: 0,
         reserved_qty: 0,
         available_qty: 0,
+        hold_qty: 0,
+        damaged_qty: 0,
         in_transit_qty: 0,
         unit_cost: cost,
         total_cost_value: 0,
@@ -517,7 +519,7 @@ class InventoryEngine {
 
     if (stock) {
       const locStatus = this.getLocationStatus({ inv_org_id, subinventory_id, locator_id });
-      const isDamaged = locStatus.status_code.toUpperCase().includes('DAMAGE') || locStatus.is_saleable === 'N';
+      const isDamaged = locStatus.status_code.toUpperCase().includes('DAMAGE') || !this.isYes(locStatus.is_saleable);
       const isHold = locStatus.status_code.toUpperCase().includes('HOLD');
 
       if (action === 'IN') {
@@ -537,8 +539,13 @@ class InventoryEngine {
       stock.in_transit_qty = parseFloat(stock.in_transit_qty) || 0;
       
       // available_qty excludes reserved, damaged, and hold stock
-      stock.available_qty = Math.max(0, stock.onhand_qty - stock.reserved_qty - stock.damaged_qty - stock.hold_qty);
-      stock.total_cost_value = (stock.onhand_qty * (parseFloat(stock.unit_cost) || cost)).toFixed(4);
+      stock.available_qty = Math.max(0, 
+        (parseFloat(stock.onhand_qty) || 0) - 
+        (parseFloat(stock.reserved_qty) || 0) - 
+        (parseFloat(stock.damaged_qty) || 0) - 
+        (parseFloat(stock.hold_qty) || 0)
+      );
+      stock.total_cost_value = ((parseFloat(stock.onhand_qty) || 0) * (parseFloat(stock.unit_cost) || cost)).toFixed(4);
       stock.last_transaction_id = txn_id;
       stock.updated_at = new Date().toISOString();
     }
@@ -589,7 +596,7 @@ class InventoryEngine {
     db.stock_ledger.push(ledgerEntry);
   }
 
-  updateLotMasterForOut(txn, user) {
+  syncLotMasterQuantity(txn, user) {
     if (!txn?.lot_id) return;
 
     const lotIdx = (db.lot_master || []).findIndex(l =>
@@ -598,6 +605,7 @@ class InventoryEngine {
     );
     if (lotIdx === -1) return;
 
+    // Calculate total onhand qty for this lot across all subinventories/locators in this org
     const lotQty = (db.item_stock_onhand || [])
       .filter(s =>
         String(s.item_id) === String(txn.item_id) &&

@@ -14,8 +14,10 @@ const COLUMNS = [
     </span>
   )},
   { key: 'item_code', label: 'Item Code' },
-  { key: 'lot_number', label: 'Lot #' },
-  { key: 'serial_number', label: 'Serial #' },
+  { key: 'inv_org_name', label: 'Inventory Org' },
+  { key: 'subinventory_name', label: 'Subinventory' },
+  { key: 'locator_name', label: 'Locator' },
+  { key: 'tracking_qty', label: 'Qty', render: (v) => <span className="font-bold">{v}</span> },
   { key: 'status', label: 'Status', render: (v) => (
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
       v === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'
@@ -60,6 +62,7 @@ export default function BatchSerialTrackingPage() {
               <Field label="Status"><Input value={selected.status} readOnly className="font-bold text-emerald-700 uppercase" /></Field>
               <Field label="Lot Number"><Input value={selected.lot_number || '--'} readOnly /></Field>
               <Field label="Serial Number"><Input value={selected.serial_number || '--'} readOnly /></Field>
+              <Field label="Quantity"><Input value={selected.tracking_qty || '--'} readOnly className="font-bold" /></Field>
             </div>
           </div>
 
@@ -83,11 +86,11 @@ export default function BatchSerialTrackingPage() {
           </div>
 
           <div className="card p-6">
-            <SectionHeader icon={MapPin} title="Current Location" color="amber" />
+            <SectionHeader icon={MapPin} title="Transaction Location" color="amber" />
             <div className="grid grid-cols-1 gap-4">
-              <Field label="Organization"><Input value={selected.inv_org_id} readOnly /></Field>
-              <Field label="Subinventory"><Input value={selected.subinventory_id} readOnly /></Field>
-              <Field label="Locator"><Input value={selected.locator_id || '--'} readOnly /></Field>
+              <Field label="Organization"><Input value={selected.inv_org_name || selected.inv_org_id} readOnly /></Field>
+              <Field label="Subinventory"><Input value={selected.subinventory_name || selected.subinventory_id} readOnly /></Field>
+              <Field label="Locator"><Input value={selected.locator_name || selected.locator_id || '--'} readOnly /></Field>
             </div>
           </div>
 

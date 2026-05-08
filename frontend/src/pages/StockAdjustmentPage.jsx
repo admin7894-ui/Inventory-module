@@ -525,7 +525,8 @@ export default function StockAdjustmentPage() {
       effective_from: new Date().toISOString().split('T')[0],
       adjustment_date: new Date().toISOString().split('T')[0],
       approval_status: 'PENDING',
-      created_by: 'admin'
+      created_by: 'admin',
+      auto_generate_lot: true
     })
     setSerialInputs([])
     setSerialMode('manual')
@@ -597,6 +598,21 @@ export default function StockAdjustmentPage() {
       }
       if (!locatorRequired) delete payload.locator_id;
       if (!destLocatorRequired) delete payload.to_locator_id;
+      if (isLotControlled && formData.auto_generate_lot && currentAdjQty > 0 && !isTransfer && formData.txn_action !== 'IN' && formData.txn_action !== 'OUT') {
+        payload.lot_id = undefined; // Always clear ID to force creation from number
+        if (!payload.lot_number) {
+          try {
+            const lotResp = await lotMasterApi.generateLot({ item_id: formData.item_id });
+            if (lotResp.success) {
+              payload.lot_number = lotResp.data;
+            }
+          } catch (e) {
+            toast.error('Failed to auto-generate lot number');
+            return;
+          }
+        }
+      }
+
       if (isSerialControlled && isPositiveAdj) {
         payload.serial_numbers = serialInputs.filter(s => s.trim());
         payload.serial_ids = undefined; // Clear old field
@@ -786,6 +802,11 @@ export default function StockAdjustmentPage() {
                       <Field label="Projected Available">
                         <Input value={projectedOnhand} readOnly className="bg-white" />
                       </Field>
+                      {currentAdjQty > 0 && (
+                        <Field label="Extra Quantity">
+                          <Input value={currentAdjQty} readOnly className="bg-emerald-50 text-emerald-700 font-bold border-emerald-200" />
+                        </Field>
+                      )}
                     </>
                   )}
                 </div>
@@ -823,34 +844,49 @@ export default function StockAdjustmentPage() {
               )}
 
               {isLotControlled && (
-                <Field label="Lot Number" required error={formData.txn_action === 'IN' ? errors.lot_number : errors.lot_id}>
-                  {formData.txn_action === 'IN' ? (
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <Input value={formData.lot_number || ''} 
-                          placeholder="Auto-generated if empty"
-                          disabled={view === 'view'}
-                          onChange={e => setField('lot_number', e.target.value)} />
-                      </div>
-                      {view === 'create' && (
-                        <button type="button" onClick={handleAutoGenerateLot}
-                          className="px-3 py-2 text-[10px] font-bold uppercase bg-purple-50 text-purple-600 border border-purple-200 rounded hover:bg-purple-100 transition-colors">
-                          Auto
-                        </button>
-                      )}
+                <>
+                  {currentAdjQty > 0 && !isTransfer && formData.txn_action !== 'IN' && formData.txn_action !== 'OUT' && (
+                    <div className="col-span-full mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer p-2 bg-purple-50 rounded border border-purple-100 hover:bg-purple-100 transition-colors">
+                        <input type="checkbox" checked={formData.auto_generate_lot} 
+                          onChange={e => setField('auto_generate_lot', e.target.checked)}
+                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" />
+                        <span className="text-sm font-bold text-purple-700">Auto Generate New Lot for Extra Quantity</span>
+                      </label>
                     </div>
-                  ) : (
-                      <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
-                        options={lotRows?.filter(r => 
-                          String(r.item_id) === String(formData.item_id) &&
-                          itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
-                        ).map(r => {
-                        const stock = itemStock.find(s => String(s.lot_id) === String(r.lot_id));
-                        const qtyStr = stock ? ` (${stock.available_qty} available)` : '';
-                        return { value: r.lot_id, label: `${r.lot_number}${qtyStr}` }
-                      })} />
                   )}
-                </Field>
+
+                  <Field label={formData.auto_generate_lot && currentAdjQty > 0 && !isTransfer && formData.txn_action !== 'IN' && formData.txn_action !== 'OUT' ? "New Lot Number" : "Lot Number"} 
+                    required error={formData.txn_action === 'IN' || (formData.auto_generate_lot && currentAdjQty > 0) ? errors.lot_number : errors.lot_id}>
+                    
+                    {formData.txn_action === 'IN' || (formData.auto_generate_lot && currentAdjQty > 0 && !isTransfer && formData.txn_action !== 'IN' && formData.txn_action !== 'OUT') ? (
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Input value={formData.lot_number || ''} 
+                            placeholder={formData.auto_generate_lot ? "Will be auto-generated..." : "Enter lot number"}
+                            disabled={view === 'view'}
+                            onChange={e => setField('lot_number', e.target.value)} />
+                        </div>
+                        {view === 'create' && (
+                          <button type="button" onClick={handleAutoGenerateLot}
+                            className="px-3 py-2 text-[10px] font-bold uppercase bg-purple-50 text-purple-600 border border-purple-200 rounded hover:bg-purple-100 transition-colors">
+                            Auto
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                        <Select value={formData.lot_id} onChange={v => setField('lot_id', v)} disabled={view === 'view'}
+                          options={lotRows?.filter(r => 
+                            String(r.item_id) === String(formData.item_id) &&
+                            itemStock.some(s => String(s.lot_id) === String(r.lot_id) && parseFloat(s.available_qty) > 0)
+                          ).map(r => {
+                          const stock = itemStock.find(s => String(s.lot_id) === String(r.lot_id));
+                          const qtyStr = stock ? ` (${stock.available_qty} available)` : '';
+                          return { value: r.lot_id, label: `${r.lot_number}${qtyStr}` }
+                        })} />
+                    )}
+                  </Field>
+                </>
               )}
               {isSerialControlled && (
                 <div className="md:col-span-2 lg:col-span-3 mt-2 animate-slide-in">

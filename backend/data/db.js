@@ -2985,6 +2985,7 @@ const db = {
     "lot_number": "LOT-PARA-001",
     "manufacture_date": "2024-02-01 00:00:00",
     "expiry_date": "2025-06-30 00:00:00",
+    "current_qty": 455,
     "status": "ACTIVE",
     "module_id": "MOD01",
     "active_flag": "True",

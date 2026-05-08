@@ -20,6 +20,9 @@ exports.getAll = (req, res) => {
       const company = (db.company || []).find(c => c.company_id === track.COMPANY_id || c.company_id === track.company_id);
       const bg = (db.business_group || []).find(b => b.bg_id === track.bg_id);
       const uom = (db.uom_unit_of_measure || []).find(u => u.uom_id === track.uom_id);
+      const org = (db.inventory_org || []).find(o => o.inv_org_id === track.inv_org_id);
+      const subinv = (db.subinventory || []).find(s => s.subinventory_id === track.subinventory_id);
+      const loc = (db.locator___bin || []).find(l => l.locator_id === track.locator_id);
 
       return {
         ...track,
@@ -27,7 +30,10 @@ exports.getAll = (req, res) => {
         item_code: item ? item.item_code : (track.item_code || ''),
         company_name: company ? company.company_name : (track.company_name || ''),
         bg_name: bg ? bg['Business Group Name'] : (track.bg_name || ''),
-        uom_name: uom ? uom.uom_name : (track.uom_name || '')
+        uom_name: uom ? uom.uom_name : (track.uom_name || ''),
+        inv_org_name: org ? org.inv_org_name : (track.inv_org_id || ''),
+        subinventory_name: subinv ? subinv.subinventory_name : (track.subinventory_id || ''),
+        locator_name: loc ? loc.locator_name : (track.locator_id || '')
       };
     });
 

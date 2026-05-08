@@ -8,7 +8,8 @@ const {
   validateReceiptControls,
   validateLocator,
   availableQty,
-  applyStandardCost
+  applyStandardCost,
+  isYes
 } = require('../utils/inventoryControls');
 const { convertToBaseUOM, getItemBaseUOM } = require('../utils/uomHelper');
 const MOCK_USER = 'admin';
@@ -262,16 +263,16 @@ exports.create = async (req, res) => {
       const srcStatus = inventoryEngine.getLocationStatus({ inv_org_id: body.inv_org_id, subinventory_id: body.subinventory_id, locator_id: body.locator_id });
       const destStatus = inventoryEngine.getLocationStatus({ inv_org_id: body.to_inv_org_id, subinventory_id: body.to_subinventory_id, locator_id: body.to_locator_id });
 
-      if (srcStatus.allow_transfer === 'N') {
+      if (!isYes(srcStatus.allow_transfer)) {
         fieldErrors.subinventory_id = `Transfer not allowed from location with status: ${srcStatus.status_code}`;
       }
-      if (destStatus.allow_transfer === 'N') {
+      if (!isYes(destStatus.allow_transfer)) {
         fieldErrors.to_subinventory_id = `Transfer not allowed to location with status: ${destStatus.status_code}`;
       }
 
       // If source is NOT damaged and destination IS damaged, it's a "Damage Transfer"
-      const isSrcDamaged = srcStatus.is_saleable === 'N';
-      const isDestDamaged = destStatus.is_saleable === 'N';
+      const isSrcDamaged = !isYes(srcStatus.is_saleable);
+      const isDestDamaged = !isYes(destStatus.is_saleable);
 
       if (!isSrcDamaged && isDestDamaged) {
         // Moving good stock to damaged area
