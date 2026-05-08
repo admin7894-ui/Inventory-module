@@ -610,7 +610,13 @@ class InventoryEngine {
 
   createLedgerEntry(txn, user) {
     const lastEntry = [...db.stock_ledger]
-      .filter(l => l.COMPANY_id === txn.COMPANY_id && l.item_id === txn.item_id && l.inv_org_id === txn.inv_org_id)
+      .filter(l => 
+        l.COMPANY_id === txn.COMPANY_id && 
+        l.item_id === txn.item_id && 
+        l.inv_org_id === txn.inv_org_id &&
+        String(l.subinventory_id || '') === String(txn.subinventory_id || '') &&
+        String(l.locator_id || '') === String(txn.locator_id || '')
+      )
       .pop();
     
     const prevBal = parseFloat(lastEntry?.balance_qty || 0);

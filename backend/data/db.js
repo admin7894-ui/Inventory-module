@@ -4275,7 +4275,7 @@ const db = {
 ],
 
   // ── item_stock_onhand (pk: stock_id) ──
-  item_stock_onhand: [
+  item_stock_onhand_legacy: [
     {
       "stock_id": "STK001",
       "COMPANY_id": "C02",
@@ -4353,7 +4353,7 @@ const db = {
   ],
 
   // ── inventory_transaction (pk: txn_id) ──
-  inventory_transaction: [
+  inventory_transaction_legacy: [
     {
       "txn_id": "TXN001",
       "COMPANY_id": "C02",
@@ -4402,7 +4402,7 @@ const db = {
   ],
 
   // ── stock_ledger (pk: ledger_id) ──
-  stock_ledger: [
+  stock_ledger_legacy: [
     {
       "ledger_id": "LED001",
       "COMPANY_id": "C02",

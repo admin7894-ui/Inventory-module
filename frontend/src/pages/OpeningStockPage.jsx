@@ -171,9 +171,11 @@ export default function OpeningStockPage() {
     const itemRestrictions = restrictions.filter(r =>
       String(r.item_id) === String(formData.item_id) &&
       String(r.inv_org_id) === String(formData.inv_org_id) &&
-      String(r.subinventory_id) === String(formData.subinventory_id)
+      String(r.subinventory_id) === String(formData.subinventory_id) &&
+      r.locator_id
     )
-    return locators.filter(l => itemRestrictions.some(r => String(r.locator_id) === String(l.locator_id)))
+    const subLocators = locators.filter(l => String(l.subinventory_id) === String(formData.subinventory_id))
+    return itemRestrictions.length > 0 ? subLocators.filter(l => itemRestrictions.some(r => String(r.locator_id) === String(l.locator_id))) : subLocators
   }, [formData.item_id, formData.inv_org_id, formData.subinventory_id, locators, restrictions])
 
   useEffect(() => {

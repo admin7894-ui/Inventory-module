@@ -40,6 +40,8 @@ exports.getAll = (req, res) => {
       const org = (db.inventory_org || []).find(o => o.inv_org_id === row.inv_org_id);
       const subinv = (db.subinventory || []).find(s => s.subinventory_id === row.subinventory_id);
       const locator = (db.locator___bin || []).find(l => l.locator_id === row.locator_id);
+      const toSubinv = (db.subinventory || []).find(s => s.subinventory_id === row.to_subinventory_id);
+      const toLocator = (db.locator___bin || []).find(l => l.locator_id === row.to_locator_id);
       return {
         ...row,
         item_name: item ? item.item_name : '',
@@ -50,7 +52,9 @@ exports.getAll = (req, res) => {
         business_type_name: bt ? bt.name : '',
         inv_org_name: org ? org.inv_org_name : '',
         subinventory_name: subinv ? subinv.subinventory_name : '',
-        locator_name: locator ? locator.locator_name : ''
+        locator_name: locator ? locator.locator_name : '',
+        to_subinventory_name: toSubinv ? toSubinv.subinventory_name : '',
+        to_locator_name: toLocator ? toLocator.locator_name : ''
       };
     });
     const { search, page = 1, limit = 50 } = req.query;
@@ -71,6 +75,8 @@ exports.getById = (req, res) => {
   const org = (db.inventory_org || []).find(o => o.inv_org_id === row.inv_org_id);
   const subinv = (db.subinventory || []).find(s => s.subinventory_id === row.subinventory_id);
   const locator = (db.locator___bin || []).find(l => l.locator_id === row.locator_id);
+  const toSubinv = (db.subinventory || []).find(s => s.subinventory_id === row.to_subinventory_id);
+  const toLocator = (db.locator___bin || []).find(l => l.locator_id === row.to_locator_id);
   const data = {
     ...row,
     COMPANY_id: row.COMPANY_id || row.company_id || '',
@@ -82,7 +88,9 @@ exports.getById = (req, res) => {
     business_type_name: bt ? bt.name : '',
     inv_org_name: org ? org.inv_org_name : '',
     subinventory_name: subinv ? subinv.subinventory_name : '',
-    locator_name: locator ? locator.locator_name : ''
+    locator_name: locator ? locator.locator_name : '',
+    to_subinventory_name: toSubinv ? toSubinv.subinventory_name : '',
+    to_locator_name: toLocator ? toLocator.locator_name : ''
   };
   res.json({ success: true, data });
 };
@@ -99,7 +107,7 @@ exports.create = async (req, res) => {
     const fieldErrors = {};
 
     // ── 1. Basic Field Validation ───────────────────────────────
-    const requiredFields = ['bg_id', 'COMPANY_id', 'business_type_id', 'item_id', 'txn_type_id', 'inv_org_id', 'subinventory_id', 'uom_id', 'adjustment_date'];
+    const requiredFields = ['bg_id', 'COMPANY_id', 'business_type_id', 'item_id', 'txn_type_id', 'inv_org_id', 'subinventory_id', 'uom_id', 'unit_cost', 'adjustment_date'];
     for (const f of requiredFields) {
       if (!body[f]) return res.status(400).json({ success: false, message: `${f.replace('_id', '').replace('COMPANY', 'Company')} is required` });
     }
@@ -142,13 +150,14 @@ exports.create = async (req, res) => {
     let netAdj = 0;
     if (isTransfer) {
       netAdj = physical;
-    } else if (body.txn_action === 'IN' || body.txn_type_code === 'TXN_TYPE_INC') {
+    } else if (body.txn_action === 'IN' || body.txn_type_code === 'TXN_TYPE_INC' || body.txn_action === 'STOCK IN' || body.txn_action === 'STOCK_IN' || body.txn_action?.includes('RECEIPT')) {
       netAdj = physical;
-    } else if (body.txn_action === 'OUT' || body.txn_type_code === 'TXN_TYPE_OUT') {
+    } else if (body.txn_action === 'OUT' || body.txn_type_code === 'TXN_TYPE_OUT' || body.txn_action === 'STOCK OUT' || body.txn_action === 'STOCK_OUT' || body.txn_action?.includes('ISSUE')) {
       netAdj = -physical;
     } else {
       netAdj = physical - system;
     }
+    body.adjustment_qty = netAdj;
 
     const isPositiveAdj = body.txn_action === 'IN' || (!isTransfer && netAdj > 0);
     const isNegativeAdj = body.txn_action === 'OUT' || (!isTransfer && netAdj < 0);
@@ -435,18 +444,19 @@ exports.update = async (req, res) => {
     const body = { ...req.body };
     body.COMPANY_id = body.COMPANY_id || body.company_id;
     const updated = { ...prev, ...body, [PK]: req.params.id, updated_by: req.user?.username || MOCK_USER, updated_at: new Date().toISOString() };
-    const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y';
+    const isTransfer = updated.txn_action === 'TRANSFER' || updated.transfer_flag === 'Y' || updated.txn_type_id === 'TT03';
     if (!isTransfer) {
-      // Explicitly respect txn_action for IN and OUT — never recalculate as physical-system for these
-      if (updated.txn_action === 'OUT') {
-        // OUT: always negative physical qty regardless of system qty match
-        updated.adjustment_qty = -parseFloat(updated.physical_qty || 0);
-      } else if (updated.txn_action === 'IN') {
-        // IN: always positive physical qty
-        updated.adjustment_qty = parseFloat(updated.physical_qty || 0);
+      const physical = parseFloat(updated.physical_qty || 0);
+      const system = parseFloat(updated.system_qty || 0);
+      const action = String(updated.txn_action || '').toUpperCase();
+      const typeCode = String(updated.txn_type_code || '').toUpperCase();
+
+      if (action === 'IN' || action.includes('STOCK IN') || action.includes('STOCK_IN') || action.includes('RECEIPT') || typeCode === 'TXN_TYPE_INC') {
+        updated.adjustment_qty = physical;
+      } else if (action === 'OUT' || action.includes('STOCK OUT') || action.includes('STOCK_OUT') || action.includes('ISSUE') || typeCode === 'TXN_TYPE_OUT') {
+        updated.adjustment_qty = -physical;
       } else {
-        // Generic ADJUSTMENT: compute delta (physical - system)
-        updated.adjustment_qty = parseFloat(updated.physical_qty || 0) - parseFloat(updated.system_qty || 0);
+        updated.adjustment_qty = physical - system;
       }
     }
     updated.adjustment_value = (updated.adjustment_qty * parseFloat(updated.unit_cost || 0)).toFixed(4);
@@ -465,10 +475,94 @@ exports.remove = (req, res) => {
   try {
     const idx = (db[TABLE] || []).findIndex(r => r[PK] === req.params.id);
     if (idx === -1) return res.status(404).json({ success: false, message: 'Not found' });
+
+    const record = db[TABLE][idx];
+    // ── Guard: APPROVED adjustments cannot be deleted ──
+    if (String(record.approval_status || '').toUpperCase() === 'APPROVED') {
+      return res.status(409).json({
+        success: false,
+        message: 'Approved inventory adjustments cannot be deleted. Please create a reversal adjustment instead.',
+        code: 'APPROVED_DELETE_BLOCKED'
+      });
+    }
+
     const [del] = db[TABLE].splice(idx, 1);
     res.json({ success: true, data: del });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
+// ── Reverse an APPROVED adjustment ──
+exports.reverse = async (req, res) => {
+  try {
+    const original = (db[TABLE] || []).find(r => r[PK] === req.params.id);
+    if (!original) return res.status(404).json({ success: false, message: 'Adjustment not found' });
+    if (String(original.approval_status || '').toUpperCase() !== 'APPROVED') {
+      return res.status(400).json({ success: false, message: 'Only APPROVED adjustments can be reversed' });
+    }
+    if (original.reversal_of) {
+      return res.status(400).json({ success: false, message: 'This adjustment is already a reversal' });
+    }
+    if (original.reversed_by) {
+      return res.status(400).json({ success: false, message: 'This adjustment has already been reversed' });
+    }
 
+    const user = req.user?.username || MOCK_USER;
+    const reversalId = generateId(TABLE);
+    const originalAdjQty = parseFloat(original.adjustment_qty || 0);
+    const reversedAdjQty = -originalAdjQty;
 
+    // Determine reversal action
+    const isTransfer = original.txn_action === 'TRANSFER' || original.transfer_flag === 'Y';
+    let reversalAction = original.txn_action;
+    if (!isTransfer) {
+      reversalAction = originalAdjQty > 0 ? 'OUT' : 'IN';
+    }
+
+    const reversal = {
+      ...original,
+      [PK]: reversalId,
+      adjustment_qty: reversedAdjQty,
+      adjustment_value: (reversedAdjQty * parseFloat(original.unit_cost || 0)).toFixed(4),
+      physical_qty: Math.abs(reversedAdjQty),
+      txn_action: reversalAction,
+      approval_status: 'APPROVED',
+      approved_by: user,
+      reversal_of: original[PK],
+      reversed_by: undefined,
+      reversed_date: undefined,
+      reversal_reason: req.body?.reversal_reason || 'Manual Reversal',
+      remarks: `REVERSAL of ${original[PK]}. ${original.remarks || ''}`.trim(),
+      created_by: user,
+      updated_by: user,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Post reversal inventory transactions
+    await inventoryEngine.processStockAdjustment(reversal, req.user);
+
+    // Save reversal record
+    if (!db[TABLE]) db[TABLE] = [];
+    db[TABLE].push(reversal);
+
+    // Mark original as REVERSED
+    const origIdx = db[TABLE].findIndex(r => r[PK] === original[PK]);
+    if (origIdx !== -1) {
+      db[TABLE][origIdx] = {
+        ...db[TABLE][origIdx],
+        reversed_by: user,
+        reversed_date: new Date().toISOString().split('T')[0],
+        reversal_reference_id: reversalId,
+        updated_by: user,
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Reversal adjustment ${reversalId} created successfully`,
+      data: reversal,
+      original: db[TABLE][origIdx]
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};

@@ -77,7 +77,10 @@ export const costMethodApi            = crud('/cost-method')
 export const costTypeApi              = crud('/cost-type')
 export const orgParameterApi          = crud('/org-parameter')
 export const shipMethodApi            = crud('/ship-method')
-export const shipNetworkApi           = crud('/ship-network')
+export const shipNetworkApi           = {
+  ...crud('/ship-network'),
+  validate: (params) => api.get('/ship-network/validate', { params }).then(r => r.data)
+}
 export const intercompanyApi          = crud('/intercompany')
 export const uomTypeApi               = crud('/uom-type')
 export const uomApi                   = crud('/uom')
@@ -115,7 +118,11 @@ export const openingStockApi          = crud('/opening-stock')
 export const inventoryTransactionApi  = crud('/inventory-transaction')
 export const itemStockApi             = crud('/item-stock')
 export const stockLedgerApi           = crud('/stock-ledger')
-export const stockAdjustmentApi       = crud('/stock-adjustment')
+export const stockAdjustmentApi       = {
+  ...crud('/stock-adjustment'),
+  reverse: (id, data) => api.post(`/stock-adjustment/${id}/reverse`, data || {}).then(r => r.data)
+}
+
 export const batchSerialTrackingApi   = crud('/batch-serial-tracking')
 
 // Auth

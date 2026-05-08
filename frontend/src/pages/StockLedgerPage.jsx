@@ -9,6 +9,8 @@ const COLUMNS = [
   { key: 'item_code', label: 'Item Code' },
   { key: 'item_name', label: 'Item Name' },
   { key: 'inv_org_name', label: 'Org' },
+  { key: 'subinventory_name', label: 'Subinventory' },
+  { key: 'locator_name', label: 'Locator/Bin' },
   { key: 'dr_qty', label: 'In (+)', render: (v) => v > 0 ? <span className="text-emerald-600 font-bold">+{v}</span> : '--' },
   { key: 'cr_qty', label: 'Out (-)', render: (v) => v > 0 ? <span className="text-rose-600 font-bold">-{v}</span> : '--' },
   { key: 'running_balance', label: 'Running Balance (Transaction)', render: (v) => <span className="font-bold text-blue-600">{v}</span> },

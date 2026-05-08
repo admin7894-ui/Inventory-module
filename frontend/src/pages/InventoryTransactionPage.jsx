@@ -9,6 +9,7 @@ const COLUMNS = [
   { key: 'item_name', label: 'Item Name' },
   { key: 'inv_org_name', label: 'Organization' },
   { key: 'subinventory_name', label: 'Subinventory' },
+  { key: 'locator_name', label: 'Locator/Bin' },
   { key: 'txn_action', label: 'Action', render: (v) => (
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
       v === 'IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'

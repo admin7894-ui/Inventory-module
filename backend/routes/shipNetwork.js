@@ -5,6 +5,7 @@ const { validate, validateShipNetwork } = require('../validators');
 
 router.get('/all', ctrl.getAll);
 router.get('/', ctrl.getAll);
+router.get('/validate', ctrl.validateNetwork);
 router.get('/:id', ctrl.getById);
 router.post('/', validate(validateShipNetwork), ctrl.create);
 router.put('/:id', validate(validateShipNetwork), ctrl.update);

@@ -8,6 +8,14 @@ const validateStockAdjustment = (data) => {
   if (isEmpty(data.item_id)) errors.item_id = 'Item is required';
   if (isEmpty(data.txn_type_id)) errors.txn_type_id = 'Adjustment Type is required';
   if (isEmpty(data.inv_org_id)) errors.inv_org_id = 'Source Organization is required';
+  if (isEmpty(data.subinventory_id)) errors.subinventory_id = 'Subinventory is required';
+  if (isEmpty(data.uom_id)) errors.uom_id = 'UOM is required';
+  
+  if (isEmpty(data.unit_cost)) {
+    errors.unit_cost = 'Unit Cost is required';
+  } else if (!isNonNegativeNumber(data.unit_cost)) {
+    errors.unit_cost = 'Unit cost must be non-negative';
+  }
 
   const isTransfer = data.txn_action === 'TRANSFER';
 
@@ -33,13 +41,13 @@ const validateStockAdjustment = (data) => {
     }
   }
 
-  if (!isEmpty(data.unit_cost) && !isNonNegativeNumber(data.unit_cost)) {
-    errors.unit_cost = 'Unit cost must be non-negative';
-  }
-
   if (!isEmpty(data.adjustment_date) && !isValidDate(data.adjustment_date)) {
     errors.adjustment_date = 'Invalid date format';
+  } else if (isEmpty(data.adjustment_date)) {
+    errors.adjustment_date = 'Adjustment Date is required';
   }
+
+  if (isEmpty(data.txn_reason_id)) errors.txn_reason_id = 'Reason is required';
 
   return { errors, isValid: Object.keys(errors).length === 0 };
 };

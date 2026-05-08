@@ -8,11 +8,11 @@ import {
   DataTable, Toggle, Select, DateInput, Field, FormPage, ConfirmDialog,
   Input, AuditFields, MultiSelect, SectionHeader
 } from '../components/ui/index'
-import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck, Loader2, AlertCircle } from 'lucide-react'
+import { Package, MapPin, Hash, FileText, AlertTriangle, ArrowRightLeft, CheckCircle2, ShieldCheck, Loader2, AlertCircle, RotateCcw } from 'lucide-react'
 import {
   stockAdjustmentApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, transactionTypeApi, transactionReasonApi, moduleApi,
-  lotMasterApi, serialMasterApi, itemStockApi,
+  lotMasterApi, serialMasterApi, itemStockApi, shipNetworkApi,
   itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi, uomConvApi
 } from '../services/api'
 
@@ -20,35 +20,95 @@ const COLUMNS = [
   { key: 'adjustment_id', label: 'ID' },
   { key: 'item_name', label: 'Item' },
   { key: 'inv_org_name', label: 'Org' },
+  { key: 'subinventory_name', label: 'Subinventory', render: (v, row) => {
+    const action = String(row.txn_action || '').toUpperCase();
+    const isTransfer = action.includes('TRANSFER') || row.transfer_flag === 'Y';
+    if (isTransfer && row.to_subinventory_name) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className="text-gray-600">{v}</span>
+          <ArrowRightLeft size={10} className="text-blue-400 opacity-50" />
+          <span className="font-bold text-blue-700">{row.to_subinventory_name}</span>
+        </div>
+      );
+    }
+    return v;
+  }},
+  { key: 'locator_name', label: 'Locator/Bin', render: (v, row) => {
+    const action = String(row.txn_action || '').toUpperCase();
+    const isTransfer = action.includes('TRANSFER') || row.transfer_flag === 'Y';
+    if (isTransfer && row.to_locator_name) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className="text-gray-600">{v || 'N/A'}</span>
+          <ArrowRightLeft size={10} className="text-blue-400 opacity-50" />
+          <span className="font-bold text-blue-700">{row.to_locator_name}</span>
+        </div>
+      );
+    }
+    return v || 'N/A';
+  }},
   { key: 'txn_action', label: 'Action' },
   {
     key: 'adjustment_qty',
-    label: 'Adj Qty',
+    label: 'Net Adjustment',
     render: (v, row) => {
+      // Recompute net adjustment from stored fields for display accuracy
       const action = String(row.txn_action || '').toUpperCase();
-      const qty = parseFloat(v || 0);
-      const isTransfer = action.includes('TRANSFER');
-      
+      const isTransfer = action.includes('TRANSFER') || row.transfer_flag === 'Y';
+      const physical = parseFloat(row.physical_qty || 0);
+      const system = parseFloat(row.system_qty || 0);
+      const storedAdj = parseFloat(row.adjustment_qty || 0);
+
+      let netAdj;
       if (isTransfer) {
-        return <span className="text-blue-600 font-medium">{qty}</span>;
+        netAdj = storedAdj !== 0 ? storedAdj : physical;
+      } else if (action === 'IN' || action.includes('STOCK IN') || row.txn_type_code === 'TXN_TYPE_INC') {
+        netAdj = storedAdj !== 0 ? storedAdj : physical;
+      } else if (action === 'OUT' || action.includes('STOCK OUT') || row.txn_type_code === 'TXN_TYPE_OUT') {
+        netAdj = storedAdj !== 0 ? storedAdj : -physical;
+      } else {
+        // Physical count adjustment
+        netAdj = storedAdj !== 0 ? storedAdj : physical - system;
       }
-      if (qty > 0) {
-        return <span className="text-emerald-600 font-bold">+{qty}</span>;
-      } else if (qty < 0) {
-        return <span className="text-rose-600 font-bold">{qty}</span>;
+
+      if (isTransfer) {
+        return <span className="font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">{Math.abs(netAdj)}</span>;
       }
-      return <span className="text-gray-500 font-medium">0</span>;
+      if (netAdj > 0) {
+        return <span className="font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">+{netAdj}</span>;
+      } else if (netAdj < 0) {
+        return <span className="font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100">{netAdj}</span>;
+      }
+      return <span className="text-gray-500 font-medium px-2">0</span>;
     }
   },
-  { key: 'adjustment_value', label: 'Value' },
   {
-    key: 'approval_status', label: 'Status', render: (v) => (
-      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${v === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-        v === 'REJECTED' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+    key: 'adjustment_value',
+    label: 'Value',
+    render: (v, row) => {
+      const val = parseFloat(v || 0);
+      const action = String(row.txn_action || '').toUpperCase();
+      const isTransfer = action.includes('TRANSFER') || row.transfer_flag === 'Y';
+      if (isTransfer) return <span className="text-blue-600 font-medium">{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>;
+      if (val > 0) return <span className="text-emerald-600 font-medium">+{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>;
+      if (val < 0) return <span className="text-rose-600 font-medium">{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>;
+      return <span>{val}</span>;
+    }
+  },
+  {
+    key: 'approval_status', label: 'Status', render: (v, row) => (
+      <div className="flex flex-col gap-0.5">
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+          v === 'APPROVED' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+          v === 'REJECTED' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
           'bg-amber-100 text-amber-700 border border-amber-200'
         }`}>
-        {v || 'PENDING'}
-      </span>
+          {v || 'PENDING'}
+        </span>
+        {row.reversed_by && <span className="text-[9px] text-gray-400 font-medium">REVERSED</span>}
+        {row.reversal_of && <span className="text-[9px] text-blue-400 font-medium">REVERSAL</span>}
+      </div>
     )
   },
 ]
@@ -59,6 +119,7 @@ export default function StockAdjustmentPage() {
   const [selected, setSelected] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [confirmApprove, setConfirmApprove] = useState(null)
+  const [confirmReverse, setConfirmReverse] = useState(null)
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
   const [stockSnapshot, setStockSnapshot] = useState(null)
@@ -66,6 +127,8 @@ export default function StockAdjustmentPage() {
   const [serialMode, setSerialMode] = useState('manual')
   const [conversionRate, setConversionRate] = useState(1)
   const [isConverting, setIsConverting] = useState(false)
+  const [shipNetworkValid, setShipNetworkValid] = useState(true)
+  const [shipNetworkChecking, setShipNetworkChecking] = useState(false)
 
   // Dropdowns
   const { options: inventoryOrgs } = useDropdownData(inventoryOrgApi, 'invorg_dd')
@@ -196,6 +259,37 @@ export default function StockAdjustmentPage() {
   const currentStockInfo = useMemo(() => {
     return stockSnapshot
   }, [stockSnapshot])
+
+  useEffect(() => {
+    let active = true
+    const fromOrg = formData.inv_org_id
+    const toOrg = formData.to_inv_org_id
+
+    if (isTransfer && fromOrg && toOrg) {
+      setShipNetworkChecking(true)
+      shipNetworkApi.validate({ from_org: fromOrg, to_org: toOrg })
+        .then(res => {
+          if (!active) return
+          setShipNetworkValid(res.valid)
+          if (!res.valid) {
+            setErrors(prev => ({ ...prev, to_inv_org_id: res.message }))
+          } else {
+            setErrors(prev => ({ ...prev, to_inv_org_id: null }))
+          }
+        })
+        .catch(() => {
+          if (!active) return
+          setShipNetworkValid(false)
+        })
+        .finally(() => {
+          if (active) setShipNetworkChecking(false)
+        })
+    } else {
+      setShipNetworkValid(true)
+      if (isTransfer) setErrors(prev => ({ ...prev, to_inv_org_id: null }))
+    }
+    return () => { active = false }
+  }, [isTransfer, formData.inv_org_id, formData.to_inv_org_id])
 
   useEffect(() => {
     let active = true
@@ -452,8 +546,8 @@ export default function StockAdjustmentPage() {
     const typeCode = String(formData.txn_type_code || '').toUpperCase();
 
     if (isTransfer) return physicalQty;
-    if (action === 'IN' || action.includes('STOCK IN') || typeCode === 'TXN_TYPE_INC') return physicalQty;
-    if (action === 'OUT' || action.includes('STOCK OUT') || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
+    if (action === 'IN' || action.includes('STOCK IN') || action.includes('RECEIPT') || typeCode === 'TXN_TYPE_INC') return physicalQty;
+    if (action === 'OUT' || action.includes('STOCK OUT') || action.includes('ISSUE') || typeCode === 'TXN_TYPE_OUT') return -physicalQty;
     return physicalQty - systemQty;
   }, [isTransfer, convertedQtyPreview, formData.system_qty, formData.txn_action, formData.txn_type_code]);
 
@@ -649,8 +743,32 @@ export default function StockAdjustmentPage() {
 
   const handleDelete = async () => {
     if (!confirmDelete) return
-    await table.remove(confirmDelete['adjustment_id'])
+    try {
+      await table.remove(confirmDelete['adjustment_id'])
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Delete failed';
+      const code = err.response?.data?.code;
+      if (code === 'APPROVED_DELETE_BLOCKED') {
+        toast.error('❌ ' + msg, { duration: 6000 });
+      } else {
+        toast.error(msg);
+      }
+    }
     setConfirmDelete(null)
+  }
+
+  const handleReverse = async () => {
+    if (!confirmReverse) return
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('erp_user') || '{}')?.username || 'system'
+      await stockAdjustmentApi.reverse(confirmReverse.adjustment_id, { reversal_reason: 'Manual Reversal', reversed_by: currentUser })
+      toast.success(`Reversal adjustment created for ${confirmReverse.adjustment_id}`)
+      table.refresh?.() // Reload list
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Reversal failed')
+    } finally {
+      setConfirmReverse(null)
+    }
   }
 
   const handleApprove = async () => {
@@ -753,8 +871,11 @@ export default function StockAdjustmentPage() {
   if (view !== 'list') {
     return (
       <FormPage title={view === 'view' ? 'View Adjustment' : view === 'edit' ? 'Edit Adjustment' : 'New Adjustment'}
-        onBack={handleBack} onSubmit={handleSubmit} loading={table.isCreating || table.isUpdating} mode={view}
-        disabled={!canSaveAll}>
+        onBack={handleBack} onSubmit={handleSubmit} 
+        loading={table.isCreating || table.isUpdating || shipNetworkChecking} mode={view}
+        disabled={!canSaveAll || (isTransfer && !shipNetworkValid)}
+        tooltip={isTransfer && !shipNetworkValid ? "Cannot save because no valid shipping network exists between selected organizations." : ""}
+      >
         <>
           <div className="card p-6 mb-5">
             <SectionHeader icon={Package} title="Transaction Info" subtitle="Item and type details" color="brand" />
@@ -816,10 +937,30 @@ export default function StockAdjustmentPage() {
                 <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
                   <h4 className="text-xs font-bold uppercase text-blue-600 mb-3">Destination Location</h4>
                   <div className="space-y-3">
-                    <Field label="To Org" required={isTransfer} error={errors.to_inv_org_id}>
-                      <Select value={formData.to_inv_org_id} onChange={v => { setField('to_inv_org_id', v); setField('to_subinventory_id', ''); setField('to_locator_id', ''); }} disabled={view === 'view'}
-                        options={filteredToOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name }))} />
-                    </Field>
+                  <Field 
+                    label="To Org" 
+                    required 
+                    error={errors.to_inv_org_id}
+                    helpText={isTransfer && !shipNetworkValid && !shipNetworkChecking && formData.to_inv_org_id ? (
+                      <div className="mt-1 p-2 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium flex items-start gap-1.5 animate-pulse">
+                        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                        <div>
+                          No shipping network exists between <span className="font-bold">{(inventoryOrgs || []).find(o => String(o.inv_org_id) === String(formData.inv_org_id))?.inv_org_name || 'Source Org'}</span> and <span className="font-bold">{(inventoryOrgs || []).find(o => String(o.inv_org_id) === String(formData.to_inv_org_id))?.inv_org_name || 'Destination Org'}</span>.
+                          <p className="mt-1 opacity-80">Please configure a shipping network or select a valid destination organization.</p>
+                        </div>
+                      </div>
+                    ) : null}
+                  >
+                    <Select 
+                      value={formData.to_inv_org_id} 
+                      onChange={v => { setField('to_inv_org_id', v); setField('to_subinventory_id', ''); setField('to_locator_id', ''); }} 
+                      onBlur={() => validateField('to_inv_org_id', formData.to_inv_org_id)} 
+                      error={errors.to_inv_org_id} 
+                      disabled={view === 'view' || shipNetworkChecking}
+                      displayValue={formData.to_inv_org_name}
+                      options={filteredToOrgs.map(r => ({ value: r.inv_org_id, label: r.inv_org_name || r.inv_org_id }))} 
+                    />
+                  </Field>
                     <Field label="To Subinventory" required={isTransfer} error={errors.to_subinventory_id}>
                       <Select value={formData.to_subinventory_id} onChange={v => { setField('to_subinventory_id', v); setField('to_locator_id', ''); }} disabled={view === 'view'}
                         options={filteredToSubinventories.map(r => ({ value: r.subinventory_id, label: r.subinventory_name }))} />
@@ -1142,11 +1283,11 @@ export default function StockAdjustmentPage() {
                   )}
                 </div>
               )}
-              <Field label="UOM" error={errors.uom_id}>
-                <Select value={formData.uom_id} onChange={v => setField('uom_id', v)} disabled={view === 'view'}
+              <Field label="UOM" required error={errors.uom_id}>
+                <Select value={formData.uom_id} onChange={v => { setField('uom_id', v); validateField('uom_id', v); }} disabled={view === 'view'}
                   options={uoms?.map(r => ({ value: r.uom_id, label: r.uom_name }))} />
               </Field>
-              <Field label="Unit Cost" error={errors.unit_cost}><Input type="number" value={formData.unit_cost} onChange={e => setField('unit_cost', e.target.value)} disabled={view === 'view'} /></Field>
+              <Field label="Unit Cost" required error={errors.unit_cost}><Input type="number" value={formData.unit_cost} onChange={e => setField('unit_cost', e.target.value)} onBlur={() => validateField('unit_cost', formData.unit_cost)} disabled={view === 'view'} /></Field>
               <Field label="Reason" required error={errors.txn_reason_id}>
                 <Select value={formData.txn_reason_id} onChange={v => setField('txn_reason_id', v)} disabled={view === 'view'}
                   options={txnReasons?.map(r => ({ value: r.txn_reason_id, label: r.txn_reason }))} />
@@ -1196,7 +1337,32 @@ export default function StockAdjustmentPage() {
             }
             setConfirmApprove(row)
           },
-          onDelete: setConfirmDelete
+          onDelete: (row) => {
+            if (String(row.approval_status || '').toUpperCase() === 'APPROVED') {
+              // Offer reverse instead of delete for APPROVED records
+              toast(
+                (t) => (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-bold text-rose-700">❌ Cannot Delete Approved Adjustment</p>
+                    <p className="text-xs text-gray-600">Approved adjustments cannot be deleted. Create a reversal instead.</p>
+                    <div className="flex gap-2 mt-1">
+                      <button onClick={() => { toast.dismiss(t.id); setConfirmReverse(row); }}
+                        className="text-[11px] px-3 py-1 bg-orange-500 text-white rounded font-bold hover:bg-orange-600">
+                        Reverse Adjustment
+                      </button>
+                      <button onClick={() => toast.dismiss(t.id)}
+                        className="text-[11px] px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ),
+                { duration: 8000 }
+              );
+              return;
+            }
+            setConfirmDelete(row);
+          }
         }}
       />
       <ConfirmDialog
@@ -1211,6 +1377,15 @@ export default function StockAdjustmentPage() {
       <ConfirmDialog open={!!confirmDelete} title="Delete Adjustment"
         message={`Delete adjustment record ${confirmDelete?.adjustment_id}?`}
         onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} loading={table.isDeleting} />
+      <ConfirmDialog
+        open={!!confirmReverse}
+        title="Reverse Stock Adjustment"
+        message={`Create a reversal for adjustment ${confirmReverse?.adjustment_id}? This will post a counter-transaction to reverse all inventory impacts.`}
+        onConfirm={handleReverse}
+        onCancel={() => setConfirmReverse(null)}
+        confirmText="Create Reversal"
+        loading={false}
+      />
     </>
   )
 }

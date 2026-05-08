@@ -43,6 +43,30 @@ exports.getById = (req, res) => {
   res.json({ success:true, data:item });
 };
 
+exports.validateNetwork = (req, res) => {
+  try {
+    const { from_org, to_org } = req.query;
+    if (!from_org || !to_org) {
+      return res.status(400).json({ success: false, valid: false, message: 'Source and Destination Orgs are required' });
+    }
+
+    const data = db[TABLE] || [];
+    const network = data.find(r => 
+      String(r.from_inv_org_id) === String(from_org) && 
+      String(r.to_inv_org_id) === String(to_org) &&
+      (r.active_flag === 'Y' || r.active_flag === true || r.active_flag === 'True' || r.active_flag === 'true')
+    );
+
+    if (network) {
+      res.json({ success: true, valid: true, message: 'Shipping network exists.' });
+    } else {
+      res.json({ success: true, valid: false, message: 'No shipping network exists between selected locations.' });
+    }
+  } catch (e) {
+    res.status(500).json({ success: false, valid: false, message: e.message });
+  }
+};
+
 exports.create = (req, res) => {
   try {
     const body = { ...req.body };

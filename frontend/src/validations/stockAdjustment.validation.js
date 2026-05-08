@@ -10,6 +10,7 @@ export const stockAdjustmentValidation = {
   inv_org_id: { required: true, message: "Organization is required" },
   subinventory_id: { required: true, message: "Subinventory is required" },
   locator_id: { required: false, message: "Locator is required" },
+  uom_id: { required: true, message: "UOM is required" },
   to_inv_org_id: {
     requiredIf: (data) => data.txn_action === "TRANSFER",
     message: "Destination Org is required"
@@ -30,7 +31,7 @@ export const stockAdjustmentValidation = {
     message: "Invalid quantity"
   },
   unit_cost: {
-    required: false,
+    required: true,
     min: 0,
     regex: /^[0-9]+(\.[0-9]{1,2})?$/,
     message: "Invalid unit cost"

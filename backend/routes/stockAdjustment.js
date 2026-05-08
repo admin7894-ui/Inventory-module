@@ -9,5 +9,6 @@ router.get('/:id', ctrl.getById);
 router.post('/', validate(validateStockAdjustment), ctrl.create);
 router.put('/:id', validate(validateStockAdjustment), ctrl.update);
 router.delete('/:id', ctrl.remove);
+router.post('/:id/reverse', ctrl.reverse);
 
 module.exports = router;
