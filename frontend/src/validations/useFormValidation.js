@@ -27,6 +27,7 @@ export function useFormValidation(formName) {
 
   /** Mark field touched + run full validation (call onBlur) */
   const handleBlur = useCallback((key, formData, options = {}) => {
+    if (!submitFailed) return;
     setTouched(prev => ({ ...prev, [key]: true }));
     // Trim string fields
     const trimmedData = Object.fromEntries(
@@ -34,7 +35,7 @@ export function useFormValidation(formName) {
     );
     const { errors: valErrors } = validate(formName, trimmedData, options);
     setErrors(valErrors);
-  }, [formName]);
+  }, [formName, submitFailed]);
 
   /** Run full validation, mark all touched, return isValid (call on submit) */
   const runValidation = useCallback((formData, options = {}) => {
@@ -78,12 +79,14 @@ export function useFormValidation(formName) {
 
   /** Check if there are any errors and at least one field is touched */
   const hasErrors = Object.keys(errors).length > 0 && Object.keys(touched).length > 0;
+  const hasSubmitErrors = submitFailed && Object.keys(errors).length > 0;
 
   return {
     errors,
     touched,
     submitFailed,
-    hasErrors,
+    hasErrors: hasSubmitErrors,
+    hasSubmitErrors,
     clearError,
     handleBlur,
     runValidation,
