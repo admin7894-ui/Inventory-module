@@ -23,6 +23,14 @@ exports.getAll = (req, res) => {
       const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
       const bt = (db.business_type || []).find(b => b.business_type_id === row.business_type_id);
       
+      const stockRow = (db.item_stock_onhand || []).find(s => s.serial_id === row.serial_id && parseFloat(s.onhand_qty || 0) > 0);
+      let org = null, subinv = null, locator = null;
+      if (stockRow) {
+        org = (db.inventory_org || []).find(o => o.inv_org_id === stockRow.inv_org_id);
+        subinv = (db.subinventory || []).find(s => s.subinventory_id === stockRow.subinventory_id);
+        locator = (db.locator___bin || []).find(l => l.locator_id === stockRow.locator_id);
+      }
+
       return {
         ...row,
         item_name: item ? item.item_name : (row.item_name || ''),
@@ -30,7 +38,10 @@ exports.getAll = (req, res) => {
         company_name: company ? company.company_name : (row.company_name || ''),
         bg_name: bg ? bg['Business Group Name'] : (row.bg_name || ''),
         business_group_name: bg ? bg['Business Group Name'] : (row.business_group_name || ''),
-        business_type_name: bt ? bt.name : (row.business_type_name || '')
+        business_type_name: bt ? bt.name : (row.business_type_name || ''),
+        inv_org_name: (row.status === 'AVAILABLE' && org) ? org.inv_org_name : null,
+        subinventory_name: (row.status === 'AVAILABLE' && subinv) ? subinv.subinventory_name : null,
+        locator_name: (row.status === 'AVAILABLE' && locator) ? locator.locator_name : null
       };
     });
 
@@ -65,6 +76,14 @@ exports.getById = (req, res) => {
   const bg = (db.business_group || []).find(b => b.bg_id === row.bg_id);
   const bt = (db.business_type || []).find(b => b.business_type_id === row.business_type_id);
 
+  const stockRow = (db.item_stock_onhand || []).find(s => s.serial_id === row.serial_id && parseFloat(s.onhand_qty || 0) > 0);
+  let org = null, subinv = null, locator = null;
+  if (stockRow) {
+    org = (db.inventory_org || []).find(o => o.inv_org_id === stockRow.inv_org_id);
+    subinv = (db.subinventory || []).find(s => s.subinventory_id === stockRow.subinventory_id);
+    locator = (db.locator___bin || []).find(l => l.locator_id === stockRow.locator_id);
+  }
+
   const data = {
     ...row,
     item_name: item ? item.item_name : (row.item_name || ''),
@@ -72,7 +91,10 @@ exports.getById = (req, res) => {
     company_name: company ? company.company_name : (row.company_name || ''),
     bg_name: bg ? bg['Business Group Name'] : (row.bg_name || ''),
     business_group_name: bg ? bg['Business Group Name'] : (row.business_group_name || ''),
-    business_type_name: bt ? bt.name : (row.business_type_name || '')
+    business_type_name: bt ? bt.name : (row.business_type_name || ''),
+    inv_org_name: (row.status === 'AVAILABLE' && org) ? org.inv_org_name : null,
+    subinventory_name: (row.status === 'AVAILABLE' && subinv) ? subinv.subinventory_name : null,
+    locator_name: (row.status === 'AVAILABLE' && locator) ? locator.locator_name : null
   };
   res.json({ success:true, data });
 };

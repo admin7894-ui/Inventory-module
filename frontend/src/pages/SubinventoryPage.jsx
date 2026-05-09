@@ -214,13 +214,13 @@ export default function SubinventoryPage() {
               />
             </Field>
 
-            <Field label="Current Utilization Pct" error={v.errors.current_utilization_pct}>
+          {/*  <Field label="Current Utilization Pct" error={v.errors.current_utilization_pct}>
               <Input type="number" value={formData.current_utilization_pct} 
                 onChange={e => setField('current_utilization_pct', e.target.value)} 
                 onBlur={() => v.handleBlur('current_utilization_pct', formData)}
                 error={v.errors.current_utilization_pct}
               />
-            </Field>
+            </Field>*/}
 
             <Field label="Description"><textarea className="input" disabled={view==='view'} rows={3} value={formData.description||''} onChange={e => setField('description',e.target.value)} /></Field>
             

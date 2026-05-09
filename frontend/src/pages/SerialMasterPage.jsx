@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useTableData } from '../hooks/useTableData'
 import { DataTable, FormPage, Field, Input } from '../components/ui/index'
 import { serialMasterApi } from '../services/api'
+import { displayValue } from '../utils/displayValue'
 
 const COLUMNS = [
   { key: 'serial_id',          label: 'Serial ID' },
@@ -10,6 +11,9 @@ const COLUMNS = [
   { key: 'bg_name',            label: 'Business Group' },
   { key: 'item_code',          label: 'Item Code' },
   { key: 'item_name',          label: 'Item Name' },
+  { key: 'inv_org_name',       label: 'Organization', render: v => displayValue(v) },
+  { key: 'subinventory_name',  label: 'Subinventory', render: v => displayValue(v) },
+  { key: 'locator_name',       label: 'Locator / Bin', render: v => displayValue(v) },
   { key: 'serial_number',      label: 'Serial Number' },
   {
     key: 'status',
@@ -51,6 +55,9 @@ export default function SerialMasterPage() {
             <Field label="Business Type"><Input value={selected.business_type_name || selected.business_type_id} readOnly /></Field>
             <Field label="Item Code"><Input value={selected.item_code || selected.item_id} readOnly /></Field>
             <Field label="Item Name"><Input value={selected.item_name} readOnly /></Field>
+            <Field label="Organization"><Input value={displayValue(selected.inv_org_name)} readOnly /></Field>
+            <Field label="Subinventory"><Input value={displayValue(selected.subinventory_name)} readOnly /></Field>
+            <Field label="Locator / Bin"><Input value={displayValue(selected.locator_name)} readOnly /></Field>
             <Field label="Serial Number"><Input value={selected.serial_number} readOnly /></Field>
             <Field label="Status">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${

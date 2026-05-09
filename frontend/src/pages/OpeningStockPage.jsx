@@ -8,7 +8,8 @@ import { Package, MapPin, Hash, BarChart3, FileText, AlertTriangle, Ban, Plus, X
 import {
   openingStockApi, moduleApi, inventoryOrgApi, subinventoryApi, locatorApi,
   itemMasterApi, uomApi, itemTypeApi, transactionReasonApi,
-  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi, uomConvApi
+  itemOrgAssignmentApi, itemSubinvRestrictionApi, orgParameterApi, uomConvApi,
+  lotMasterApi, serialMasterApi
 } from '../services/api'
 
 const COLUMNS = [
@@ -256,6 +257,41 @@ export default function OpeningStockPage() {
     return () => { active = false }
   }, [formData.item_id, formData.uom_id, selectedItem])
 
+  const handleAutoGenerateLot = async () => {
+    if (!formData.item_id) return toast.error('Select item first');
+    try {
+      const lotResp = await lotMasterApi.generateLot({ item_id: formData.item_id });
+      if (lotResp.success) {
+        setField('lot_number', lotResp.data);
+        toast.success('Lot number auto-generated');
+      }
+    } catch (err) {
+      toast.error('Failed to generate lot number');
+    }
+  };
+
+  const handleAutoGenerateSerials = async () => {
+    const qty = parseFloat(formData.opening_qty || 0);
+    const rate = conversionRate !== null ? conversionRate : 1;
+    const baseQty = Math.max(0, Math.floor(qty * rate));
+    
+    if (!baseQty) return toast.error('Enter valid physical quantity first');
+    if (!formData.item_id) return toast.error('Select item first');
+    
+    try {
+      const resp = await serialMasterApi.generateSerials({ 
+        item_id: formData.item_id, 
+        qty: baseQty 
+      });
+      if (resp.success && Array.isArray(resp.data)) {
+        setSerialInputs(resp.data);
+        toast.success(`Generated ${resp.data.length} serial numbers`);
+      }
+    } catch (err) {
+      toast.error('Failed to generate serials');
+    }
+  };
+
   const handleCreate = () => {
     setFormData({
       active_flag: 'Y',
@@ -442,9 +478,19 @@ export default function OpeningStockPage() {
             <SectionHeader icon={Hash} title="Lot Details" subtitle="Optional — leave blank to auto-generate" color="purple" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label="Lot Number" error={errors.lot_number}>
-                <Input value={formData.lot_number} error={errors.lot_number} disabled={view === 'view' || view === 'edit'}
-                  placeholder="Auto-generated if empty"
-                  onChange={e => setField('lot_number', e.target.value)} onBlur={() => validateField('lot_number', formData.lot_number)} />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input value={formData.lot_number} error={errors.lot_number} disabled={view === 'view' || view === 'edit'}
+                      placeholder="Auto-generated if empty"
+                      onChange={e => setField('lot_number', e.target.value)} onBlur={() => validateField('lot_number', formData.lot_number)} />
+                  </div>
+                  {view === 'create' && (
+                    <button type="button" onClick={handleAutoGenerateLot}
+                      className="px-3 py-2 text-[10px] font-bold uppercase bg-purple-50 text-purple-600 border border-purple-200 rounded hover:bg-purple-100 transition-colors">
+                      Auto
+                    </button>
+                  )}
+                </div>
               </Field>
               {isExpirable && (
                 <Field label="Expiry Date">
@@ -457,7 +503,21 @@ export default function OpeningStockPage() {
 
         {selectedItem && isSerialControlled && (
           <div className="card p-6 mb-5 border-l-4 border-amber-500 animate-slide-in">
-            <SectionHeader icon={Hash} title="Serial Numbers" subtitle="Enter one per unit or leave blank to auto-generate" color="amber" />
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <Hash className="w-4 h-4 text-amber-500" />
+                Serial Numbers
+                <span className="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded ml-2">
+                  Enter one per unit or leave blank to auto-generate
+                </span>
+              </h4>
+              {view === 'create' && (
+                <button type="button" onClick={handleAutoGenerateSerials}
+                  className="text-[10px] font-bold uppercase tracking-wider text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 px-3 py-1 rounded-full transition-all">
+                  Auto-Generate Serials
+                </button>
+              )}
+            </div>
             {view === 'create' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {serialInputs.map((val, idx) => (
