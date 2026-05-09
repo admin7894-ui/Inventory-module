@@ -33,6 +33,8 @@ exports.getAll = (req, res) => {
       const available = parseFloat(stock.available_qty || 0);
       const reserved = parseFloat(stock.reserved_qty || 0);
       const inTransit = parseFloat(stock.in_transit_qty || 0);
+      const damaged = parseFloat(stock.damaged_qty || 0);
+      const hold = parseFloat(stock.hold_qty || 0);
       const totalValue = parseFloat(stock.total_cost_value || 0);
 
       if (!current) {
@@ -43,6 +45,8 @@ exports.getAll = (req, res) => {
           available_qty: available,
           reserved_qty: reserved,
           in_transit_qty: inTransit,
+          damaged_qty: damaged,
+          hold_qty: hold,
           total_cost_value: totalValue,
           detail_serial_ids: stock.serial_id ? [stock.serial_id] : []
         });
@@ -53,6 +57,8 @@ exports.getAll = (req, res) => {
       current.available_qty += available;
       current.reserved_qty += reserved;
       current.in_transit_qty += inTransit;
+      current.damaged_qty += damaged;
+      current.hold_qty += hold;
       current.total_cost_value += totalValue;
       if (stock.serial_id) current.detail_serial_ids.push(stock.serial_id);
     });
@@ -89,6 +95,8 @@ exports.getAll = (req, res) => {
         available_qty: parseFloat(stock.available_qty || 0),
         reserved_qty: parseFloat(stock.reserved_qty || 0),
         in_transit_qty: parseFloat(stock.in_transit_qty || 0),
+        damaged_qty: parseFloat(stock.damaged_qty || 0),
+        hold_qty: parseFloat(stock.hold_qty || 0),
         total_cost_value: (parseFloat(stock.total_cost_value || 0)).toFixed(4),
         item_name: item ? item.item_name : (stock.item_name || ''),
         item_code: item ? item.item_code : (stock.item_code || ''),
